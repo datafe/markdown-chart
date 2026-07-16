@@ -6,7 +6,8 @@ placeholder mounting utility for markdown-it applications.
 `<MarkdownChart :source="markdown" />` works without supplying a markdown-it
 instance or renderer registry. The component creates safe defaults, registers
 ECharts, and applies a 360px minimum chart height automatically. Canonical
-inline datasets automatically include a Chart/Data switch.
+inline datasets and ECharts-resolved referenced datasets automatically include
+a Chart/Data switch.
 The switch uses chart and table icons while retaining accessible labels.
 
 Install the zero-config component with:

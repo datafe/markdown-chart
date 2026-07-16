@@ -20,6 +20,8 @@ const tsc = path.join(
 );
 const packages = ['core', 'echarts', 'markdown-it', 'react', 'vue'];
 const thirdPartyPackages = new Set(['core', 'echarts']);
+const repositoryUrl = 'https://github.com/datafe/markdown-chart.git';
+const registryUrl = 'https://registry.npmjs.org/';
 const temporaryRoot = mkdtempSync(path.join(tmpdir(), 'markdown-chart-pack-'));
 const packDirectory = path.join(temporaryRoot, 'tarballs');
 const consumerDirectory = path.join(temporaryRoot, 'consumer');
@@ -30,6 +32,25 @@ try {
   const tarballs = new Map();
   for (const packageName of packages) {
     const packageDirectory = path.join(root, 'packages', packageName);
+    const packageJson = JSON.parse(
+      readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'),
+    );
+    if (packageJson.private === true) {
+      throw new Error(`${packageJson.name} must not be private`);
+    }
+    if (packageJson.publishConfig?.access !== 'public') {
+      throw new Error(`${packageJson.name} must publish with public access`);
+    }
+    if (packageJson.publishConfig?.registry !== registryUrl) {
+      throw new Error(`${packageJson.name} must publish to ${registryUrl}`);
+    }
+    if (packageJson.repository?.url !== repositoryUrl) {
+      throw new Error(`${packageJson.name} repository must be ${repositoryUrl}`);
+    }
+    if (packageJson.repository?.directory !== `packages/${packageName}`) {
+      throw new Error(`${packageJson.name} repository directory is incorrect`);
+    }
+
     const output = execFileSync(
       pnpm,
       ['pack', '--pack-destination', packDirectory, '--json'],
@@ -56,7 +77,7 @@ try {
         ? manifest.filename
         : path.join(packDirectory, manifest.filename),
     );
-    console.log(`${manifest.name}: ${requiredFiles.join(', ')}`);
+    console.log(`${manifest.name}: metadata, ${requiredFiles.join(', ')}`);
 
     if (packageName === 'react') {
       if (files.has('dist/index.cjs')) {

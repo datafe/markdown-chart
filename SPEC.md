@@ -45,7 +45,8 @@ currently registered.
 
 Canonical data is either inline or referenced. Inline data is directly
 available to hosts for actions such as “View data”. The default framework
-adapters expose a Chart/Data switch for inline data:
+adapters expose a Chart/Data switch for inline data and for referenced data
+after a renderer materializes the reference as inline rows:
 
 ```json
 {
@@ -60,7 +61,9 @@ adapters expose a Chart/Data switch for inline data:
 - `inline`: contains `source` and optional `dimensions`.
 - `ref`: contains an opaque `ref`, optional `format`, and optional
   `dimensions`. A host-provided resolver returns the source. Renderers do not
-  interpret the reference or perform network requests.
+  interpret the reference or perform network requests. A renderer MAY return
+  resolved inline rows from its materialization step. The adapter then creates
+  the shared Chart/Data view before mounting the chart.
 
 Rows MUST be arrays of JSON scalar values or objects whose values are JSON
 scalars. `dimensions`, when present, MUST contain non-empty strings.
