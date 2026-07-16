@@ -281,6 +281,17 @@ export interface ChartMountContext {
   readonly theme: unknown;
 }
 
+export interface ChartMaterializeContext extends ChartMountContext {
+  readonly language: string;
+  readonly rendererId: string;
+  readonly data: ChartData | undefined;
+}
+
+export interface MaterializedChart<Parsed = unknown> {
+  readonly parsed: Parsed;
+  readonly data: ChartData | undefined;
+}
+
 export interface ChartHandle {
   dispose(): void;
   resize?(): void;
@@ -292,6 +303,10 @@ export interface ChartRenderer<Parsed = unknown> {
   readonly matchLanguage?: (language: string) => boolean;
   parse(spec: JsonValue, context: ChartParseContext): Parsed | Promise<Parsed>;
   parseSource?(source: string, context: ChartParseContext): Parsed | Promise<Parsed>;
+  materialize?(
+    parsed: Parsed,
+    context: ChartMaterializeContext,
+  ): MaterializedChart<Parsed> | Promise<MaterializedChart<Parsed>>;
   mount(
     container: HTMLElement,
     parsed: Parsed,
@@ -887,12 +902,25 @@ export class ChartController {
         return;
       }
 
-      const inlineData = prepared.data?.kind === 'inline' ? prepared.data : undefined;
+      const materialized = prepared.renderer.materialize
+        ? await prepared.renderer.materialize(prepared.parsed, {
+            signal: abortController.signal,
+            theme: request.theme,
+            language: prepared.language,
+            rendererId: prepared.rendererId,
+            data: prepared.data,
+          })
+        : { parsed: prepared.parsed, data: prepared.data };
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
+
+      const inlineData = materialized.data?.kind === 'inline' ? materialized.data : undefined;
       const view = inlineData
         ? createChartView(container, inlineData, () => this.#handle?.resize?.(), request.theme)
         : undefined;
       this.#view = view;
-      const handle = await prepared.renderer.mount(view?.chartContainer ?? container, prepared.parsed, {
+      const handle = await prepared.renderer.mount(view?.chartContainer ?? container, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
       });

@@ -3,9 +3,13 @@ import MarkdownIt from 'markdown-it';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue';
 import { ChartRendererRegistry, type ChartRenderer } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '../src/index';
+import {
+  MarkdownChart,
+  useMarkdownChart,
+  type UseMarkdownChartResult,
+} from '../src/index';
 
 function testRenderer(onMount: () => void): ChartRenderer {
   return {
@@ -13,6 +17,18 @@ function testRenderer(onMount: () => void): ChartRenderer {
     parse: (spec) => spec,
     mount() {
       onMount();
+    },
+  };
+}
+
+function fakeEChartsRuntime(): EChartsRuntime {
+  return {
+    init() {
+      return {
+        setOption() {},
+        resize() {},
+        dispose() {},
+      };
     },
   };
 }
@@ -71,31 +87,48 @@ describe('MarkdownChart reactive object props', () => {
     app.unmount();
   });
 
-  it('routes the temporary ChatBI fence in simple and advanced modes', async () => {
+  it('shows materialized legacy data in simple and advanced modes', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
     const resolveLegacyEChartQuery = async () => ({
-      data: { kind: 'inline' as const, source: [] },
-      spec: { series: [] },
+      data: {
+        kind: 'inline' as const,
+        dimensions: ['name', 'value'],
+        source: [['A', 10], ['B', 20]],
+      },
+      spec: { series: [{ type: 'bar' }] },
     });
+    const assertDataView = async (root: HTMLElement): Promise<void> => {
+      await vi.waitFor(() => {
+        expect(root.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+      });
+      root.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+      const dataView = root.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+      expect(dataView?.hidden).toBe(false);
+      expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+      expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
+    };
 
     const simpleApp = createApp(defineComponent({
       setup() {
         return () => h(MarkdownChart, {
           source,
-          streaming: true,
           resolveLegacyEChartQuery,
+          echarts: {
+            loadECharts: fakeEChartsRuntime,
+            resizeObserver: false,
+          },
         });
       },
     }));
     const simpleRoot = document.createElement('div');
     simpleApp.mount(simpleRoot);
-    await vi.waitFor(() => {
-      expect(simpleRoot.querySelector('.markdown-chart-placeholder')).not.toBeNull();
-    });
+    await assertDataView(simpleRoot);
     simpleApp.unmount();
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: fakeEChartsRuntime,
       resolveLegacyEChartQuery,
+      resizeObserver: false,
     }));
     const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
     const advancedApp = createApp(defineComponent({
@@ -104,16 +137,63 @@ describe('MarkdownChart reactive object props', () => {
           source,
           markdownIt,
           registry,
-          streaming: true,
         });
       },
     }));
     const advancedRoot = document.createElement('div');
     advancedApp.mount(advancedRoot);
-    await vi.waitFor(() => {
-      expect(advancedRoot.querySelector('.markdown-chart-placeholder')).not.toBeNull();
-    });
+    await assertDataView(advancedRoot);
     advancedApp.unmount();
+  });
+
+  it('retries a failed entry with the same input and clears its error state', async () => {
+    let attempts = 0;
+    const mount = vi.fn((container: HTMLElement) => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error('first mount failed');
+      }
+      container.dataset.mounted = 'true';
+    });
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount,
+    });
+    const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
+    const source = '```test\n{}\n```';
+    let state: UseMarkdownChartResult | undefined;
+    const app = createApp(defineComponent({
+      setup() {
+        const chartState = useMarkdownChart({ source, markdownIt, registry });
+        state = chartState;
+        return () => h('div', {
+          ref: chartState.container,
+          innerHTML: chartState.html.value,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+
+    await vi.waitFor(() => {
+      const placeholder = root.querySelector('.markdown-chart-placeholder');
+      expect(mount).toHaveBeenCalledOnce();
+      expect(placeholder?.classList.contains('markdown-chart-error')).toBe(true);
+      expect(placeholder?.getAttribute('role')).toBe('alert');
+      expect(placeholder?.textContent).toBe('Chart unavailable');
+    });
+
+    await state?.refresh();
+    await vi.waitFor(() => {
+      const placeholder = root.querySelector<HTMLElement>('.markdown-chart-placeholder');
+      expect(mount).toHaveBeenCalledTimes(2);
+      expect(placeholder?.dataset.mounted).toBe('true');
+      expect(placeholder?.classList.contains('markdown-chart-error')).toBe(false);
+      expect(placeholder?.hasAttribute('role')).toBe(false);
+      expect(placeholder?.textContent).not.toContain('Chart unavailable');
+    });
+    app.unmount();
   });
 
   it('preserves a completed chart while streaming text is appended', async () => {
