@@ -63,6 +63,19 @@ export const DEFAULT_JSON_LIMITS: Readonly<JsonParseLimits> = Object.freeze({
 
 const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
+function assertChartSourceSize(
+  source: string,
+  overrides: Partial<JsonParseLimits>,
+): void {
+  const maxCharacters = overrides.maxCharacters ?? DEFAULT_JSON_LIMITS.maxCharacters;
+  if (source.length > maxCharacters) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `Chart fence exceeds the ${maxCharacters} character limit`,
+    );
+  }
+}
+
 export function isJsonObject(value: unknown): value is Record<string, JsonValue> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return false;
@@ -121,12 +134,7 @@ export function parseChartJson(
   overrides: Partial<JsonParseLimits> = {},
 ): JsonValue {
   const limits: JsonParseLimits = { ...DEFAULT_JSON_LIMITS, ...overrides };
-  if (source.length > limits.maxCharacters) {
-    throw new MarkdownChartError(
-      'LIMIT_EXCEEDED',
-      `Chart fence exceeds the ${limits.maxCharacters} character limit`,
-    );
-  }
+  assertChartSourceSize(source, limits);
 
   let parsed: unknown;
   try {
@@ -242,7 +250,9 @@ export interface ChartHandle {
 export interface ChartRenderer<Parsed = unknown> {
   readonly id: string;
   readonly aliases?: readonly string[];
+  readonly matchLanguage?: (language: string) => boolean;
   parse(spec: JsonValue, context: ChartParseContext): Parsed | Promise<Parsed>;
+  parseSource?(source: string, context: ChartParseContext): Parsed | Promise<Parsed>;
   mount(
     container: HTMLElement,
     parsed: Parsed,
@@ -345,7 +355,9 @@ export class ChartRendererRegistry {
 
   has(name: string): boolean {
     const normalized = name.trim().toLowerCase();
-    return normalized === MARKDOWN_CHART_LANGUAGE || this.#names.has(normalized);
+    return normalized === MARKDOWN_CHART_LANGUAGE
+      || this.#names.has(normalized)
+      || [...this.#renderers.values()].some((renderer) => renderer.matchLanguage?.(normalized) === true);
   }
 
   get rendererIds(): readonly string[] {
@@ -358,26 +370,48 @@ export class ChartRendererRegistry {
     let rendererId: string;
     let spec: JsonValue;
     let data: ChartData | undefined;
+    let parseSource = false;
     if (language === MARKDOWN_CHART_LANGUAGE) {
       const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
       rendererId = envelope.renderer;
       spec = envelope.spec;
       data = envelope.data;
     } else {
-      const body = parseChartJson(source, this.#jsonLimits);
-      const resolved = this.#names.get(language);
-      if (!resolved) {
+      const exact = this.#names.get(language);
+      const matched = exact ? [] : [...this.#renderers.entries()]
+        .filter(([, renderer]) => renderer.matchLanguage?.(language) === true)
+        .map(([id]) => id);
+      if (!exact && matched.length === 0) {
         throw new MarkdownChartError('RENDERER_NOT_FOUND', `No renderer is registered for ${language || 'this fence'}`);
       }
-      rendererId = resolved;
-      spec = body;
+      if (matched.length > 1) {
+        throw new MarkdownChartError(
+          'RENDERER_CONFLICT',
+          `Multiple renderers match the dynamic fence language ${language}`,
+        );
+      }
+      rendererId = exact ?? matched[0] as string;
+      parseSource = !exact;
+      if (parseSource) {
+        assertChartSourceSize(source, this.#jsonLimits);
+      }
+      spec = parseSource ? null : parseChartJson(source, this.#jsonLimits);
     }
 
     const renderer = this.#renderers.get(rendererId);
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const parsed = await renderer.parse(spec, { language, rendererId, data });
+    const context: ChartParseContext = { language, rendererId, data };
+    if (parseSource && !renderer.parseSource) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `Renderer ${rendererId} matched ${language} but cannot parse its source`,
+      );
+    }
+    const parsed = parseSource
+      ? await renderer.parseSource!(source, context)
+      : await renderer.parse(spec, context);
     return { renderer, parsed, data, language, rendererId };
   }
 }

@@ -20,6 +20,7 @@ import {
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
+  type ResolveLegacyEChartQuery,
 } from '@datafe/markdown-chart-echarts';
 
 export type MarkdownChartReactErrorHandler = (
@@ -166,6 +167,8 @@ export interface MarkdownChartProps {
   readonly source: string;
   readonly registry?: ChartRendererRegistry;
   readonly echarts?: CreateEChartsRendererOptions;
+  /** @deprecated Temporary ChatBI migration hook. Do not use for new content. */
+  readonly resolveLegacyEChartQuery?: ResolveLegacyEChartQuery;
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly onError?: MarkdownChartReactErrorHandler;
@@ -175,8 +178,13 @@ export interface MarkdownChartProps {
 
 export function MarkdownChart(props: MarkdownChartProps): ReactElement {
   const automaticRegistry = useMemo(() => (
-    new ChartRendererRegistry().register(createEChartsRenderer(props.echarts))
-  ), [props.echarts]);
+    new ChartRendererRegistry().register(createEChartsRenderer({
+      ...props.echarts,
+      ...(props.resolveLegacyEChartQuery
+        ? { resolveLegacyEChartQuery: props.resolveLegacyEChartQuery }
+        : {}),
+    }))
+  ), [props.echarts, props.resolveLegacyEChartQuery]);
   const registry = props.registry ?? automaticRegistry;
   const components = useMemo(() => createMarkdownChartComponents({
     ...(props.chartClassName ? { chartClassName: props.chartClassName } : {}),

@@ -53,6 +53,64 @@ describe('ChartRendererRegistry', () => {
     expect(prepared.language).toBe('vega-lite');
   });
 
+  it('routes matched dynamic languages without interpreting their source', async () => {
+    const parseSource = vi.fn((source: string) => ({ source }));
+    const registry = new ChartRendererRegistry().register({
+      id: 'temporary',
+      matchLanguage: (language) => /^temporary-\d+$/.test(language),
+      parse: (spec) => spec,
+      parseSource,
+      mount() {},
+    });
+
+    expect(registry.has('temporary-42')).toBe(true);
+    const prepared = await registry.prepare('temporary-42', 'not json');
+    expect(parseSource).toHaveBeenCalledWith('not json', {
+      language: 'temporary-42',
+      rendererId: 'temporary',
+      data: undefined,
+    });
+    expect(prepared.parsed).toEqual({ source: 'not json' });
+  });
+
+  it('rejects ambiguous dynamic language matches', async () => {
+    const registry = new ChartRendererRegistry()
+      .register({
+        id: 'first',
+        matchLanguage: () => true,
+        parse: (spec) => spec,
+        parseSource: (source) => source,
+        mount() {},
+      })
+      .register({
+        id: 'second',
+        matchLanguage: () => true,
+        parse: (spec) => spec,
+        parseSource: (source) => source,
+        mount() {},
+      });
+
+    await expect(registry.prepare('dynamic', 'source'))
+      .rejects.toMatchObject({ code: 'RENDERER_CONFLICT' });
+  });
+
+  it('applies source size limits to matched dynamic languages', async () => {
+    const parseSource = vi.fn((source: string) => source);
+    const registry = new ChartRendererRegistry({
+      jsonLimits: { maxCharacters: 4 },
+    }).register({
+      id: 'temporary',
+      matchLanguage: () => true,
+      parse: (spec) => spec,
+      parseSource,
+      mount() {},
+    });
+
+    await expect(registry.prepare('temporary', 'too long'))
+      .rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    expect(parseSource).not.toHaveBeenCalled();
+  });
+
   it('rejects aliases owned by another renderer', () => {
     const registry = new ChartRendererRegistry().register({
       id: 'first',
