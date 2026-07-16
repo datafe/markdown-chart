@@ -80,6 +80,103 @@ const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, { registry }
 The package never fetches a data reference itself. Applications decide which
 reference schemes are allowed and provide the resolver.
 
+## React + react-markdown
+
+```sh
+pnpm add echarts react-markdown @datafe/markdown-chart \
+  @datafe/markdown-chart-echarts @datafe/markdown-chart-react
+```
+
+````tsx
+import ReactMarkdown from 'react-markdown';
+import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import {
+  createMarkdownChartComponents,
+  MarkdownChartProvider,
+} from '@datafe/markdown-chart-react';
+
+const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+  loadECharts: () => import('echarts'),
+}));
+const components = createMarkdownChartComponents({
+  chartClassName: 'markdown-chart-block',
+});
+const source = `# Sales
+
+\`\`\`markdown-chart
+{
+  "version": 1,
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "yAxis": {},
+    "series": [{ "type": "bar", "data": [10, 20] }]
+  }
+}
+\`\`\``;
+
+export function App() {
+  return (
+    <MarkdownChartProvider registry={registry}>
+      <ReactMarkdown components={components}>{source}</ReactMarkdown>
+    </MarkdownChartProvider>
+  );
+}
+````
+
+```css
+.markdown-chart-block {
+  min-height: 360px;
+}
+```
+
+## Vue 3 + markdown-it
+
+```sh
+pnpm add echarts markdown-it @datafe/markdown-chart \
+  @datafe/markdown-chart-echarts @datafe/markdown-chart-markdown-it \
+  @datafe/markdown-chart-vue
+```
+
+`````vue
+<script setup lang="ts">
+import MarkdownIt from 'markdown-it';
+import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe/markdown-chart-vue';
+
+const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+  loadECharts: () => import('echarts'),
+}));
+const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, { registry });
+const source = `# Sales
+
+\`\`\`markdown-chart
+{
+  "version": 1,
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "yAxis": {},
+    "series": [{ "type": "bar", "data": [10, 20] }]
+  }
+}
+\`\`\``;
+</script>
+
+<template>
+  <MarkdownChart :source="source" :markdown-it="md" :registry="registry" />
+</template>
+
+<style>
+.markdown-chart-placeholder {
+  min-height: 360px;
+}
+</style>
+`````
+
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
 examples under `examples/`.
 
