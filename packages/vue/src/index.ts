@@ -127,6 +127,9 @@ class MarkdownChartMountManager {
       }
 
       existing?.controller.dispose();
+      placeholder.classList.remove('markdown-chart-error');
+      placeholder.removeAttribute('role');
+      placeholder.replaceChildren();
       const controller = new ChartController(registry);
       const entry: MountedMarkdownChartEntry = {
         block,
@@ -146,6 +149,8 @@ class MarkdownChartMountManager {
         if (this.#entries.get(block.id) !== entry) {
           return;
         }
+        this.#entries.delete(block.id);
+        controller.dispose();
         placeholder.classList.add('markdown-chart-error');
         placeholder.setAttribute('role', 'alert');
         placeholder.textContent = 'Chart unavailable';

@@ -14,14 +14,12 @@
   },
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     }
   },
   "files": ["dist", "README.md", "LICENSE"],
@@ -30,7 +28,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.tsx --format esm,cjs --dts --clean --external react --external react-markdown --external @datafe/markdown-chart --external @datafe/markdown-chart-echarts",
+    "build": "tsup src/index.tsx --format esm --dts --clean --external react --external react-markdown --external @datafe/markdown-chart --external @datafe/markdown-chart-echarts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

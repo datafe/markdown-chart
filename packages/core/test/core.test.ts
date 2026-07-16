@@ -260,6 +260,90 @@ describe('ChartController', () => {
     expect(mount).not.toHaveBeenCalled();
   });
 
+  it('materializes renderer data before creating the data view and mounting', async () => {
+    const order: string[] = [];
+    const parse = vi.fn((spec) => {
+      order.push('parse');
+      return spec;
+    });
+    const materialize = vi.fn((parsed, context) => {
+      order.push('materialize');
+      expect(context).toMatchObject({
+        language: 'test',
+        rendererId: 'test',
+        data: undefined,
+        theme: 'dark',
+      });
+      expect(context.signal).toBeInstanceOf(AbortSignal);
+      return {
+        parsed: { original: parsed, resolved: true },
+        data: {
+          kind: 'inline' as const,
+          dimensions: ['name', 'value'],
+          source: [['A', 10]],
+        },
+      };
+    });
+    const mount = vi.fn((container, parsed) => {
+      order.push('mount');
+      expect(parsed).toEqual({ original: {}, resolved: true });
+      container.dataset.mounted = 'true';
+    });
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse,
+      materialize,
+      mount,
+    });
+    const element = document.createElement('div');
+
+    await new ChartController(registry).render(element, {
+      language: 'test',
+      source: '{}',
+      theme: 'dark',
+    });
+
+    expect(order).toEqual(['parse', 'materialize', 'mount']);
+    expect(parse).toHaveBeenCalledOnce();
+    expect(materialize).toHaveBeenCalledOnce();
+    expect(mount).toHaveBeenCalledOnce();
+    expect(element.querySelector('[data-markdown-chart-chart-view]')?.getAttribute('data-mounted'))
+      .toBe('true');
+    const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    showData?.click();
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+  });
+
+  it('aborts and discards an in-flight materialization before mount', async () => {
+    let finishMaterialize: ((value: { parsed: unknown; data: undefined }) => void) | undefined;
+    let materializeSignal: AbortSignal | undefined;
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      materialize(parsed, context) {
+        materializeSignal = context.signal;
+        return new Promise((resolve) => {
+          finishMaterialize = resolve;
+        });
+      },
+      mount,
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    const render = controller.render(element, { language: 'test', source: '{}' });
+    await vi.waitFor(() => expect(finishMaterialize).toBeTypeOf('function'));
+
+    await controller.render(element, { language: 'test', source: '{', streaming: true });
+    expect(materializeSignal?.aborted).toBe(true);
+    finishMaterialize?.({ parsed: {}, data: undefined });
+    await render;
+    expect(mount).not.toHaveBeenCalled();
+    expect(element.childElementCount).toBe(0);
+  });
+
   it('provides chart and canonical inline data views without remounting the chart', async () => {
     const resize = vi.fn();
     const dispose = vi.fn();

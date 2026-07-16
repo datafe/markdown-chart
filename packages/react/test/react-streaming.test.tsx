@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
+import ReactMarkdown from 'react-markdown';
 import { describe, expect, it, vi } from 'vitest';
 import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { MarkdownChart } from '../src/index';
+import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
+import {
+  createMarkdownChartComponents,
+  MarkdownChart,
+  MarkdownChartProvider,
+} from '../src/index';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -21,6 +27,18 @@ const canonicalBody = JSON.stringify({
 
 function closedChart(trailing = ''): string {
   return `\`\`\`markdown-chart\n${canonicalBody}\n\`\`\`${trailing}`;
+}
+
+function fakeEChartsRuntime(): EChartsRuntime {
+  return {
+    init() {
+      return {
+        setOption() {},
+        resize() {},
+        dispose() {},
+      };
+    },
+  };
 }
 
 describe('MarkdownChart streaming lifecycle', () => {
@@ -98,5 +116,62 @@ describe('MarkdownChart streaming lifecycle', () => {
     expect(parse).toHaveBeenCalledOnce();
 
     await act(async () => root.unmount());
+  });
+
+  it('shows materialized legacy data in simple and advanced integrations', async () => {
+    const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
+    const resolveLegacyEChartQuery = async () => ({
+      data: {
+        kind: 'inline' as const,
+        dimensions: ['name', 'value'],
+        source: [['A', 10], ['B', 20]],
+      },
+      spec: { series: [{ type: 'bar' }] },
+    });
+    const assertDataView = async (container: HTMLElement): Promise<void> => {
+      await vi.waitFor(() => {
+        expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+      });
+      container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+      const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+      expect(dataView?.hidden).toBe(false);
+      expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+      expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
+    };
+
+    const simpleContainer = document.createElement('div');
+    const simpleRoot = createRoot(simpleContainer);
+    await act(async () => {
+      simpleRoot.render(
+        <MarkdownChart
+          source={source}
+          resolveLegacyEChartQuery={resolveLegacyEChartQuery}
+          echarts={{
+            loadECharts: fakeEChartsRuntime,
+            resizeObserver: false,
+          }}
+        />,
+      );
+    });
+    await assertDataView(simpleContainer);
+    await act(async () => simpleRoot.unmount());
+
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: fakeEChartsRuntime,
+      resolveLegacyEChartQuery,
+      resizeObserver: false,
+    }));
+    const components = createMarkdownChartComponents({ chartStyle: { minHeight: 360 } });
+    const advancedContainer = document.createElement('div');
+    const advancedRoot = createRoot(advancedContainer);
+    await act(async () => {
+      advancedRoot.render(
+        <MarkdownChartProvider registry={registry}>
+          <ReactMarkdown components={components}>{source}</ReactMarkdown>
+        </MarkdownChartProvider>,
+      );
+    });
+    await assertDataView(advancedContainer);
+    await act(async () => advancedRoot.unmount());
   });
 });
