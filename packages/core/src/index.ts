@@ -1,4 +1,5 @@
 export type JsonPrimitive = string | number | boolean | null;
+export const MARKDOWN_CHART_LANGUAGE = 'markdown-chart' as const;
 export type JsonValue =
   | JsonPrimitive
   | JsonValue[]
@@ -182,8 +183,8 @@ export class ChartRendererRegistry {
     const id = normalizeName(renderer.id, 'renderer id');
     const names = [id, ...(renderer.aliases ?? []).map((alias) => normalizeName(alias, 'renderer alias'))];
     for (const name of names) {
-      if (name === 'chart') {
-        throw new MarkdownChartError('RENDERER_CONFLICT', 'The canonical chart fence cannot be a renderer alias');
+      if (name === MARKDOWN_CHART_LANGUAGE) {
+        throw new MarkdownChartError('RENDERER_CONFLICT', 'The canonical markdown-chart fence cannot be a renderer alias');
       }
       const existing = this.#names.get(name);
       if (existing) {
@@ -202,7 +203,7 @@ export class ChartRendererRegistry {
 
   has(name: string): boolean {
     const normalized = name.trim().toLowerCase();
-    return normalized === 'chart' || this.#names.has(normalized);
+    return normalized === MARKDOWN_CHART_LANGUAGE || this.#names.has(normalized);
   }
 
   get rendererIds(): readonly string[] {
@@ -215,18 +216,18 @@ export class ChartRendererRegistry {
 
     let rendererId: string;
     let spec: JsonValue;
-    if (language === 'chart') {
+    if (language === MARKDOWN_CHART_LANGUAGE) {
       if (!isJsonObject(body)) {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'The canonical chart fence must contain an object');
+        throw new MarkdownChartError('SCHEMA_INVALID', 'The canonical markdown-chart fence must contain an object');
       }
       if (body.version !== 1) {
-        throw new MarkdownChartError('UNSUPPORTED_VERSION', 'Only chart protocol version 1 is supported');
+        throw new MarkdownChartError('UNSUPPORTED_VERSION', 'Only markdown-chart protocol version 1 is supported');
       }
       if (typeof body.renderer !== 'string') {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'chart.renderer must be a string');
+        throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.renderer must be a string');
       }
       if (!Object.prototype.hasOwnProperty.call(body, 'spec')) {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'chart.spec is required');
+        throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.spec is required');
       }
       rendererId = normalizeName(body.renderer, 'renderer id');
       spec = body.spec as JsonValue;

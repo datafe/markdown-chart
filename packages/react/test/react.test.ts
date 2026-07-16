@@ -3,8 +3,9 @@ import { ChartRendererRegistry } from '@datafe/markdown-chart';
 import { isRegisteredChartLanguage } from '../src/index';
 
 describe('react-markdown chart routing', () => {
-  it('recognizes canonical chart fences without renderer defaults', () => {
-    expect(isRegisteredChartLanguage('chart', undefined)).toBe(true);
+  it('recognizes canonical markdown-chart fences without renderer defaults', () => {
+    expect(isRegisteredChartLanguage('markdown-chart', undefined)).toBe(true);
+    expect(isRegisteredChartLanguage('chart', undefined)).toBe(false);
     expect(isRegisteredChartLanguage('echarts', undefined)).toBe(false);
   });
 

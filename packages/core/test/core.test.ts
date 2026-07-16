@@ -9,7 +9,7 @@ import {
 } from '../src/index';
 
 describe('ChartRendererRegistry', () => {
-  it('routes canonical chart envelopes without renderer-specific core switches', async () => {
+  it('routes canonical markdown-chart envelopes without renderer-specific core switches', async () => {
     const plotly: ChartRenderer<string> = {
       id: 'plotly',
       aliases: ['plotly-json'],
@@ -20,7 +20,7 @@ describe('ChartRendererRegistry', () => {
     };
     const registry = new ChartRendererRegistry().register(plotly);
 
-    const prepared = await registry.prepare('chart', JSON.stringify({
+    const prepared = await registry.prepare('markdown-chart', JSON.stringify({
       version: 1,
       renderer: 'plotly',
       spec: { data: [] },

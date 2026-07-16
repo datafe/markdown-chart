@@ -7,7 +7,7 @@ does not prescribe a UI framework, data transport, or chart engine.
 
 ## Canonical fence
 
-The canonical language is `chart`. Its body is a strict JSON object:
+The canonical language is `markdown-chart`. Its body is a strict JSON object:
 
 ```json
 {
@@ -28,16 +28,16 @@ the entire JSON body to that renderer. Aliases are resolved by the registry;
 the core has no hard-coded ECharts, Plotly, or Vega branches.
 
 Markdown adapters MUST route shorthand fences through the live registry rather
-than maintain renderer-specific language defaults. The canonical `chart` fence
-is recognized independently of which renderers are currently registered.
+than maintain renderer-specific language defaults. The canonical
+`markdown-chart` fence is recognized independently of which renderers are
+currently registered.
 
-## ECharts v1 specification
+## ECharts specification
 
 An ECharts spec is either an ECharts option object or this envelope:
 
 ```json
 {
-  "version": 1,
   "data": {
     "kind": "inline",
     "dimensions": ["category", "value"],
@@ -68,6 +68,8 @@ not parsed or mounted. Once complete, the same block can be rendered normally.
 
 ## Evolution
 
-New incompatible canonical or renderer envelopes require a new numeric
-`version`. New renderer implementations are published as independent packages
-and registered at runtime.
+`version` belongs only to the canonical `markdown-chart` envelope. Renderer
+specifications do not introduce a second version field. New incompatible
+canonical envelopes require a new numeric `version`; incompatible renderer
+schemas should use a new renderer identifier. New renderer implementations are
+published as independent packages and registered at runtime.

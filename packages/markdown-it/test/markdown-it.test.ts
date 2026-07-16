@@ -11,14 +11,14 @@ describe('markdownChartPlugin', () => {
   it('keeps chart JSON out of generated HTML and exposes it through env', () => {
     const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
     const env: MarkdownChartEnvironment = {};
-    const source = '```chart\n{"version":1,"renderer":"echarts","spec":{}}\n```';
+    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{}}\n```';
     const html = md.render(source, env);
 
     expect(html).toContain('data-markdown-chart-id="markdown-chart-0"');
     expect(html).not.toContain('renderer');
     expect(getMarkdownChartBlocks(env)).toEqual([{
       id: 'markdown-chart-0',
-      language: 'chart',
+      language: 'markdown-chart',
       source: '{"version":1,"renderer":"echarts","spec":{}}\n',
     }]);
   });
@@ -28,6 +28,14 @@ describe('markdownChartPlugin', () => {
     const env: MarkdownChartEnvironment = {};
     const html = md.render('```ts\nconst answer = 42\n```', env);
     expect(html).toContain('<code class="language-ts">');
+    expect(getMarkdownChartBlocks(env)).toEqual([]);
+  });
+
+  it('does not treat the old chart fence as canonical', () => {
+    const md = new MarkdownIt().use(markdownChartPlugin);
+    const env: MarkdownChartEnvironment = {};
+    const html = md.render('```chart\n{}\n```', env);
+    expect(html).toContain('<code class="language-chart">');
     expect(getMarkdownChartBlocks(env)).toEqual([]);
   });
 

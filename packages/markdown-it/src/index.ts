@@ -1,5 +1,8 @@
 import type MarkdownIt from 'markdown-it';
-import type { ChartRendererRegistry } from '@datafe/markdown-chart';
+import {
+  MARKDOWN_CHART_LANGUAGE,
+  type ChartRendererRegistry,
+} from '@datafe/markdown-chart';
 
 export const MARKDOWN_CHART_ENV_KEY = 'markdownChart' as const;
 
@@ -70,7 +73,7 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
       return '';
     }
     const language = normalizeLanguage(token.info);
-    const isChartLanguage = language === 'chart'
+    const isChartLanguage = language === MARKDOWN_CHART_LANGUAGE
       || options.registry?.has(language) === true
       || options.isChartLanguage?.(language) === true;
     if (!isChartLanguage) {

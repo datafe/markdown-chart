@@ -11,7 +11,11 @@ import {
   type ReactNode,
 } from 'react';
 import type { Components } from 'react-markdown';
-import { ChartController, type ChartRendererRegistry } from '@datafe/markdown-chart';
+import {
+  ChartController,
+  MARKDOWN_CHART_LANGUAGE,
+  type ChartRendererRegistry,
+} from '@datafe/markdown-chart';
 
 export type MarkdownChartReactErrorHandler = (
   error: unknown,
@@ -116,7 +120,7 @@ export function isRegisteredChartLanguage(
   language: string,
   registry: Pick<ChartRendererRegistry, 'has'> | undefined,
 ): boolean {
-  return language === 'chart' || registry?.has(language) === true;
+  return language === MARKDOWN_CHART_LANGUAGE || registry?.has(language) === true;
 }
 
 export function createMarkdownChartComponents(
