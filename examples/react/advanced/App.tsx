@@ -7,15 +7,25 @@ import {
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 
+const source = `# Sales
+
+\`\`\`markdown-chart
+{
+  "version": 1,
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "yAxis": {},
+    "series": [{ "type": "bar", "data": [10, 20] }]
+  }
+}
+\`\`\``;
+
 const chartComponents = createMarkdownChartComponents({
   chartStyle: { minHeight: 360 },
 });
 
-export interface AdvancedExampleProps {
-  readonly source: string;
-}
-
-export function AdvancedExample({ source }: AdvancedExampleProps) {
+export function App() {
   const registry = useMemo(
     () => new ChartRendererRegistry().register(createEChartsRenderer()),
     [],

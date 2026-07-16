@@ -144,8 +144,8 @@ pnpm add echarts react-markdown @datafe/markdown-chart-react
 ```
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
-examples under `examples/`. Each runnable example renders simple and advanced
-integration modes side by side.
+[examples](./examples/). Simple and advanced modes live in separate runnable
+folders with independent dependency manifests.
 
 ## Development
 
@@ -157,7 +157,7 @@ pnpm build
 pnpm build:examples
 ```
 
-The root build validates both publishable packages and the React/Vue Vite
+The root build validates both publishable packages and all four React/Vue Vite
 examples. Example workspaces are private and are never included in package
 tarballs.
 

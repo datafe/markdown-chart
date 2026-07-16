@@ -1,4 +1,7 @@
-export const source = `# Sales
+<script setup lang="ts">
+import { MarkdownChart } from '@datafe/markdown-chart-vue';
+
+const source = `# Sales
 
 \`\`\`markdown-chart
 {
@@ -11,3 +14,8 @@ export const source = `# Sales
   }
 }
 \`\`\``;
+</script>
+
+<template>
+  <MarkdownChart :source="source" />
+</template>

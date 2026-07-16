@@ -1,4 +1,6 @@
-export const source = `# Sales
+import { MarkdownChart } from '@datafe/markdown-chart-react';
+
+const source = `# Sales
 
 \`\`\`markdown-chart
 {
@@ -11,3 +13,7 @@ export const source = `# Sales
   }
 }
 \`\`\``;
+
+export function App() {
+  return <MarkdownChart source={source} />;
+}

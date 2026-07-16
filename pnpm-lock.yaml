@@ -24,17 +24,17 @@ importers:
         specifier: ^3.1.3
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jsdom@26.1.0)
 
-  examples/react:
+  examples/react/advanced:
     dependencies:
       '@datafe/markdown-chart':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../../packages/core
       '@datafe/markdown-chart-echarts':
         specifier: workspace:*
-        version: link:../../packages/echarts
+        version: link:../../../packages/echarts
       '@datafe/markdown-chart-react':
         specifier: workspace:*
-        version: link:../../packages/react
+        version: link:../../../packages/react
       echarts:
         specifier: ^6.0.0
         version: 6.1.0
@@ -64,20 +64,51 @@ importers:
         specifier: ^6.3.5
         version: 6.4.3(@types/node@22.20.1)
 
-  examples/vue:
+  examples/react/simple:
+    dependencies:
+      '@datafe/markdown-chart-react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
+      react:
+        specifier: ^19.1.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.2
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.1.2
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^4.4.1
+        version: 4.7.0(vite@6.4.3(@types/node@22.20.1))
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.3(@types/node@22.20.1)
+
+  examples/vue/advanced:
     dependencies:
       '@datafe/markdown-chart':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../../packages/core
       '@datafe/markdown-chart-echarts':
         specifier: workspace:*
-        version: link:../../packages/echarts
+        version: link:../../../packages/echarts
       '@datafe/markdown-chart-markdown-it':
         specifier: workspace:*
-        version: link:../../packages/markdown-it
+        version: link:../../../packages/markdown-it
       '@datafe/markdown-chart-vue':
         specifier: workspace:*
-        version: link:../../packages/vue
+        version: link:../../../packages/vue
       echarts:
         specifier: ^6.0.0
         version: 6.1.0
@@ -91,6 +122,31 @@ importers:
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
+      '@vitejs/plugin-vue':
+        specifier: ^5.2.4
+        version: 5.2.4(vite@6.4.3(@types/node@22.20.1))(vue@3.5.40(typescript@5.9.3))
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.3(@types/node@22.20.1)
+      vue-tsc:
+        specifier: ^2.2.10
+        version: 2.2.12(typescript@5.9.3)
+
+  examples/vue/simple:
+    dependencies:
+      '@datafe/markdown-chart-vue':
+        specifier: workspace:*
+        version: link:../../../packages/vue
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
+      vue:
+        specifier: ^3.5.13
+        version: 3.5.40(typescript@5.9.3)
+    devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.2.4
         version: 5.2.4(vite@6.4.3(@types/node@22.20.1))(vue@3.5.40(typescript@5.9.3))

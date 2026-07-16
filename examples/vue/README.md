@@ -1,15 +1,16 @@
-# Vue + markdown-it example
+# Vue + markdown-it examples
 
-This runnable app renders both integration styles:
+The examples are separate runnable projects so their dependency manifests show
+the actual integration cost:
 
-- `SimpleExample.vue` only imports `MarkdownChart`; the adapter owns markdown-it
-  and creates the ECharts registry.
-- `AdvancedExample.vue` passes a host-created markdown-it instance, plugin, and
-  renderer registry to `MarkdownChart`.
+- `simple/` only imports `MarkdownChart`; the adapter owns markdown-it and
+  creates the ECharts registry.
+- `advanced/` passes a host-created markdown-it instance, plugin, and renderer
+  registry to `MarkdownChart`.
 
-Run the complete Vite example from the repository root:
+Run either Vite example from the repository root:
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-vue build
-pnpm --filter @datafe/markdown-chart-example-vue dev
+pnpm --filter @datafe/markdown-chart-example-vue-simple dev
+pnpm --filter @datafe/markdown-chart-example-vue-advanced dev
 ```

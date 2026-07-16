@@ -1,16 +1,17 @@
-# React + react-markdown example
+# React + react-markdown examples
 
-This runnable app renders both integration styles:
+The examples are separate runnable projects so their dependency manifests show
+the actual integration cost:
 
-- `SimpleExample.tsx` only imports `MarkdownChart`; the adapter owns
-  react-markdown and creates the ECharts registry.
-- `AdvancedExample.tsx` uses `MarkdownChartProvider` and
+- `simple/` only imports `MarkdownChart`; the adapter owns react-markdown and
+  creates the ECharts registry.
+- `advanced/` uses `MarkdownChartProvider` and
   `createMarkdownChartComponents` around the host's own `ReactMarkdown`, with a
   custom renderer registry.
 
-Run the complete Vite example from the repository root:
+Run either Vite example from the repository root:
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-react build
-pnpm --filter @datafe/markdown-chart-example-react dev
+pnpm --filter @datafe/markdown-chart-example-react-simple dev
+pnpm --filter @datafe/markdown-chart-example-react-advanced dev
 ```

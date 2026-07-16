@@ -5,7 +5,19 @@ import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
 import { MarkdownChart } from '@datafe/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 
-defineProps<{ source: string }>();
+const source = `# Sales
+
+\`\`\`markdown-chart
+{
+  "version": 1,
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "yAxis": {},
+    "series": [{ "type": "bar", "data": [10, 20] }]
+  }
+}
+\`\`\``;
 
 const registry = new ChartRendererRegistry().register(createEChartsRenderer());
 const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
