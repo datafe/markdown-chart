@@ -11,7 +11,6 @@
   "dependencies": {
     "@datafe/markdown-chart-vue": "workspace:*",
     "echarts": "^6.0.0",
-    "markdown-it": "^14.1.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {

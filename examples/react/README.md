@@ -1,9 +1,7 @@
 # React + react-markdown example
 
-Install React, react-markdown, ECharts, and the three `@datafe` packages used
-below. `createMarkdownChartComponents` replaces the entire `pre` wrapper for
-chart fences. Its `chartClassName` must have a non-zero height; the example uses
-`min-height: 360px`.
+This zero-config example only imports `MarkdownChart`. The React adapter owns
+its `react-markdown` dependency and applies a 360px minimum chart height.
 
 Run the complete Vite example from the repository root:
 

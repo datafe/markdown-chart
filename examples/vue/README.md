@@ -1,8 +1,8 @@
 # Vue + markdown-it example
 
-Install Vue, markdown-it, ECharts, and the four `@datafe` packages used below.
-The markdown-it instance keeps raw HTML disabled and receives the same live
-renderer registry as the Vue component.
+This zero-config example only imports `MarkdownChart`. The Vue adapter owns its
+`markdown-it` dependency, keeps raw HTML disabled, and applies a 360px minimum
+chart height.
 
 Run the complete Vite example from the repository root:
 

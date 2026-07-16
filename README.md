@@ -61,7 +61,7 @@ recognizes `echarts` and the migration alias `echarts-fulldata`:
 With the canonical Markdown above stored in `source`:
 
 ```sh
-pnpm add echarts react-markdown @datafe/markdown-chart-react
+pnpm add echarts @datafe/markdown-chart-react
 ```
 
 ```tsx
@@ -75,7 +75,7 @@ export function App({ source }: { source: string }) {
 ## Vue 3 + markdown-it
 
 ```sh
-pnpm add echarts markdown-it @datafe/markdown-chart-vue
+pnpm add echarts @datafe/markdown-chart-vue
 ```
 
 ```vue
@@ -91,8 +91,9 @@ defineProps<{ source: string }>();
 ```
 
 Both components register ECharts, load it on first chart mount, and apply a
-360px minimum height automatically. Pass a custom `registry`, parser, theme, or
-renderer options only when the defaults are not sufficient.
+360px minimum height automatically. The React package includes `react-markdown`,
+and the Vue package includes `markdown-it`. Pass a custom `registry`, parser,
+theme, or renderer options only when the defaults are not sufficient.
 
 ## Advanced setup
 
@@ -112,6 +113,35 @@ Pass the same live registry to framework adapters. Renderer aliases registered
 later, such as `vega-lite` or `plotly`, are then recognized without updating an
 adapter language list. The package never fetches a data reference itself;
 applications decide which reference schemes are allowed.
+
+### Existing react-markdown applications
+
+The provider and components API remains available when the host already owns
+the surrounding Markdown renderer. Using the configured `registry` above, the
+integration remains:
+
+```tsx
+import ReactMarkdown from 'react-markdown';
+import {
+  MarkdownChartProvider,
+  createMarkdownChartComponents,
+} from '@datafe/markdown-chart-react';
+
+const chartComponents = createMarkdownChartComponents({
+  chartStyle: { minHeight: 360 },
+});
+
+<MarkdownChartProvider registry={registry}>
+  <ReactMarkdown components={chartComponents}>{source}</ReactMarkdown>
+</MarkdownChartProvider>
+```
+
+Because the application imports `react-markdown` directly in this mode,
+declare it as an application dependency as well:
+
+```sh
+pnpm add echarts react-markdown @datafe/markdown-chart-react
+```
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
 examples under `examples/`.

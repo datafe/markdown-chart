@@ -7,6 +7,15 @@ placeholder mounting utility for markdown-it applications.
 instance or renderer registry. The component creates safe defaults, registers
 ECharts, and applies a 360px minimum chart height automatically.
 
+Install the zero-config component with:
+
+```sh
+pnpm add echarts @datafe/markdown-chart-vue
+```
+
+`markdown-it` is included by this package. Applications importing it directly
+for a custom parser should still declare `markdown-it` as their own dependency.
+
 The component observes replacement `markdownIt` and `registry` props. The
 composable accepts either plain instances or Vue refs for both values.
 
