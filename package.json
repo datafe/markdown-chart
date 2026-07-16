@@ -1,0 +1,22 @@
+{
+  "name": "markdown-chart-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "scripts": {
+    "build": "pnpm --filter './packages/**' build && pnpm build:examples",
+    "build:examples": "pnpm --filter './examples/**' build",
+    "check:pack": "node scripts/check-pack.mjs",
+    "pack:check": "node scripts/check-pack.mjs",
+    "typecheck": "pnpm --filter './packages/**' typecheck && pnpm --filter './examples/**' typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "jsdom": "^26.1.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  }
+}

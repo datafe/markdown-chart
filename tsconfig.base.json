@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@datafe/markdown-chart": ["packages/core/src/index.ts"],
+      "@datafe/markdown-chart-echarts": ["packages/echarts/src/index.ts"],
+      "@datafe/markdown-chart-markdown-it": ["packages/markdown-it/src/index.ts"],
+      "@datafe/markdown-chart-vue": ["packages/vue/src/index.ts"],
+      "@datafe/markdown-chart-react": ["packages/react/src/index.tsx"]
+    },
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "noEmit": true
+  }
+}
