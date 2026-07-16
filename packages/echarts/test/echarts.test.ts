@@ -72,6 +72,75 @@ describe('createEChartsRenderer', () => {
     expect(fake.dispose).toHaveBeenCalledOnce();
   });
 
+  it('applies WebShell-inspired light defaults while preserving explicit values', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    }));
+
+    await new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts',
+      source: JSON.stringify({
+        backgroundColor: '#fafafa',
+        xAxis: { type: 'category', axisLabel: { color: '#ff0000' } },
+        yAxis: {},
+        series: [{ type: 'bar', barMaxWidth: 64 }],
+      }),
+    });
+
+    expect(rendered).toMatchObject({
+      backgroundColor: '#fafafa',
+      grid: { top: 24, right: 36, bottom: 48, left: 24, containLabel: true },
+      tooltip: { trigger: 'axis', confine: true, renderMode: 'richText' },
+      xAxis: {
+        axisLabel: { color: '#ff0000', fontSize: 12, hideOverlap: true },
+        splitLine: { show: false },
+      },
+      yAxis: { splitLine: { show: true } },
+      series: [{
+        type: 'bar',
+        barMaxWidth: 64,
+        barCategoryGap: '48%',
+        itemStyle: { borderRadius: [3, 3, 0, 0] },
+      }],
+    });
+    expect(rendered?.color).toEqual(expect.arrayContaining(['#6250F9', '#33AFA9']));
+  });
+
+  it('supports dark defaults and an explicit default-style opt-out', async () => {
+    const rendered: Array<Record<string, JsonValue>> = [];
+    const fake = fakeRuntime((option) => { rendered.push(option); });
+    const styledRegistry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    }));
+    await new ChartController(styledRegistry).render(document.createElement('div'), {
+      language: 'echarts',
+      source: '{"series":[{"type":"line"}]}',
+      theme: 'dark',
+    });
+
+    const plainRegistry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    await new ChartController(plainRegistry).render(document.createElement('div'), {
+      language: 'echarts',
+      source: '{"series":[{"type":"line"}]}',
+    });
+
+    expect(rendered[0]).toMatchObject({
+      backgroundColor: '#0d0d0d',
+      textStyle: { color: '#f4f7ff' },
+      series: [{ type: 'line', symbol: 'circle', symbolSize: 4 }],
+    });
+    expect(rendered[0]?.color).toEqual(expect.arrayContaining(['#8AA0FF', '#60CCC5']));
+    expect(rendered[1]).toEqual({ series: [{ type: 'line' }] });
+  });
+
   it('rejects renderer-specific data envelopes inside canonical spec', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },

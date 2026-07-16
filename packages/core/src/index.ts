@@ -527,29 +527,88 @@ function inlineDataCell(
   return Array.isArray(row) ? row[columnIndex] : row[column];
 }
 
-function setStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>): void {
+function setStyles(element: HTMLElement | SVGElement, styles: Partial<CSSStyleDeclaration>): void {
   Object.assign(element.style, styles);
 }
 
-function createViewButton(label: string): HTMLButtonElement {
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+
+function createSvgElement(name: string): SVGElement {
+  return document.createElementNS(SVG_NAMESPACE, name);
+}
+
+function createChartIcon(): SVGSVGElement {
+  const svg = createSvgElement('svg') as SVGSVGElement;
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('aria-hidden', 'true');
+  setStyles(svg, { width: '16px', height: '16px', fill: 'currentColor' });
+  for (const attributes of [
+    { x: '3', y: '10', width: '3', height: '6', rx: '1' },
+    { x: '8.5', y: '6', width: '3', height: '10', rx: '1' },
+    { x: '14', y: '3', width: '3', height: '13', rx: '1' },
+  ]) {
+    const rectangle = createSvgElement('rect');
+    Object.entries(attributes).forEach(([name, value]) => rectangle.setAttribute(name, value));
+    svg.append(rectangle);
+  }
+  return svg;
+}
+
+function createDataIcon(): SVGSVGElement {
+  const svg = createSvgElement('svg') as SVGSVGElement;
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('aria-hidden', 'true');
+  setStyles(svg, { width: '16px', height: '16px', fill: 'none' });
+  const rectangle = createSvgElement('rect');
+  Object.entries({
+    x: '3', y: '4', width: '14', height: '12', rx: '1.5',
+    fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4',
+  }).forEach(([name, value]) => rectangle.setAttribute(name, value));
+  const lines = createSvgElement('path');
+  lines.setAttribute('d', 'M3 8.5H17M3 12.5H17M8 4V16M13 4V16');
+  lines.setAttribute('stroke', 'currentColor');
+  lines.setAttribute('stroke-width', '1.4');
+  svg.append(rectangle, lines);
+  return svg;
+}
+
+function createViewButton(label: string, icon: SVGSVGElement): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = label;
   button.setAttribute('aria-label', `Show ${label.toLowerCase()}`);
+  button.setAttribute('title', label);
+  button.className = 'markdown-chart-toggle-button';
+  button.append(icon);
   setStyles(button, {
-    padding: '5px 10px',
+    display: 'grid',
+    width: '30px',
+    height: '26px',
+    placeItems: 'center',
+    padding: '0',
     border: '0',
-    borderRadius: '5px',
+    borderRadius: '4px',
     background: 'transparent',
-    color: 'inherit',
+    color: 'color-mix(in srgb, currentColor 68%, transparent)',
     cursor: 'pointer',
-    font: 'inherit',
-    fontSize: '12px',
+    transition: 'background-color 0.16s ease, color 0.16s ease',
   });
   return button;
 }
 
-function createInlineDataTable(data: InlineChartData): HTMLElement {
+interface ChartViewColors {
+  readonly background: string;
+  readonly subtleBackground: string;
+}
+
+function chartViewColors(theme: unknown): ChartViewColors {
+  const dark = theme === 'dark';
+  return {
+    background: `var(--markdown-chart-background, ${dark ? '#0d0d0d' : '#ffffff'})`,
+    subtleBackground: `var(--markdown-chart-subtle-background, ${dark ? '#161616' : '#f7f8fa'})`,
+  };
+}
+
+function createInlineDataTable(data: InlineChartData, colors: ChartViewColors): HTMLElement {
   const columns = inlineDataColumns(data);
   const visibleColumns = columns.slice(0, MAX_VISIBLE_DATA_COLUMNS);
   const visibleRows = data.source.slice(0, MAX_VISIBLE_DATA_ROWS);
@@ -557,8 +616,11 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
   wrapper.className = 'markdown-chart-data-view';
   wrapper.dataset.markdownChartDataView = 'true';
   setStyles(wrapper, {
+    minHeight: '240px',
     maxHeight: 'min(60vh, 520px)',
     overflow: 'auto',
+    background: colors.background,
+    scrollbarColor: 'color-mix(in srgb, currentColor 18%, transparent) transparent',
   });
 
   if (columns.length === 0 || data.source.length === 0) {
@@ -579,7 +641,7 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
       zIndex: '2',
       padding: '8px 12px',
       borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
-      background: 'Canvas',
+      background: colors.subtleBackground,
       fontSize: '12px',
       opacity: '0.75',
     });
@@ -591,7 +653,8 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
   setStyles(table, {
     width: 'max-content',
     minWidth: '100%',
-    borderCollapse: 'collapse',
+    borderCollapse: 'separate',
+    borderSpacing: '0',
     fontSize: '13px',
   });
   const head = document.createElement('thead');
@@ -603,11 +666,15 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
     setStyles(cell, {
       position: 'sticky',
       top: '0',
+      zIndex: '1',
       padding: '8px 12px',
-      border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
-      background: 'Canvas',
+      borderRight: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+      borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+      background: colors.subtleBackground,
       textAlign: 'left',
       whiteSpace: 'nowrap',
+      fontSize: '12px',
+      fontWeight: '600',
     });
     headRow.append(cell);
   }
@@ -628,8 +695,9 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
             ? '""'
             : String(value);
       setStyles(cell, {
-        padding: '8px 12px',
-        border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+        padding: '9px 12px',
+        borderRight: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+        borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
         textAlign: 'left',
         verticalAlign: 'top',
       });
@@ -651,50 +719,99 @@ function createChartView(
   container: HTMLElement,
   data: InlineChartData,
   onShowChart: () => void,
+  theme: unknown,
 ): ChartView {
+  const colors = chartViewColors(theme);
   const hadCardClass = container.classList.contains('markdown-chart-card');
   const previousStyles = {
+    margin: container.style.margin,
+    minWidth: container.style.minWidth,
+    maxWidth: container.style.maxWidth,
     overflow: container.style.overflow,
     border: container.style.border,
     borderRadius: container.style.borderRadius,
+    background: container.style.background,
+    boxShadow: container.style.boxShadow,
   };
   container.classList.add('markdown-chart-card');
   setStyles(container, {
+    margin: '10px 0',
+    minWidth: '0',
+    maxWidth: '100%',
     overflow: 'hidden',
-    border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+    border: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
     borderRadius: '8px',
+    background: colors.background,
+    boxShadow: '0 8px 22px rgb(15 23 42 / 5%)',
   });
 
   const toolbar = document.createElement('div');
   toolbar.className = 'markdown-chart-toolbar';
-  toolbar.setAttribute('role', 'group');
-  toolbar.setAttribute('aria-label', 'View mode');
   setStyles(toolbar, {
     display: 'flex',
-    minHeight: '40px',
+    minHeight: '44px',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: '2px',
-    padding: '0 8px',
-    borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+    justifyContent: 'space-between',
+    gap: '12px',
+    padding: '0 10px 0 14px',
+    borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
+    background: colors.subtleBackground,
   });
-  const chartButton = createViewButton('Chart');
-  const dataButton = createViewButton('Data');
+  const title = document.createElement('div');
+  title.className = 'markdown-chart-title';
+  title.textContent = 'Chart';
+  setStyles(title, {
+    minWidth: '0',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '13px',
+    fontWeight: '600',
+    lineHeight: '1.3',
+  });
+  const toggle = document.createElement('div');
+  toggle.className = 'markdown-chart-toggle';
+  toggle.setAttribute('role', 'group');
+  toggle.setAttribute('aria-label', 'View mode');
+  setStyles(toggle, {
+    display: 'inline-grid',
+    flex: '0 0 auto',
+    gridTemplateColumns: 'repeat(2, 30px)',
+    gap: '2px',
+    padding: '2px',
+    overflow: 'hidden',
+    border: '1px solid color-mix(in srgb, currentColor 16%, transparent)',
+    borderRadius: '6px',
+    background: colors.background,
+  });
+  const chartButton = createViewButton('Chart', createChartIcon());
+  const dataButton = createViewButton('Data', createDataIcon());
   const chartContainer = document.createElement('div');
   chartContainer.className = 'markdown-chart-chart-view';
   chartContainer.dataset.markdownChartChartView = 'true';
-  setStyles(chartContainer, { width: '100%', minHeight: 'inherit' });
-  const dataContainer = createInlineDataTable(data);
+  chartContainer.setAttribute('role', 'img');
+  chartContainer.setAttribute('aria-label', 'Chart');
+  setStyles(chartContainer, {
+    width: 'calc(100% - 20px)',
+    minHeight: 'inherit',
+    margin: '0 10px 8px',
+    background: colors.background,
+  });
+  const dataContainer = createInlineDataTable(data, colors);
   dataContainer.hidden = true;
 
   const select = (mode: 'chart' | 'data'): void => {
     const chartSelected = mode === 'chart';
     chartButton.setAttribute('aria-pressed', String(chartSelected));
     dataButton.setAttribute('aria-pressed', String(!chartSelected));
-    chartButton.style.background = chartSelected ? 'Highlight' : 'transparent';
-    chartButton.style.color = chartSelected ? 'HighlightText' : 'inherit';
-    dataButton.style.background = chartSelected ? 'transparent' : 'Highlight';
-    dataButton.style.color = chartSelected ? 'inherit' : 'HighlightText';
+    chartButton.style.background = chartSelected
+      ? 'var(--markdown-chart-accent, #0033ff)'
+      : 'transparent';
+    chartButton.style.color = chartSelected ? '#ffffff' : 'color-mix(in srgb, currentColor 68%, transparent)';
+    dataButton.style.background = chartSelected
+      ? 'transparent'
+      : 'var(--markdown-chart-accent, #0033ff)';
+    dataButton.style.color = chartSelected ? 'color-mix(in srgb, currentColor 68%, transparent)' : '#ffffff';
     chartContainer.hidden = !chartSelected;
     dataContainer.hidden = chartSelected;
   };
@@ -705,7 +822,8 @@ function createChartView(
   const showData = (): void => select('data');
   chartButton.addEventListener('click', showChart);
   dataButton.addEventListener('click', showData);
-  toolbar.append(chartButton, dataButton);
+  toggle.append(chartButton, dataButton);
+  toolbar.append(title, toggle);
   container.replaceChildren(toolbar, chartContainer, dataContainer);
   select('chart');
 
@@ -717,9 +835,14 @@ function createChartView(
       if (!hadCardClass) {
         container.classList.remove('markdown-chart-card');
       }
+      container.style.margin = previousStyles.margin;
+      container.style.minWidth = previousStyles.minWidth;
+      container.style.maxWidth = previousStyles.maxWidth;
       container.style.overflow = previousStyles.overflow;
       container.style.border = previousStyles.border;
       container.style.borderRadius = previousStyles.borderRadius;
+      container.style.background = previousStyles.background;
+      container.style.boxShadow = previousStyles.boxShadow;
     },
   };
 }
@@ -766,7 +889,7 @@ export class ChartController {
 
       const inlineData = prepared.data?.kind === 'inline' ? prepared.data : undefined;
       const view = inlineData
-        ? createChartView(container, inlineData, () => this.#handle?.resize?.())
+        ? createChartView(container, inlineData, () => this.#handle?.resize?.(), request.theme)
         : undefined;
       this.#view = view;
       const handle = await prepared.renderer.mount(view?.chartContainer ?? container, prepared.parsed, {

@@ -4,7 +4,7 @@ Zero-config `<MarkdownChart source={markdown} />`, provider, chart block, and
 `createMarkdownChartComponents()` adapter for react-markdown. The zero-config
 component registers ECharts automatically and gives chart blocks a 360px
 minimum height. Canonical inline datasets automatically include a Chart/Data
-switch.
+icon switch.
 
 Install the zero-config component with:
 
