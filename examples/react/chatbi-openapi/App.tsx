@@ -1,10 +1,6 @@
 import { useMemo } from 'react';
 import { MarkdownChart } from '@datafe/markdown-chart-react';
-import {
-  createChatBIArtifactDataRefResolver,
-  createChatBILegacyResolver,
-  createExecuteChartSource,
-} from './data';
+import { createChatBIArtifactContentResolver } from './data';
 
 export interface ChatBIChartMessageProps {
   readonly markdown: string;
@@ -19,28 +15,19 @@ export function ChatBIChartMessage({
   requestId,
   streaming = false,
 }: ChatBIChartMessageProps) {
-  const resolveDataRef = useMemo(
-    () => createChatBIArtifactDataRefResolver({
+  const resolveLegacyArtifactContent = useMemo(
+    () => createChatBIArtifactContentResolver({
       sessionId,
       ...(requestId ? { requestId } : {}),
     }),
     [sessionId, requestId],
   );
-  const resolveLegacyEChartQuery = useMemo(
-    () => createChatBILegacyResolver({
-      resolveDataRef,
-      executeChartSource: createExecuteChartSource(),
-    }),
-    [resolveDataRef],
-  );
-  const echarts = useMemo(() => ({ resolveDataRef }), [resolveDataRef]);
 
   return (
     <MarkdownChart
       source={markdown}
       streaming={streaming}
-      echarts={echarts}
-      resolveLegacyEChartQuery={resolveLegacyEChartQuery}
+      resolveLegacyArtifactContent={resolveLegacyArtifactContent}
     />
   );
 }

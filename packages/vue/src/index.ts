@@ -6,7 +6,7 @@ import {
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
-  type ResolveLegacyEChartQuery,
+  type ResolveLegacyArtifactContent,
 } from '@datafe/markdown-chart-echarts';
 import {
   createMarkdownChartEnvironment,
@@ -276,8 +276,14 @@ export const MarkdownChart = defineComponent({
     markdownIt: { type: Object as PropType<MarkdownIt>, required: false },
     registry: { type: Object as PropType<ChartRendererRegistry>, required: false },
     echarts: { type: Object as PropType<CreateEChartsRendererOptions>, required: false },
-    resolveLegacyEChartQuery: {
-      type: Function as PropType<ResolveLegacyEChartQuery>,
+    /** @deprecated Temporary ChatBI migration hook. Return raw CSV ArtifactContent. */
+    resolveLegacyArtifactContent: {
+      type: Function as PropType<ResolveLegacyArtifactContent>,
+      required: false,
+    },
+    /** @deprecated Cache context for the temporary ChatBI migration hook. */
+    legacyArtifactContextKey: {
+      type: [String, Number] as PropType<string | number>,
       required: false,
     },
     theme: { type: null as unknown as PropType<unknown>, required: false },
@@ -292,14 +298,52 @@ export const MarkdownChart = defineComponent({
     },
   },
   setup(props) {
-    const automaticRegistry = computed(() => (
-      new ChartRendererRegistry().register(createEChartsRenderer({
+    const latestLegacyArtifactContentResolver = shallowRef(props.resolveLegacyArtifactContent);
+    const hasLegacyArtifactContentResolver = ref(
+      props.resolveLegacyArtifactContent !== undefined,
+    );
+    const legacyArtifactContextVersion = shallowRef<object>({});
+    watch(
+      [
+        () => props.resolveLegacyArtifactContent,
+        () => props.legacyArtifactContextKey,
+      ],
+      ([resolver, contextKey], [previousResolver, previousContextKey]) => {
+        latestLegacyArtifactContentResolver.value = resolver;
+        hasLegacyArtifactContentResolver.value = resolver !== undefined;
+        const context = contextKey ?? resolver;
+        const previousContext = previousContextKey ?? previousResolver;
+        if (!Object.is(context, previousContext)) {
+          legacyArtifactContextVersion.value = {};
+        }
+      },
+      { flush: 'sync' },
+    );
+    const stableResolveLegacyArtifactContent: ResolveLegacyArtifactContent = (request) => {
+      const resolver = latestLegacyArtifactContentResolver.value;
+      if (!resolver) {
+        throw new Error('resolveLegacyArtifactContent is no longer configured');
+      }
+      return resolver(request);
+    };
+    const automaticRegistry = computed(() => {
+      const hasResolver = hasLegacyArtifactContentResolver.value;
+      void legacyArtifactContextVersion.value;
+      if (
+        hasResolver
+        && props.echarts?.resolveLegacyArtifactContent
+      ) {
+        throw new Error(
+          'Configure resolveLegacyArtifactContent either as a MarkdownChart prop or in echarts options, not both',
+        );
+      }
+      return new ChartRendererRegistry().register(createEChartsRenderer({
         ...props.echarts,
-        ...(props.resolveLegacyEChartQuery
-          ? { resolveLegacyEChartQuery: props.resolveLegacyEChartQuery }
+        ...(hasResolver
+          ? { resolveLegacyArtifactContent: stableResolveLegacyArtifactContent }
           : {}),
-      }))
-    ));
+      }));
+    });
     const registry = computed(() => props.registry ?? automaticRegistry.value);
     const automaticMarkdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
       registry: { has: (language) => registry.value.has(language) },

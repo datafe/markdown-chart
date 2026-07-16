@@ -13,12 +13,10 @@
     "@datafe/markdown-chart-echarts": "workspace:*",
     "@datafe/markdown-chart-react": "workspace:*",
     "echarts": "^6.0.0",
-    "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@types/papaparse": "^5.3.16",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",

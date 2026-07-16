@@ -49,19 +49,19 @@ describe('react-markdown runtime adapter', () => {
 
   it('routes the temporary ChatBI fence in simple and advanced modes', () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
-    const resolveLegacyEChartQuery = async () => ({
-      data: { kind: 'inline' as const, source: [] },
-      spec: { series: [] },
-    });
+    const resolveLegacyArtifactContent = async () => 'name,value\nA,10\n';
 
     const simpleHtml = renderToStaticMarkup(
-      <MarkdownChart source={source} resolveLegacyEChartQuery={resolveLegacyEChartQuery} />,
+      <MarkdownChart
+        source={source}
+        resolveLegacyArtifactContent={resolveLegacyArtifactContent}
+      />,
     );
     expect(simpleHtml).toContain('markdown-chart-placeholder');
     expect(simpleHtml).not.toContain('<pre>');
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-      resolveLegacyEChartQuery,
+      resolveLegacyArtifactContent,
     }));
     const components = createMarkdownChartComponents({ chartStyle: { minHeight: 360 } });
     const advancedHtml = renderToStaticMarkup(

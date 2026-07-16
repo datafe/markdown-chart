@@ -26,6 +26,12 @@ Set `:streaming="true"` while tokens are arriving. Closed fences render
 immediately, and their existing DOM and chart controller are reused as later
 Markdown is appended. Only the active unterminated tail fence waits.
 
+The deprecated ChatBI migration prop `resolveLegacyArtifactContent` accepts a
+callback that returns raw CSV content. `legacyArtifactContextKey` can keep an
+equivalent inline callback stable across rerenders; change the key when its
+session or authorization context changes. If the key is omitted, callback
+identity is used as the safe cache boundary.
+
 Chart placeholders must have a non-zero height so ECharts can measure its
 container:
 

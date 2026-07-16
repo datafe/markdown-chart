@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
   ChartRendererRegistry,
@@ -12,6 +12,23 @@ import {
   type ResolvedDataset,
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
+
+const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
+
+beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: ArrayBufferView) => {
+    if (array instanceof Uint32Array) {
+      array.set([1, 2, 3, 4]);
+    }
+    return array;
+  }) as Crypto['getRandomValues']);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.querySelectorAll('iframe[title="Temporary chart sandbox"]').forEach((frame) => frame.remove());
+});
 
 function canonical(spec: JsonValue, data?: JsonValue): string {
   return JSON.stringify({
@@ -39,6 +56,23 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
       },
     },
   };
+}
+
+async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<void> {
+  await vi.waitFor(() => {
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
+  });
+  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
+  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
+  window.dispatchEvent(new MessageEvent('message', {
+    source: iframe.contentWindow,
+    data: {
+      channel: LEGACY_CHANNEL,
+      type: 'result',
+      requestId: LEGACY_REQUEST_ID,
+      option,
+    },
+  }));
 }
 
 describe('createEChartsRenderer', () => {
@@ -219,6 +253,73 @@ describe('createEChartsRenderer', () => {
     expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
     expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
     controller.dispose();
+  });
+
+  it('owns CSV parsing and sandbox conversion for the ArtifactContent resolver', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const resolveLegacyArtifactContent = vi.fn(async () => (
+      'category,value,active\nA,10,true\nB,20,false\n'
+    ));
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resolveLegacyArtifactContent,
+      resizeObserver: false,
+    }));
+    const controller = new ChartController(registry);
+    const render = controller.render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source: 'var option = { series: [{ type: "bar" }] };\n//#end',
+    });
+    await answerLegacySandbox({
+      xAxis: { type: 'category' },
+      yAxis: {},
+      series: [{ type: 'bar' }],
+    });
+    await render;
+
+    expect(resolveLegacyArtifactContent).toHaveBeenCalledWith({
+      language: 'echarts-chatbi_query_42-0',
+      jobId: 'chatbi_query_42',
+      index: 0,
+      signal: expect.any(AbortSignal),
+    });
+    expect(rendered?.dataset).toEqual({
+      dimensions: ['category', 'value', 'active'],
+      source: [
+        { category: 'A', value: 10, active: true },
+        { category: 'B', value: 20, active: false },
+      ],
+    });
+    controller.dispose();
+  });
+
+  it('rejects ambiguous legacy resolver configuration immediately', () => {
+    expect(() => createEChartsRenderer({
+      resolveLegacyArtifactContent: async () => 'a\n1\n',
+      resolveLegacyEChartQuery: async () => ({
+        data: { kind: 'inline', source: [] },
+        spec: { series: [] },
+      }),
+    })).toThrow(/either resolveLegacyArtifactContent or resolveLegacyEChartQuery/);
+  });
+
+  it('revalidates sandbox-produced ArtifactContent options before loading ECharts', async () => {
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+    }));
+    const render = new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source: 'var option = {};',
+    });
+    await answerLegacySandbox({
+      tooltip: { formatter: '{b}' },
+      series: [],
+    });
+    await expect(render).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
+    expect(loadECharts).not.toHaveBeenCalled();
   });
 
   it('aborts an in-flight temporary ChatBI resolver before UI or runtime creation', async () => {

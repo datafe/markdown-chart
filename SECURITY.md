@@ -6,7 +6,7 @@ untrusted model.
 ## Guarantees
 
 - Canonical and documented renderer bodies are parsed with `JSON.parse`.
-  JavaScript is never evaluated by this library.
+  The canonical path never evaluates JavaScript.
 - Canonical `data` is validated independently from renderer-owned `spec`;
   inline rows may contain only JSON scalar arrays or scalar-valued objects.
 - The ECharts renderer uses a strict top-level option allowlist plus a recursive
@@ -35,9 +35,8 @@ untrusted model.
   enabling raw HTML. This is separate from chart placeholder safety.
 - Treat `resolveDataRef` as a privileged boundary. Validate schemes and
   authorization, honor its `AbortSignal`, and avoid returning secrets in errors.
-- Treat any host-provided legacy conversion callback as a privileged boundary.
-  If conversion requires code execution, isolate it outside this library and
-  return only JSON data and renderer specifications.
+- Treat the deprecated `resolveLegacyArtifactContent` callback as a privileged
+  data-access boundary. It should return only the authorized raw CSV content.
 - Apply a Content Security Policy suitable for the surrounding application.
 - Use a trusted ECharts runtime and keep it patched.
 - Do not add an "unsafe" option that evaluates formatters or `renderItem` code.
@@ -45,6 +44,41 @@ untrusted model.
 The strict profile intentionally supports a conservative subset of top-level
 ECharts options. Additions to that allowlist require a security review of every
 nested string and callback-like surface reachable from the option.
+
+## Temporary legacy isolation
+
+The deprecated ChatBI migration adapter is deliberately separate from the
+canonical parser. It parses CSV with UTF-8 byte, row, column, and cell limits,
+then creates a hidden outer iframe with only `sandbox="allow-scripts"`.
+Omitting `allow-same-origin` gives that iframe a unique origin. The iframe runs
+only a trusted bootstrap: legacy source and CSV rows are sent to a Blob-backed
+dedicated Worker and are never embedded in `srcdoc` or evaluated in the iframe
+Window. Its inline CSP starts with `default-src 'none'`, permits only the inline
+bootstrap and `worker-src blob:`, and sets `connect-src 'none'` while also
+disabling images, objects, media, forms, and child frames.
+
+The Worker has no DOM or iframe navigation surface. Before evaluating source it
+shadows known network and worker-expansion APIs, including `fetch`, XHR,
+WebSocket, EventSource, `importScripts`, `Worker`, and `SharedWorker`. This is a
+defense-in-depth restriction in addition to the iframe CSP, not a source-regex
+security boundary. The compatibility sanitizer is not treated as isolation.
+
+The parent accepts a response only from the created iframe's `contentWindow`
+and only for an unpredictable per-execution request id. Abort, result, error,
+load failure, and timeout paths remove listeners, timers, and the iframe; the
+bootstrap also terminates the Worker on result or error. Removing the iframe
+terminates a still-running dedicated Worker, so the timeout can stop a
+synchronous loop without blocking the parent Window. Worker and iframe errors
+cross the boundary only as fixed categories without exception messages or
+stacks. The Worker serializes only the generated `option` through JSON; the
+parent then applies the normal JSON and ECharts safety validation.
+
+This is defense in depth for a temporary browser compatibility path, not a
+proof that arbitrary JavaScript is safe. Termination does not prevent transient
+CPU or memory pressure before the timeout, and large allocations can still
+exhaust browser resources. Hosts should enable this deprecated path only for
+trusted ChatBI streams and remove it when that format is retired. Canonical
+`markdown-chart` remains JSON-only and does not depend on the legacy directory.
 
 ## Reporting
 

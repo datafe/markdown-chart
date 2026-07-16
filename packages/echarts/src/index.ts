@@ -13,16 +13,24 @@ import {
 import {
   isLegacyEChartQueryLanguage,
   parseLegacyEChartQueryBlock,
+  resolveLegacyArtifactLimits,
+  resolveLegacyArtifactQuery,
+  type LegacyArtifactLimits,
   type LegacyEChartQueryBlock,
+  type ResolveLegacyArtifactContent,
   type ResolveLegacyEChartQuery,
-} from './legacy-echart-query';
+} from './legacy';
 
 export type {
+  LegacyArtifactContentRequest,
+  LegacyArtifactLimits,
   LegacyEChartQueryBlock,
   LegacyEChartQueryRequest,
+  ResolveLegacyArtifactContent,
   ResolvedLegacyEChartQuery,
   ResolveLegacyEChartQuery,
-} from './legacy-echart-query';
+} from './legacy';
+export { DEFAULT_LEGACY_ARTIFACT_LIMITS } from './legacy';
 
 export type DatasetRow = ChartDataRow;
 export type InlineDataset = InlineChartData;
@@ -82,6 +90,13 @@ export interface CreateEChartsRendererOptions {
   readonly resizeObserver?: boolean;
   /** Apply Qwen Code WebShell-inspired safe defaults while preserving explicit spec values. */
   readonly defaultStyle?: boolean;
+  /**
+   * @deprecated Temporary ChatBI migration hook. Return raw CSV ArtifactContent.
+   * The renderer parses the CSV and converts the legacy source in an isolated iframe.
+   */
+  readonly resolveLegacyArtifactContent?: ResolveLegacyArtifactContent;
+  /** @deprecated Limits for the temporary ChatBI migration adapter. */
+  readonly legacyArtifactLimits?: Partial<LegacyArtifactLimits>;
   /** @deprecated Temporary ChatBI migration hook. Do not use for new content. */
   readonly resolveLegacyEChartQuery?: ResolveLegacyEChartQuery;
 }
@@ -595,7 +610,19 @@ const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 export function createEChartsRenderer(
   options: CreateEChartsRendererOptions = {},
 ): ChartRenderer<ParsedEChartsSpec> {
+  if (options.resolveLegacyArtifactContent && options.resolveLegacyEChartQuery) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'Configure either resolveLegacyArtifactContent or resolveLegacyEChartQuery, not both',
+    );
+  }
   const limits: EChartsLimits = { ...DEFAULT_ECHARTS_LIMITS, ...options.limits };
+  const legacyArtifactLimits = options.resolveLegacyArtifactContent
+    ? resolveLegacyArtifactLimits({
+        maxRows: limits.maxRows,
+        maxCells: limits.maxCells,
+      }, options.legacyArtifactLimits)
+    : undefined;
   const loadECharts = options.loadECharts ?? (async () => (
     await import('echarts') as unknown as LoadedEChartsRuntime
   ));
@@ -659,21 +686,31 @@ export function createEChartsRenderer(
         }
         return { parsed, data: context.data };
       }
-      if (!options.resolveLegacyEChartQuery) {
+      if (!options.resolveLegacyArtifactContent && !options.resolveLegacyEChartQuery) {
         throw new MarkdownChartError(
           'REF_RESOLVER_MISSING',
-          'resolveLegacyEChartQuery is required for this temporary ChatBI fence',
+          'resolveLegacyArtifactContent is required for this temporary ChatBI fence',
         );
       }
       let resolved: unknown;
       try {
-        resolved = await options.resolveLegacyEChartQuery({
-          ...parsed.legacyEChartQuery,
-          signal: context.signal,
-        });
+        resolved = options.resolveLegacyArtifactContent
+          ? await resolveLegacyArtifactQuery({
+              block: parsed.legacyEChartQuery,
+              signal: context.signal,
+              resolveArtifactContent: options.resolveLegacyArtifactContent,
+              limits: legacyArtifactLimits as LegacyArtifactLimits,
+            })
+          : await options.resolveLegacyEChartQuery?.({
+              ...parsed.legacyEChartQuery,
+              signal: context.signal,
+            });
       } catch (cause) {
         if (context.signal.aborted) {
           return { parsed, data: context.data };
+        }
+        if (cause instanceof MarkdownChartError) {
+          throw cause;
         }
         throw new MarkdownChartError(
           'REF_RESOLUTION_FAILED',

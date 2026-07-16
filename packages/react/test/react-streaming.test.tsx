@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChartRendererRegistry } from '@datafe/markdown-chart';
 import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
 import {
@@ -13,6 +13,23 @@ import {
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
+
+const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
+
+beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: ArrayBufferView) => {
+    if (array instanceof Uint32Array) {
+      array.set([1, 2, 3, 4]);
+    }
+    return array;
+  }) as Crypto['getRandomValues']);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.querySelectorAll('iframe[title="Temporary chart sandbox"]').forEach((frame) => frame.remove());
+});
 
 const canonicalBody = JSON.stringify({
   version: 1,
@@ -39,6 +56,23 @@ function fakeEChartsRuntime(): EChartsRuntime {
       };
     },
   };
+}
+
+async function answerLegacySandbox(option: Record<string, unknown>): Promise<void> {
+  await vi.waitFor(() => {
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
+  });
+  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
+  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
+  window.dispatchEvent(new MessageEvent('message', {
+    source: iframe.contentWindow,
+    data: {
+      channel: LEGACY_CHANNEL,
+      type: 'result',
+      requestId: LEGACY_REQUEST_ID,
+      option,
+    },
+  }));
 }
 
 describe('MarkdownChart streaming lifecycle', () => {
@@ -120,6 +154,7 @@ describe('MarkdownChart streaming lifecycle', () => {
 
   it('shows materialized legacy data in simple and advanced integrations', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
+    const resolveLegacyArtifactContent = async () => 'name,value\nA,10\nB,20\n';
     const resolveLegacyEChartQuery = async () => ({
       data: {
         kind: 'inline' as const,
@@ -145,7 +180,7 @@ describe('MarkdownChart streaming lifecycle', () => {
       simpleRoot.render(
         <MarkdownChart
           source={source}
-          resolveLegacyEChartQuery={resolveLegacyEChartQuery}
+          resolveLegacyArtifactContent={resolveLegacyArtifactContent}
           echarts={{
             loadECharts: fakeEChartsRuntime,
             resizeObserver: false,
@@ -153,6 +188,7 @@ describe('MarkdownChart streaming lifecycle', () => {
         />,
       );
     });
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
     await assertDataView(simpleContainer);
     await act(async () => simpleRoot.unmount());
 
@@ -173,5 +209,117 @@ describe('MarkdownChart streaming lifecycle', () => {
     });
     await assertDataView(advancedContainer);
     await act(async () => advancedRoot.unmount());
+  });
+
+  it('keeps a completed legacy artifact stable when callback identity changes under one context key', async () => {
+    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const resolver = vi.fn(async (_request: unknown) => 'name,value\nA,10\nB,20\n');
+    const echarts = {
+      loadECharts: fakeEChartsRuntime,
+      resizeObserver: false,
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const render = (markdown: string) => (
+      <MarkdownChart
+        source={markdown}
+        streaming
+        echarts={echarts}
+        legacyArtifactContextKey="session-a"
+        resolveLegacyArtifactContent={(request) => resolver(request)}
+      />
+    );
+
+    await act(async () => {
+      root.render(render(source));
+    });
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
+    await vi.waitFor(() => {
+      expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+    });
+    const original = container.querySelector('.markdown-chart-placeholder');
+
+    await act(async () => {
+      root.render(render(`${source}\n\nMore streamed analysis.`));
+    });
+    expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(resolver).toHaveBeenCalledOnce();
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
+
+    await act(async () => root.unmount());
+  });
+
+  it('refetches when an unkeyed legacy resolver changes identity', async () => {
+    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const firstResolver = vi.fn(async () => 'name,value\nA,10\n');
+    const secondResolver = vi.fn(async () => 'name,value\nB,20\n');
+    const echarts = {
+      loadECharts: fakeEChartsRuntime,
+      resizeObserver: false,
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MarkdownChart
+          source={source}
+          echarts={echarts}
+          resolveLegacyArtifactContent={firstResolver}
+        />,
+      );
+    });
+    await vi.waitFor(() => expect(firstResolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+    await vi.waitFor(() => {
+      expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+    });
+
+    await act(async () => {
+      root.render(
+        <MarkdownChart
+          source={source}
+          echarts={echarts}
+          resolveLegacyArtifactContent={secondResolver}
+        />,
+      );
+    });
+    await vi.waitFor(() => expect(secondResolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+    expect(firstResolver).toHaveBeenCalledOnce();
+    expect(secondResolver).toHaveBeenCalledOnce();
+
+    await act(async () => root.unmount());
+  });
+
+  it('refetches when the explicit legacy artifact context key changes', async () => {
+    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const resolver = vi.fn(async () => 'name,value\nA,10\n');
+    const echarts = {
+      loadECharts: fakeEChartsRuntime,
+      resizeObserver: false,
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const render = (contextKey: string) => (
+      <MarkdownChart
+        source={source}
+        echarts={echarts}
+        legacyArtifactContextKey={contextKey}
+        resolveLegacyArtifactContent={resolver}
+      />
+    );
+
+    await act(async () => root.render(render('session-a')));
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(1));
+    await answerLegacySandbox({ series: [] });
+
+    await act(async () => root.render(render('session-b')));
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
+    await answerLegacySandbox({ series: [] });
+    expect(resolver).toHaveBeenCalledTimes(2);
+
+    await act(async () => root.unmount());
   });
 });
