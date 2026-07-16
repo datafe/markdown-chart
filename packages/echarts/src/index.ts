@@ -374,12 +374,23 @@ function normalizeRuntime(loaded: LoadedEChartsRuntime): EChartsRuntime {
   return runtime;
 }
 
-function toDatasetOption(dataset: ResolvedDataset, limits: EChartsLimits): Record<string, JsonValue> {
+function materializeDataset(
+  dataset: ResolvedDataset,
+  limits: EChartsLimits,
+): { readonly data: InlineDataset; readonly option: Record<string, JsonValue> } {
   const source = validateRows(dataset.source, limits, 'resolvedDataset.source');
   const dimensions = dataset.dimensions
     ? readDimensions(dataset.dimensions as unknown as JsonValue, 'resolvedDataset.dimensions')
     : undefined;
-  return dimensions ? { dimensions, source } : { source };
+  return dimensions
+    ? {
+        data: { kind: 'inline', dimensions, source },
+        option: { dimensions, source },
+      }
+    : {
+        data: { kind: 'inline', source },
+        option: { source },
+      };
 }
 
 type DefaultStyleTheme = 'light' | 'dark';
@@ -605,6 +616,41 @@ export function createEChartsRenderer(
   const loadECharts = options.loadECharts ?? (async () => (
     await import('echarts') as unknown as LoadedEChartsRuntime
   ));
+  const resolveReferencedData = async (
+    data: RefDataset,
+    signal: AbortSignal,
+  ): Promise<InlineDataset | undefined> => {
+    if (options.validateDataRef && !options.validateDataRef(data.ref)) {
+      throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
+    }
+    if (!options.resolveDataRef) {
+      throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
+    }
+    let resolvedDataset: ResolvedDataset;
+    try {
+      resolvedDataset = await options.resolveDataRef(data.ref, {
+        format: data.format,
+        dimensions: data.dimensions,
+        signal,
+      });
+    } catch (cause) {
+      if (signal.aborted) {
+        return undefined;
+      }
+      throw new MarkdownChartError(
+        'REF_RESOLUTION_FAILED',
+        'The chart dataset could not be resolved',
+        { cause },
+      );
+    }
+    if (signal.aborted) {
+      return undefined;
+    }
+    const dataset = resolvedDataset.dimensions || !data.dimensions
+      ? resolvedDataset
+      : { ...resolvedDataset, dimensions: data.dimensions };
+    return materializeDataset(dataset, limits).data;
+  };
 
   return {
     id: 'echarts',
@@ -627,6 +673,13 @@ export function createEChartsRenderer(
     },
     async materialize(parsed, context) {
       if (!parsed.legacyEChartQuery) {
+        if (parsed.data?.kind === 'ref') {
+          const data = await resolveReferencedData(parsed.data, context.signal);
+          if (!data) {
+            return { parsed, data: context.data };
+          }
+          return { parsed: { ...parsed, data }, data };
+        }
         return { parsed, data: context.data };
       }
       if (!options.resolveLegacyEChartQuery) {
@@ -697,30 +750,18 @@ export function createEChartsRenderer(
 
       const option = cloneJson(parsed.option);
       if (parsed.data) {
-        let dataset: ResolvedDataset;
+        let dataset: InlineDataset;
         if (parsed.data.kind === 'inline') {
           dataset = parsed.data;
         } else {
-          if (options.validateDataRef && !options.validateDataRef(parsed.data.ref)) {
-            throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
+          const resolved = await resolveReferencedData(parsed.data, context.signal);
+          if (!resolved) {
+            return EMPTY_HANDLE;
           }
-          if (!options.resolveDataRef) {
-            throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
-          }
-          try {
-            dataset = await options.resolveDataRef(parsed.data.ref, {
-              format: parsed.data.format,
-              dimensions: parsed.data.dimensions,
-              signal: context.signal,
-            });
-          } catch (cause) {
-            if (context.signal.aborted) {
-              return EMPTY_HANDLE;
-            }
-            throw new MarkdownChartError('REF_RESOLUTION_FAILED', 'The chart dataset could not be resolved', { cause });
-          }
+          dataset = resolved;
         }
-        option.dataset = toDatasetOption(dataset, limits);
+        const resolved = materializeDataset(dataset, limits);
+        option.dataset = resolved.option;
       }
 
       if (context.signal.aborted) {

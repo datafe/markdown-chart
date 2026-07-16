@@ -29,3 +29,8 @@ inline data without understanding ECharts.
 The `echarts` and `echarts-fulldata` shorthand fences also accept a direct
 option or the renderer-specific `{ data, option }` body. A renderer spec never
 defines its own `version`; protocol versioning belongs to `markdown-chart`.
+
+When `resolveDataRef` materializes a referenced dataset, the renderer injects
+the validated rows into `option.dataset` and returns the same rows through the
+core materialization flow for the Chart/Data view. This applies to canonical
+and renderer-specific ref envelopes.

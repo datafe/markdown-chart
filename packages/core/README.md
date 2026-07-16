@@ -2,7 +2,8 @@
 
 Framework-neutral renderer registry, canonical `markdown-chart` fence router,
 strict JSON parser, and one-container chart lifecycle controller. Canonical
-inline datasets receive a built-in Chart/Data switch and bounded data table.
+inline datasets and renderer-materialized referenced datasets receive a
+built-in Chart/Data switch and bounded data table.
 The switch uses accessible chart/table icons and Qwen Code WebShell-inspired
 card styling. Hosts can override `--markdown-chart-background`,
 `--markdown-chart-subtle-background`, and `--markdown-chart-accent`.

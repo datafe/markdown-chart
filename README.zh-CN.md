@@ -104,7 +104,7 @@ defineProps<{ source: string }>();
 </template>
 ```
 
-两个组件都会自动注册 ECharts，在首次挂载图表时加载运行时，并自动设置 360px 的最小高度。标准格式中的 inline 数据还会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均改编自 [Qwen Code WebShell 实现](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx)；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。归因信息见[第三方声明](./THIRD_PARTY_NOTICES.md)。
+两个组件都会自动注册 ECharts，在首次挂载图表时加载运行时，并自动设置 360px 的最小高度。标准格式中的 inline 数据，以及由 `resolveDataRef` 返回的 ref 数据，都会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均改编自 [Qwen Code WebShell 实现](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx)；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。归因信息见[第三方声明](./THIRD_PARTY_NOTICES.md)。
 
 宿主应用可以通过 `--markdown-chart-background`、`--markdown-chart-subtle-background` 和 `--markdown-chart-accent` 对齐卡片颜色。高级模式可以设置 `createEChartsRenderer({ defaultStyle: false })` 关闭展示样式默认值；安全校验、标准 data 注入和 data ref 解析仍然会执行。
 
@@ -135,6 +135,8 @@ registry.register(createEChartsRenderer({
   resolveDataRef: async (ref, meta) => loadApplicationDataset(ref, meta.signal),
 }));
 ```
+
+解析方法返回 `{ dimensions?, source }`。如果省略 `dimensions`，会保留 ref 上声明的维度。ECharts 会同时把实体化后的数据用于 `option.dataset` 和公共 `Chart / Data` 视图，因此不需要再内联复制数据也可查看表格。
 
 把同一个实时注册表传给框架适配器。之后注册的渲染器别名，例如 `vega-lite` 或 `plotly`，无需更新适配器的语言列表即可被识别。包本身不会获取数据引用，允许哪些引用协议由应用决定。
 
