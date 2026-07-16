@@ -11,10 +11,15 @@ const source = `# Sales
 {
   "version": 1,
   "renderer": "echarts",
+  "data": {
+    "kind": "inline",
+    "dimensions": ["category", "value"],
+    "source": [["A", 10], ["B", 20]]
+  },
   "spec": {
-    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "xAxis": { "type": "category" },
     "yAxis": {},
-    "series": [{ "type": "bar", "data": [10, 20] }]
+    "series": [{ "type": "bar", "encode": { "x": "category", "y": "value" } }]
   }
 }
 \`\`\``;

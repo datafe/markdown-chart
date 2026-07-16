@@ -24,24 +24,40 @@ other renderer packages without adding chart-specific switches to the core.
 {
   "version": 1,
   "renderer": "echarts",
+  "data": {
+    "kind": "inline",
+    "dimensions": ["month", "sales"],
+    "source": [["Jan", 100], ["Feb", 180]]
+  },
   "spec": {
-    "data": {
-      "kind": "inline",
-      "dimensions": ["month", "sales"],
-      "source": [["Jan", 100], ["Feb", 180]]
-    },
-    "option": {
-      "xAxis": { "type": "category" },
-      "yAxis": {},
-      "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
-    }
+    "xAxis": { "type": "category" },
+    "yAxis": {},
+    "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
   }
 }
 ```
 ````
 
 There is only one protocol `version`, on the outer `markdown-chart` envelope.
-Renderer specs do not repeat it.
+`data` is renderer-neutral so hosts can expose the inline rows independently,
+for example in a “View data” action. `spec` belongs to the selected renderer and
+does not repeat the data or version.
+
+Hosts can inspect canonical data without loading a chart runtime:
+
+```sh
+pnpm add @datafe/markdown-chart
+```
+
+```ts
+import { parseMarkdownChartEnvelope } from '@datafe/markdown-chart';
+
+// chartFenceBody is the JSON text inside one markdown-chart fence.
+const { data } = parseMarkdownChartEnvelope(chartFenceBody);
+if (data?.kind === 'inline') {
+  showDataTable(data.dimensions, data.source);
+}
+```
 
 Renderer-specific fences remain available as shorthand. The ECharts package
 recognizes `echarts` and the migration alias `echarts-fulldata`:

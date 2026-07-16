@@ -18,7 +18,7 @@ function testRenderer(onMount: () => void): ChartRenderer {
 
 describe('MarkdownChart reactive object props', () => {
   it('provides zero-config parsing, registry, and chart height defaults', async () => {
-    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{"series":[]}}\n```';
+    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
     const app = createApp(defineComponent({
       setup() {
         return () => h(MarkdownChart, { source, streaming: true });

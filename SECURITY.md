@@ -6,6 +6,8 @@ untrusted model.
 ## Guarantees
 
 - Fence bodies are parsed with `JSON.parse`; JavaScript is never evaluated.
+- Canonical `data` is validated independently from renderer-owned `spec`;
+  inline rows may contain only JSON scalar arrays or scalar-valued objects.
 - The ECharts renderer uses a strict top-level option allowlist plus a recursive
   denylist. It rejects functions, non-JSON values, prototype-related keys,
   `formatter`, `tooltip.extraCssText`, `toolbox`/`dataView`, custom series,

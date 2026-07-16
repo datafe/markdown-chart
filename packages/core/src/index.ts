@@ -5,6 +5,23 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+export type ChartDataRow = JsonPrimitive[] | Record<string, JsonPrimitive>;
+
+export interface InlineChartData {
+  readonly kind: 'inline';
+  readonly dimensions?: readonly string[];
+  readonly source: readonly ChartDataRow[];
+}
+
+export interface RefChartData {
+  readonly kind: 'ref';
+  readonly ref: string;
+  readonly format?: 'csv' | 'json';
+  readonly dimensions?: readonly string[];
+}
+
+export type ChartData = InlineChartData | RefChartData;
+
 export type ChartErrorCode =
   | 'INVALID_JSON'
   | 'LIMIT_EXCEEDED'
@@ -121,9 +138,95 @@ export function parseChartJson(
   return parsed;
 }
 
+function parseChartDataDimensions(value: JsonValue | undefined): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || item.length === 0)) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.data.dimensions must be an array of non-empty strings',
+    );
+  }
+  return [...value] as string[];
+}
+
+function parseChartDataRows(value: JsonValue | undefined): ChartDataRow[] {
+  if (!Array.isArray(value)) {
+    throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.data.source must be an array');
+  }
+  return value.map((row, rowIndex): ChartDataRow => {
+    if (Array.isArray(row)) {
+      if (row.some((cell) => cell !== null && !['string', 'number', 'boolean'].includes(typeof cell))) {
+        throw new MarkdownChartError(
+          'SCHEMA_INVALID',
+          `markdown-chart.data.source[${rowIndex}] must contain only JSON scalars`,
+        );
+      }
+      return [...row] as JsonPrimitive[];
+    }
+    if (isJsonObject(row)) {
+      const result: Record<string, JsonPrimitive> = {};
+      for (const [key, cell] of Object.entries(row)) {
+        if (cell !== null && !['string', 'number', 'boolean'].includes(typeof cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `markdown-chart.data.source[${rowIndex}].${key} must be a JSON scalar`,
+          );
+        }
+        result[key] = cell as JsonPrimitive;
+      }
+      return result;
+    }
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      `markdown-chart.data.source[${rowIndex}] must be an array or object`,
+    );
+  });
+}
+
+export function parseChartData(value: unknown): ChartData {
+  if (!isJsonObject(value) || typeof value.kind !== 'string') {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.data must be an inline or ref dataset object',
+    );
+  }
+  const dimensions = parseChartDataDimensions(value.dimensions);
+  if (value.kind === 'inline') {
+    const source = parseChartDataRows(value.source);
+    return dimensions ? { kind: 'inline', dimensions, source } : { kind: 'inline', source };
+  }
+  if (value.kind === 'ref') {
+    if (typeof value.ref !== 'string' || value.ref.length === 0) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        'markdown-chart.data.ref must be a non-empty string',
+      );
+    }
+    if (value.format !== undefined && value.format !== 'csv' && value.format !== 'json') {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        'markdown-chart.data.format must be csv or json',
+      );
+    }
+    return {
+      kind: 'ref',
+      ref: value.ref,
+      ...(value.format ? { format: value.format } : {}),
+      ...(dimensions ? { dimensions } : {}),
+    };
+  }
+  throw new MarkdownChartError(
+    'SCHEMA_INVALID',
+    `Unsupported markdown-chart.data.kind: ${value.kind}`,
+  );
+}
+
 export interface ChartParseContext {
   readonly language: string;
   readonly rendererId: string;
+  readonly data: ChartData | undefined;
 }
 
 export interface ChartMountContext {
@@ -150,6 +253,7 @@ export interface ChartRenderer<Parsed = unknown> {
 export interface PreparedChart {
   readonly renderer: ChartRenderer<unknown>;
   readonly parsed: unknown;
+  readonly data: ChartData | undefined;
   readonly language: string;
   readonly rendererId: string;
 }
@@ -168,6 +272,44 @@ function normalizeName(name: string, label: string): string {
 
 export function normalizeFenceLanguage(info: string): string {
   return info.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? '';
+}
+
+export interface MarkdownChartEnvelope {
+  readonly version: 1;
+  readonly renderer: string;
+  readonly data: ChartData | undefined;
+  readonly spec: JsonValue;
+}
+
+export function parseMarkdownChartEnvelope(
+  source: string,
+  jsonLimits: Partial<JsonParseLimits> = {},
+): MarkdownChartEnvelope {
+  const body = parseChartJson(source, jsonLimits);
+  if (!isJsonObject(body)) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'The canonical markdown-chart fence must contain an object',
+    );
+  }
+  if (body.version !== 1) {
+    throw new MarkdownChartError(
+      'UNSUPPORTED_VERSION',
+      'Only markdown-chart protocol version 1 is supported',
+    );
+  }
+  if (typeof body.renderer !== 'string') {
+    throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.renderer must be a string');
+  }
+  if (!Object.prototype.hasOwnProperty.call(body, 'spec')) {
+    throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.spec is required');
+  }
+  return {
+    version: 1,
+    renderer: normalizeName(body.renderer, 'renderer id'),
+    data: body.data === undefined ? undefined : parseChartData(body.data),
+    spec: body.spec as JsonValue,
+  };
 }
 
 export class ChartRendererRegistry {
@@ -212,26 +354,17 @@ export class ChartRendererRegistry {
 
   async prepare(languageInfo: string, source: string): Promise<PreparedChart> {
     const language = normalizeFenceLanguage(languageInfo);
-    const body = parseChartJson(source, this.#jsonLimits);
 
     let rendererId: string;
     let spec: JsonValue;
+    let data: ChartData | undefined;
     if (language === MARKDOWN_CHART_LANGUAGE) {
-      if (!isJsonObject(body)) {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'The canonical markdown-chart fence must contain an object');
-      }
-      if (body.version !== 1) {
-        throw new MarkdownChartError('UNSUPPORTED_VERSION', 'Only markdown-chart protocol version 1 is supported');
-      }
-      if (typeof body.renderer !== 'string') {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.renderer must be a string');
-      }
-      if (!Object.prototype.hasOwnProperty.call(body, 'spec')) {
-        throw new MarkdownChartError('SCHEMA_INVALID', 'markdown-chart.spec is required');
-      }
-      rendererId = normalizeName(body.renderer, 'renderer id');
-      spec = body.spec as JsonValue;
+      const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
+      rendererId = envelope.renderer;
+      spec = envelope.spec;
+      data = envelope.data;
     } else {
+      const body = parseChartJson(source, this.#jsonLimits);
       const resolved = this.#names.get(language);
       if (!resolved) {
         throw new MarkdownChartError('RENDERER_NOT_FOUND', `No renderer is registered for ${language || 'this fence'}`);
@@ -244,8 +377,8 @@ export class ChartRendererRegistry {
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const parsed = await renderer.parse(spec, { language, rendererId });
-    return { renderer, parsed, language, rendererId };
+    const parsed = await renderer.parse(spec, { language, rendererId, data });
+    return { renderer, parsed, data, language, rendererId };
   }
 }
 

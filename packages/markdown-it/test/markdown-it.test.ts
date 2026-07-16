@@ -11,7 +11,7 @@ describe('markdownChartPlugin', () => {
   it('keeps chart JSON out of generated HTML and exposes it through env', () => {
     const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
     const env: MarkdownChartEnvironment = {};
-    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{}}\n```';
+    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{}}\n```';
     const html = md.render(source, env);
 
     expect(html).toContain('data-markdown-chart-id="markdown-chart-0"');
@@ -19,7 +19,7 @@ describe('markdownChartPlugin', () => {
     expect(getMarkdownChartBlocks(env)).toEqual([{
       id: 'markdown-chart-0',
       language: 'markdown-chart',
-      source: '{"version":1,"renderer":"echarts","spec":{}}\n',
+      source: '{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{}}\n',
     }]);
   });
 

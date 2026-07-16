@@ -10,7 +10,7 @@ import {
 
 describe('react-markdown runtime adapter', () => {
   it('provides a zero-config ECharts component with a default height', () => {
-    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{"series":[]}}\n```';
+    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
     const html = renderToStaticMarkup(<MarkdownChart source={source} />);
     expect(html).toContain('markdown-chart-placeholder');
     expect(html).toContain('min-height:360px');
