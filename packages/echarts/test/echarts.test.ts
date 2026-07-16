@@ -9,6 +9,7 @@ import {
 import {
   createEChartsRenderer,
   type EChartsRuntime,
+  type ResolvedDataset,
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
 
@@ -338,30 +339,87 @@ describe('createEChartsRenderer', () => {
   it('resolves opaque data references only through the injected resolver', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const resolver = vi.fn(async () => ({
-      dimensions: ['month', 'sales'],
       source: [['Jan', 100]],
     }));
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
       resolveDataRef: resolver,
-      validateDataRef: (ref) => ref.startsWith('app://'),
+      validateDataRef: (ref) => ref.startsWith('artifact://chart-data/'),
       resizeObserver: false,
     }));
 
-    await new ChartController(registry).render(document.createElement('div'), {
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
       language: 'markdown-chart',
       source: canonical(
         { series: [{ type: 'line' }] },
-        { kind: 'ref', ref: 'app://datasets/sales', format: 'json' },
+        {
+          kind: 'ref',
+          ref: 'artifact://chart-data/sales-q1.csv',
+          format: 'csv',
+          dimensions: ['month', 'sales'],
+        },
       ),
     });
 
     expect(resolver).toHaveBeenCalledOnce();
+    expect(resolver).toHaveBeenCalledWith('artifact://chart-data/sales-q1.csv', expect.objectContaining({
+      format: 'csv',
+      dimensions: ['month', 'sales'],
+      signal: expect.any(AbortSignal),
+    }));
     expect(rendered?.dataset).toEqual({
       dimensions: ['month', 'sales'],
       source: [['Jan', 100]],
     });
+    const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(chartView).not.toBeNull();
+    expect(dataView?.hidden).toBe(true);
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    expect(chartView?.hidden).toBe(true);
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.textContent).toContain('Jan');
+    expect(dataView?.textContent).toContain('100');
+  });
+
+  it('aborts an in-flight data-ref resolver before UI or runtime creation', async () => {
+    let finishResolve: ((value: ResolvedDataset) => void) | undefined;
+    let resolverSignal: AbortSignal | undefined;
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      resolveDataRef: (_ref, { signal }) => {
+        resolverSignal = signal;
+        return new Promise((resolve) => {
+          finishResolve = resolve;
+        });
+      },
+    }));
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    const render = controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'echarts',
+        data: { kind: 'ref', ref: 'artifact://chart-data/sales-q1.csv' },
+        spec: { series: [{ type: 'line' }] },
+      }),
+    });
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+
+    await controller.render(element, {
+      language: 'echarts',
+      source: '{',
+      streaming: true,
+    });
+    expect(resolverSignal?.aborted).toBe(true);
+    finishResolve?.({ source: [['Jan', 100]] });
+    await render;
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(element.childElementCount).toBe(0);
   });
 
   it('fails closed when a ref resolver is missing', async () => {

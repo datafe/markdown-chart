@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [
+    [
+      "@datafe/markdown-chart",
+      "@datafe/markdown-chart-echarts",
+      "@datafe/markdown-chart-markdown-it",
+      "@datafe/markdown-chart-react",
+      "@datafe/markdown-chart-vue"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "privatePackages": false,
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}

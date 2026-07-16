@@ -6,6 +6,7 @@ English | [简体中文](./README.zh-CN.md)
 > **Pre-release:** the `@datafe/markdown-chart*` packages are not published to
 > npm yet. The install commands below describe the planned public interface.
 > Until the first release, clone this repository and run the local examples.
+> Maintainers should follow [RELEASING.md](./RELEASING.md).
 
 `markdown-chart` provides portable chart blocks for streaming Markdown, with
 inspectable data and pluggable renderers. Its core is framework-neutral and
@@ -102,8 +103,9 @@ defineProps<{ source: string }>();
 ```
 
 Both components register ECharts, load it on first chart mount, and apply a
-360px minimum height automatically. Canonical inline data also enables a
-built-in icon-based Chart/Data switch with a bounded, scrollable data table.
+360px minimum height automatically. Canonical inline data and referenced data
+returned by `resolveDataRef` also enable a built-in icon-based Chart/Data switch
+with a bounded, scrollable data table.
 The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series
 styling are adapted from the
 [Qwen Code WebShell implementation](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx),
@@ -148,6 +150,11 @@ registry.register(createEChartsRenderer({
   resolveDataRef: async (ref, meta) => loadApplicationDataset(ref, meta.signal),
 }));
 ```
+
+The resolver returns `{ dimensions?, source }`. If it omits `dimensions`, the
+dimensions declared on the ref are retained. ECharts uses the materialized rows
+for both `option.dataset` and the shared Chart/Data view, so referenced datasets
+can be inspected without duplicating them inline.
 
 Pass the same live registry to framework adapters. Renderer aliases registered
 later, such as `vega-lite` or `plotly`, are then recognized without updating an
@@ -246,7 +253,8 @@ pnpm check:pack
 
 The root build validates both publishable packages and all React/Vue Vite
 examples. Example workspaces are private and are never included in package
-tarballs.
+tarballs. Published-package changes use Changesets; see
+[RELEASING.md](./RELEASING.md) for bootstrap and automated release steps.
 
 ## License
 

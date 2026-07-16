@@ -29,3 +29,7 @@ inline data without understanding ECharts.
 The renderer is selected by `"renderer": "echarts"` in the canonical
 `markdown-chart` envelope. A renderer spec never defines its own `version`;
 protocol versioning belongs to `markdown-chart`.
+
+When `resolveDataRef` materializes a referenced dataset, the renderer injects
+the validated rows into `option.dataset` and returns the same rows through the
+core materialization flow for the Chart/Data view.
