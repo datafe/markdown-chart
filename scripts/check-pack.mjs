@@ -105,7 +105,7 @@ try {
   }, null, 2));
   execFileSync(
     pnpm,
-    ['install', '--offline', '--ignore-workspace', '--ignore-scripts', '--no-frozen-lockfile'],
+    ['install', '--ignore-workspace', '--ignore-scripts', '--no-frozen-lockfile'],
     { cwd: consumerDirectory, encoding: 'utf8' },
   );
   const installedReactManifest = JSON.parse(readFileSync(
