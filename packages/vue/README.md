@@ -5,7 +5,8 @@ placeholder mounting utility for markdown-it applications.
 
 `<MarkdownChart :source="markdown" />` works without supplying a markdown-it
 instance or renderer registry. The component creates safe defaults, registers
-ECharts, and applies a 360px minimum chart height automatically.
+ECharts, and applies a 360px minimum chart height automatically. Canonical
+inline datasets automatically include a Chart/Data switch.
 
 Install the zero-config component with:
 
@@ -18,6 +19,10 @@ for a custom parser should still declare `markdown-it` as their own dependency.
 
 The component observes replacement `markdownIt` and `registry` props. The
 composable accepts either plain instances or Vue refs for both values.
+
+Set `:streaming="true"` while tokens are arriving. Closed fences render
+immediately, and their existing DOM and chart controller are reused as later
+Markdown is appended. Only the active unterminated tail fence waits.
 
 Chart placeholders must have a non-zero height so ECharts can measure its
 container:

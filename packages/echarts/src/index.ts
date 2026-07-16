@@ -2,6 +2,7 @@ import {
   MARKDOWN_CHART_LANGUAGE,
   MarkdownChartError,
   isJsonObject,
+  validateChartJsonValue,
   type ChartHandle,
   type ChartDataRow,
   type ChartRenderer,
@@ -10,6 +11,19 @@ import {
   type JsonValue,
   type RefChartData,
 } from '@datafe/markdown-chart';
+import {
+  isLegacyEChartQueryLanguage,
+  parseLegacyEChartQueryBlock,
+  type LegacyEChartQueryBlock,
+  type ResolveLegacyEChartQuery,
+} from './legacy-echart-query';
+
+export type {
+  LegacyEChartQueryBlock,
+  LegacyEChartQueryRequest,
+  ResolvedLegacyEChartQuery,
+  ResolveLegacyEChartQuery,
+} from './legacy-echart-query';
 
 export type DatasetRow = ChartDataRow;
 export type InlineDataset = InlineChartData;
@@ -67,11 +81,15 @@ export interface CreateEChartsRendererOptions {
   readonly validateDataRef?: (ref: string) => boolean;
   readonly limits?: Partial<EChartsLimits>;
   readonly resizeObserver?: boolean;
+  /** @deprecated Temporary ChatBI migration hook. Do not use for new content. */
+  readonly resolveLegacyEChartQuery?: ResolveLegacyEChartQuery;
 }
 
 export interface ParsedEChartsSpec {
   readonly option: Record<string, JsonValue>;
   readonly data: EChartsDataset | undefined;
+  /** @deprecated Temporary ChatBI migration state. */
+  readonly legacyEChartQuery?: LegacyEChartQueryBlock;
 }
 
 const ALLOWED_TOP_LEVEL_OPTION_KEYS = new Set([
@@ -375,6 +393,7 @@ export function createEChartsRenderer(
   return {
     id: 'echarts',
     aliases: ['echarts-fulldata'],
+    matchLanguage: isLegacyEChartQueryLanguage,
     parse(spec, context) {
       return parseSpec(
         spec,
@@ -383,23 +402,94 @@ export function createEChartsRenderer(
         limits,
       );
     },
+    parseSource(source, context) {
+      return {
+        option: {},
+        data: undefined,
+        legacyEChartQuery: parseLegacyEChartQueryBlock(context.language, source),
+      };
+    },
     async mount(container, parsed, context) {
-      const option = cloneJson(parsed.option);
-      if (parsed.data) {
+      let materialized = parsed;
+      if (parsed.legacyEChartQuery) {
+        if (!options.resolveLegacyEChartQuery) {
+          throw new MarkdownChartError(
+            'REF_RESOLVER_MISSING',
+            'resolveLegacyEChartQuery is required for this temporary ChatBI fence',
+          );
+        }
+        let resolved: unknown;
+        try {
+          resolved = await options.resolveLegacyEChartQuery({
+            ...parsed.legacyEChartQuery,
+            signal: context.signal,
+          });
+        } catch (cause) {
+          if (context.signal.aborted) {
+            return EMPTY_HANDLE;
+          }
+          throw new MarkdownChartError(
+            'REF_RESOLUTION_FAILED',
+            'The temporary ChatBI chart could not be resolved',
+            { cause },
+          );
+        }
+        if (context.signal.aborted) {
+          return EMPTY_HANDLE;
+        }
+        let normalized: JsonValue;
+        try {
+          normalized = validateChartJsonValue(resolved, {
+            maxDepth: limits.maxDepth,
+            maxNodes: limits.maxNodes,
+          });
+        } catch (cause) {
+          if (cause instanceof MarkdownChartError) {
+            throw cause;
+          }
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            'Temporary ChatBI resolver returned a non-JSON result',
+            { cause },
+          );
+        }
+        if (!isJsonObject(normalized)) {
+          return schemaError('Temporary ChatBI resolver must return an object');
+        }
+        if (
+          !Object.prototype.hasOwnProperty.call(normalized, 'data')
+          || !Object.prototype.hasOwnProperty.call(normalized, 'spec')
+        ) {
+          return schemaError('Temporary ChatBI resolver must return data and spec');
+        }
+        const resolvedSpec = parseSpec(
+          normalized.spec as JsonValue,
+          normalized.data,
+          true,
+          limits,
+        );
+        if (resolvedSpec.data?.kind !== 'inline') {
+          return schemaError('Temporary ChatBI resolver must return inline data');
+        }
+        materialized = resolvedSpec;
+      }
+
+      const option = cloneJson(materialized.option);
+      if (materialized.data) {
         let dataset: ResolvedDataset;
-        if (parsed.data.kind === 'inline') {
-          dataset = parsed.data;
+        if (materialized.data.kind === 'inline') {
+          dataset = materialized.data;
         } else {
-          if (options.validateDataRef && !options.validateDataRef(parsed.data.ref)) {
+          if (options.validateDataRef && !options.validateDataRef(materialized.data.ref)) {
             throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
           }
           if (!options.resolveDataRef) {
             throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
           }
           try {
-            dataset = await options.resolveDataRef(parsed.data.ref, {
-              format: parsed.data.format,
-              dimensions: parsed.data.dimensions,
+            dataset = await options.resolveDataRef(materialized.data.ref, {
+              format: materialized.data.format,
+              dimensions: materialized.data.dimensions,
               signal: context.signal,
             });
           } catch (cause) {

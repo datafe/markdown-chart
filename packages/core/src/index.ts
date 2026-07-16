@@ -63,6 +63,19 @@ export const DEFAULT_JSON_LIMITS: Readonly<JsonParseLimits> = Object.freeze({
 
 const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
+function assertChartSourceSize(
+  source: string,
+  overrides: Partial<JsonParseLimits>,
+): void {
+  const maxCharacters = overrides.maxCharacters ?? DEFAULT_JSON_LIMITS.maxCharacters;
+  if (source.length > maxCharacters) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `Chart fence exceeds the ${maxCharacters} character limit`,
+    );
+  }
+}
+
 export function isJsonObject(value: unknown): value is Record<string, JsonValue> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return false;
@@ -102,18 +115,57 @@ function assertJsonValue(
     return;
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => assertJsonValue(item, limits, state, depth + 1, `${path}[${index}]`));
+    for (const key of Reflect.ownKeys(value)) {
+      if (key === 'length') {
+        continue;
+      }
+      if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length) {
+        throw new MarkdownChartError('INVALID_JSON', `${path} contains a non-JSON array property`);
+      }
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+        throw new MarkdownChartError('INVALID_JSON', `${path}[${index}] is not a JSON data property`);
+      }
+      assertJsonValue(descriptor.value, limits, state, depth + 1, `${path}[${index}]`);
+    }
     return;
   }
   if (!isJsonObject(value)) {
     throw new MarkdownChartError('INVALID_JSON', `${path} contains a non-JSON value`);
   }
-  for (const [key, child] of Object.entries(value)) {
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') {
+      throw new MarkdownChartError('INVALID_JSON', `${path} contains a symbol key`);
+    }
     if (FORBIDDEN_KEYS.has(key)) {
       throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains forbidden key ${key}`);
     }
-    assertJsonValue(child, limits, state, depth + 1, `${path}.${key}`);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+      throw new MarkdownChartError('INVALID_JSON', `${path}.${key} is not a JSON data property`);
+    }
+    assertJsonValue(descriptor.value, limits, state, depth + 1, `${path}.${key}`);
   }
+}
+
+/**
+ * Validates an already materialized value without applying the source-text
+ * character limit used for Markdown fences.
+ *
+ * This is intended for trusted host integration boundaries that return values
+ * directly (for example, data resolvers). It still rejects non-JSON values,
+ * non-plain object prototypes, dangerous keys, excessive depth, and excessive
+ * node counts.
+ */
+export function validateChartJsonValue(
+  value: unknown,
+  overrides: Partial<Pick<JsonParseLimits, 'maxDepth' | 'maxNodes'>> = {},
+): JsonValue {
+  const limits: JsonParseLimits = { ...DEFAULT_JSON_LIMITS, ...overrides };
+  assertJsonValue(value, limits, { nodes: 0 }, 0, '$');
+  return value;
 }
 
 export function parseChartJson(
@@ -121,12 +173,7 @@ export function parseChartJson(
   overrides: Partial<JsonParseLimits> = {},
 ): JsonValue {
   const limits: JsonParseLimits = { ...DEFAULT_JSON_LIMITS, ...overrides };
-  if (source.length > limits.maxCharacters) {
-    throw new MarkdownChartError(
-      'LIMIT_EXCEEDED',
-      `Chart fence exceeds the ${limits.maxCharacters} character limit`,
-    );
-  }
+  assertChartSourceSize(source, limits);
 
   let parsed: unknown;
   try {
@@ -242,7 +289,9 @@ export interface ChartHandle {
 export interface ChartRenderer<Parsed = unknown> {
   readonly id: string;
   readonly aliases?: readonly string[];
+  readonly matchLanguage?: (language: string) => boolean;
   parse(spec: JsonValue, context: ChartParseContext): Parsed | Promise<Parsed>;
+  parseSource?(source: string, context: ChartParseContext): Parsed | Promise<Parsed>;
   mount(
     container: HTMLElement,
     parsed: Parsed,
@@ -345,7 +394,9 @@ export class ChartRendererRegistry {
 
   has(name: string): boolean {
     const normalized = name.trim().toLowerCase();
-    return normalized === MARKDOWN_CHART_LANGUAGE || this.#names.has(normalized);
+    return normalized === MARKDOWN_CHART_LANGUAGE
+      || this.#names.has(normalized)
+      || [...this.#renderers.values()].some((renderer) => renderer.matchLanguage?.(normalized) === true);
   }
 
   get rendererIds(): readonly string[] {
@@ -358,26 +409,48 @@ export class ChartRendererRegistry {
     let rendererId: string;
     let spec: JsonValue;
     let data: ChartData | undefined;
+    let parseSource = false;
     if (language === MARKDOWN_CHART_LANGUAGE) {
       const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
       rendererId = envelope.renderer;
       spec = envelope.spec;
       data = envelope.data;
     } else {
-      const body = parseChartJson(source, this.#jsonLimits);
-      const resolved = this.#names.get(language);
-      if (!resolved) {
+      const exact = this.#names.get(language);
+      const matched = exact ? [] : [...this.#renderers.entries()]
+        .filter(([, renderer]) => renderer.matchLanguage?.(language) === true)
+        .map(([id]) => id);
+      if (!exact && matched.length === 0) {
         throw new MarkdownChartError('RENDERER_NOT_FOUND', `No renderer is registered for ${language || 'this fence'}`);
       }
-      rendererId = resolved;
-      spec = body;
+      if (matched.length > 1) {
+        throw new MarkdownChartError(
+          'RENDERER_CONFLICT',
+          `Multiple renderers match the dynamic fence language ${language}`,
+        );
+      }
+      rendererId = exact ?? matched[0] as string;
+      parseSource = !exact;
+      if (parseSource) {
+        assertChartSourceSize(source, this.#jsonLimits);
+      }
+      spec = parseSource ? null : parseChartJson(source, this.#jsonLimits);
     }
 
     const renderer = this.#renderers.get(rendererId);
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const parsed = await renderer.parse(spec, { language, rendererId, data });
+    const context: ChartParseContext = { language, rendererId, data };
+    if (parseSource && !renderer.parseSource) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `Renderer ${rendererId} matched ${language} but cannot parse its source`,
+      );
+    }
+    const parsed = parseSource
+      ? await renderer.parseSource!(source, context)
+      : await renderer.parse(spec, context);
     return { renderer, parsed, data, language, rendererId };
   }
 }
@@ -389,43 +462,335 @@ export interface ChartRenderRequest {
   readonly streaming?: boolean;
 }
 
+const MARKDOWN_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+
+/**
+ * Returns whether a Markdown fragment that starts with a fenced code block
+ * contains its matching closing fence.
+ *
+ * Streaming adapters use this to distinguish an already completed chart from
+ * the active, unterminated chart block at the tail of an LLM response.
+ */
+export function isMarkdownFenceClosed(source: string): boolean {
+  const lines = source.replace(/\r\n?/g, '\n').split('\n');
+  const opening = MARKDOWN_FENCE_OPEN.exec(lines[0] ?? '');
+  const marker = opening?.[1];
+  if (!marker) {
+    return false;
+  }
+
+  const markerCharacter = marker[0];
+  if (!markerCharacter) {
+    return false;
+  }
+  const closing = new RegExp(
+    `^ {0,3}${markerCharacter === '`' ? '`' : '~'}{${marker.length},}[\\t ]*$`,
+  );
+  return lines.slice(1).some((line) => closing.test(line));
+}
+
+const MAX_VISIBLE_DATA_ROWS = 500;
+const MAX_VISIBLE_DATA_COLUMNS = 50;
+
+function inlineDataColumns(data: InlineChartData): string[] {
+  if (data.dimensions && data.dimensions.length > 0) {
+    return [...data.dimensions];
+  }
+  const columns: string[] = [];
+  const seen = new Set<string>();
+  for (const row of data.source) {
+    if (Array.isArray(row)) {
+      for (let index = 0; index < row.length; index += 1) {
+        const column = String(index + 1);
+        if (!seen.has(column)) {
+          seen.add(column);
+          columns.push(column);
+        }
+      }
+    } else {
+      for (const column of Object.keys(row)) {
+        if (!seen.has(column)) {
+          seen.add(column);
+          columns.push(column);
+        }
+      }
+    }
+  }
+  return columns;
+}
+
+function inlineDataCell(
+  row: ChartDataRow,
+  column: string,
+  columnIndex: number,
+): JsonPrimitive | undefined {
+  return Array.isArray(row) ? row[columnIndex] : row[column];
+}
+
+function setStyles(element: HTMLElement, styles: Partial<CSSStyleDeclaration>): void {
+  Object.assign(element.style, styles);
+}
+
+function createViewButton(label: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.setAttribute('aria-label', `Show ${label.toLowerCase()}`);
+  setStyles(button, {
+    padding: '5px 10px',
+    border: '0',
+    borderRadius: '5px',
+    background: 'transparent',
+    color: 'inherit',
+    cursor: 'pointer',
+    font: 'inherit',
+    fontSize: '12px',
+  });
+  return button;
+}
+
+function createInlineDataTable(data: InlineChartData): HTMLElement {
+  const columns = inlineDataColumns(data);
+  const visibleColumns = columns.slice(0, MAX_VISIBLE_DATA_COLUMNS);
+  const visibleRows = data.source.slice(0, MAX_VISIBLE_DATA_ROWS);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'markdown-chart-data-view';
+  wrapper.dataset.markdownChartDataView = 'true';
+  setStyles(wrapper, {
+    maxHeight: 'min(60vh, 520px)',
+    overflow: 'auto',
+  });
+
+  if (columns.length === 0 || data.source.length === 0) {
+    const empty = document.createElement('div');
+    empty.textContent = 'No data';
+    setStyles(empty, { padding: '24px', textAlign: 'center', opacity: '0.68' });
+    wrapper.append(empty);
+    return wrapper;
+  }
+
+  if (visibleColumns.length < columns.length || visibleRows.length < data.source.length) {
+    const notice = document.createElement('div');
+    notice.className = 'markdown-chart-data-notice';
+    notice.textContent = `Showing ${visibleRows.length} of ${data.source.length} rows and ${visibleColumns.length} of ${columns.length} columns.`;
+    setStyles(notice, {
+      position: 'sticky',
+      top: '0',
+      zIndex: '2',
+      padding: '8px 12px',
+      borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+      background: 'Canvas',
+      fontSize: '12px',
+      opacity: '0.75',
+    });
+    wrapper.append(notice);
+  }
+
+  const table = document.createElement('table');
+  table.className = 'markdown-chart-data-table';
+  setStyles(table, {
+    width: 'max-content',
+    minWidth: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '13px',
+  });
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const column of visibleColumns) {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = column;
+    setStyles(cell, {
+      position: 'sticky',
+      top: '0',
+      padding: '8px 12px',
+      border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+      background: 'Canvas',
+      textAlign: 'left',
+      whiteSpace: 'nowrap',
+    });
+    headRow.append(cell);
+  }
+  head.append(headRow);
+  table.append(head);
+
+  const body = document.createElement('tbody');
+  for (const row of visibleRows) {
+    const tableRow = document.createElement('tr');
+    visibleColumns.forEach((column, columnIndex) => {
+      const cell = document.createElement('td');
+      const value = inlineDataCell(row, column, columnIndex);
+      cell.textContent = value === undefined
+        ? 'undefined'
+        : value === null
+          ? 'null'
+          : value === ''
+            ? '""'
+            : String(value);
+      setStyles(cell, {
+        padding: '8px 12px',
+        border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+        textAlign: 'left',
+        verticalAlign: 'top',
+      });
+      tableRow.append(cell);
+    });
+    body.append(tableRow);
+  }
+  table.append(body);
+  wrapper.append(table);
+  return wrapper;
+}
+
+interface ChartView {
+  readonly chartContainer: HTMLElement;
+  dispose(): void;
+}
+
+function createChartView(
+  container: HTMLElement,
+  data: InlineChartData,
+  onShowChart: () => void,
+): ChartView {
+  const hadCardClass = container.classList.contains('markdown-chart-card');
+  const previousStyles = {
+    overflow: container.style.overflow,
+    border: container.style.border,
+    borderRadius: container.style.borderRadius,
+  };
+  container.classList.add('markdown-chart-card');
+  setStyles(container, {
+    overflow: 'hidden',
+    border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+    borderRadius: '8px',
+  });
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'markdown-chart-toolbar';
+  toolbar.setAttribute('role', 'group');
+  toolbar.setAttribute('aria-label', 'View mode');
+  setStyles(toolbar, {
+    display: 'flex',
+    minHeight: '40px',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '2px',
+    padding: '0 8px',
+    borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+  });
+  const chartButton = createViewButton('Chart');
+  const dataButton = createViewButton('Data');
+  const chartContainer = document.createElement('div');
+  chartContainer.className = 'markdown-chart-chart-view';
+  chartContainer.dataset.markdownChartChartView = 'true';
+  setStyles(chartContainer, { width: '100%', minHeight: 'inherit' });
+  const dataContainer = createInlineDataTable(data);
+  dataContainer.hidden = true;
+
+  const select = (mode: 'chart' | 'data'): void => {
+    const chartSelected = mode === 'chart';
+    chartButton.setAttribute('aria-pressed', String(chartSelected));
+    dataButton.setAttribute('aria-pressed', String(!chartSelected));
+    chartButton.style.background = chartSelected ? 'Highlight' : 'transparent';
+    chartButton.style.color = chartSelected ? 'HighlightText' : 'inherit';
+    dataButton.style.background = chartSelected ? 'transparent' : 'Highlight';
+    dataButton.style.color = chartSelected ? 'inherit' : 'HighlightText';
+    chartContainer.hidden = !chartSelected;
+    dataContainer.hidden = chartSelected;
+  };
+  const showChart = (): void => {
+    select('chart');
+    onShowChart();
+  };
+  const showData = (): void => select('data');
+  chartButton.addEventListener('click', showChart);
+  dataButton.addEventListener('click', showData);
+  toolbar.append(chartButton, dataButton);
+  container.replaceChildren(toolbar, chartContainer, dataContainer);
+  select('chart');
+
+  return {
+    chartContainer,
+    dispose() {
+      chartButton.removeEventListener('click', showChart);
+      dataButton.removeEventListener('click', showData);
+      if (!hadCardClass) {
+        container.classList.remove('markdown-chart-card');
+      }
+      container.style.overflow = previousStyles.overflow;
+      container.style.border = previousStyles.border;
+      container.style.borderRadius = previousStyles.borderRadius;
+    },
+  };
+}
+
 export class ChartController {
   readonly #registry: ChartRendererRegistry;
   #generation = 0;
   #abortController: AbortController | undefined;
   #handle: ChartHandle | undefined;
+  #view: ChartView | undefined;
 
   constructor(registry: ChartRendererRegistry) {
     this.#registry = registry;
   }
 
   async render(container: HTMLElement, request: ChartRenderRequest): Promise<void> {
+    if (request.streaming) {
+      if (this.#abortController) {
+        this.#generation += 1;
+        this.#abortController.abort();
+        this.#abortController = undefined;
+        this.#view?.dispose();
+        this.#view = undefined;
+        container.replaceChildren();
+      }
+      return;
+    }
+
     const generation = ++this.#generation;
     this.#abortController?.abort();
     this.#handle?.dispose();
     this.#handle = undefined;
-
-    if (request.streaming) {
-      this.#abortController = undefined;
-      return;
-    }
+    this.#view?.dispose();
+    this.#view = undefined;
+    container.replaceChildren();
 
     const abortController = new AbortController();
     this.#abortController = abortController;
-    const prepared = await this.#registry.prepare(request.language, request.source);
-    if (generation !== this.#generation || abortController.signal.aborted) {
-      return;
-    }
+    try {
+      const prepared = await this.#registry.prepare(request.language, request.source);
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
 
-    const handle = await prepared.renderer.mount(container, prepared.parsed, {
-      signal: abortController.signal,
-      theme: request.theme,
-    });
-    if (generation !== this.#generation || abortController.signal.aborted) {
-      handle?.dispose();
-      return;
+      const inlineData = prepared.data?.kind === 'inline' ? prepared.data : undefined;
+      const view = inlineData
+        ? createChartView(container, inlineData, () => this.#handle?.resize?.())
+        : undefined;
+      this.#view = view;
+      const handle = await prepared.renderer.mount(view?.chartContainer ?? container, prepared.parsed, {
+        signal: abortController.signal,
+        theme: request.theme,
+      });
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        handle?.dispose();
+        return;
+      }
+      this.#handle = handle || undefined;
+    } catch (error) {
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
+      this.#view?.dispose();
+      this.#view = undefined;
+      container.replaceChildren();
+      throw error;
+    } finally {
+      if (this.#abortController === abortController) {
+        this.#abortController = undefined;
+      }
     }
-    this.#handle = handle || undefined;
   }
 
   dispose(): void {
@@ -434,5 +799,7 @@ export class ChartController {
     this.#abortController = undefined;
     this.#handle?.dispose();
     this.#handle = undefined;
+    this.#view?.dispose();
+    this.#view = undefined;
   }
 }

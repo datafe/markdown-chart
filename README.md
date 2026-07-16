@@ -1,7 +1,10 @@
 # Markdown Chart
 
-`markdown-chart` renders JSON chart specifications embedded in Markdown. Its
-core is framework-neutral and independent of any chat product.
+English | [简体中文](./README.zh-CN.md)
+
+`markdown-chart` provides portable chart blocks for streaming Markdown, with
+inspectable data and pluggable renderers. Its core is framework-neutral and
+independent of any chat product.
 
 The project starts with an ECharts renderer and adapters for markdown-it, Vue 3,
 and react-markdown. The registry-based core can accept future Plotly, Vega, or
@@ -107,9 +110,11 @@ defineProps<{ source: string }>();
 ```
 
 Both components register ECharts, load it on first chart mount, and apply a
-360px minimum height automatically. The React package includes `react-markdown`,
-and the Vue package includes `markdown-it`. Pass a custom `registry`, parser,
-theme, or renderer options only when the defaults are not sufficient.
+360px minimum height automatically. Canonical inline data also enables a
+built-in Chart/Data switch with a bounded, scrollable data table. The React
+package includes `react-markdown`, and the Vue package includes `markdown-it`.
+Pass a custom `registry`, parser, theme, or renderer options only when the
+defaults are not sufficient.
 
 ## Advanced setup
 
@@ -147,10 +152,18 @@ const chartComponents = createMarkdownChartComponents({
   chartStyle: { minHeight: 360 },
 });
 
-<MarkdownChartProvider registry={registry}>
+<MarkdownChartProvider registry={registry} streaming={isStreaming}>
   <ReactMarkdown components={chartComponents}>{source}</ReactMarkdown>
 </MarkdownChartProvider>
 ```
+
+The provider infers `source` from its direct `ReactMarkdown` child, so streaming
+support does not add another required prop in this common advanced setup. In
+simple mode, pass the same state through the component's `streaming` prop.
+
+During streaming, closed chart fences render immediately and keep their mounted
+chart instance as later text arrives. Only the active unterminated tail fence
+waits for more input.
 
 Because the application imports `react-markdown` directly in this mode,
 declare it as an application dependency as well:

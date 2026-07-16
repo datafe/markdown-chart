@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import { describe, expect, it } from 'vitest';
 import { ChartRendererRegistry } from '@datafe/markdown-chart';
 import {
+  createMarkdownChartEnvironment,
   getMarkdownChartBlocks,
   markdownChartPlugin,
   type MarkdownChartEnvironment,
@@ -20,7 +21,83 @@ describe('markdownChartPlugin', () => {
       id: 'markdown-chart-0',
       language: 'markdown-chart',
       source: '{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{}}\n',
+      complete: true,
     }]);
+  });
+
+  it('marks only an unterminated chart fence as incomplete while streaming', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const completeSource = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{}}\n```\n\nMore text';
+    const completeEnv = createMarkdownChartEnvironment({ streaming: true });
+    const completeHtml = md.render(completeSource, completeEnv);
+    expect(getMarkdownChartBlocks(completeEnv)[0]?.complete).toBe(true);
+    expect(completeHtml).toContain('data-markdown-chart-complete="true"');
+    expect(completeHtml).not.toContain('aria-busy="true"');
+
+    const incompleteSource = '```markdown-chart\n{"version":1';
+    const incompleteEnv = createMarkdownChartEnvironment({ streaming: true });
+    const incompleteHtml = md.render(incompleteSource, incompleteEnv);
+    expect(getMarkdownChartBlocks(incompleteEnv)[0]?.complete).toBe(false);
+    expect(incompleteHtml).toContain('markdown-chart-streaming');
+    expect(incompleteHtml).toContain('aria-busy="true"');
+  });
+
+  it('keeps completed charts renderable when the final chart fence is still streaming', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const source = [
+      '```markdown-chart',
+      '{"version":1,"renderer":"echarts","spec":{}}',
+      '```',
+      '',
+      '```markdown-chart',
+      '{"version":1',
+    ].join('\n');
+    const env = createMarkdownChartEnvironment({ streaming: true });
+    md.render(source, env);
+    expect(getMarkdownChartBlocks(env).map((block) => block.complete)).toEqual([true, false]);
+  });
+
+  it('does not allocate or scan a trailing token slice for a closed chart', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const env = createMarkdownChartEnvironment({ streaming: true });
+    const parsed = md.parse('```markdown-chart\n{}\n```\n\nFollowing text', env);
+    const tokens = new Proxy(parsed, {
+      get(target, property, receiver) {
+        if (property === 'slice') {
+          throw new Error('closed chart must not slice trailing tokens');
+        }
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+    const renderFence = md.renderer.rules.fence;
+    expect(renderFence).toBeTypeOf('function');
+    expect(() => renderFence?.(tokens, 0, md.options, env, md.renderer)).not.toThrow();
+  });
+
+  it('treats an implicitly closed container fence followed by text as complete', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const source = [
+      '> ```markdown-chart',
+      '> {"version":1,"renderer":"echarts","spec":{}}',
+      '',
+      'Following paragraph',
+    ].join('\n');
+    const env = createMarkdownChartEnvironment({ streaming: true });
+    md.render(source, env);
+    expect(getMarkdownChartBlocks(env)[0]?.complete).toBe(true);
+  });
+
+  it('handles tilde fences and rejects a closing marker shorter than the opener', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const tildeSource = '~~~markdown-chart\n{"version":1}\n~~~';
+    const tildeEnv = createMarkdownChartEnvironment({ streaming: true });
+    md.render(tildeSource, tildeEnv);
+    expect(getMarkdownChartBlocks(tildeEnv)[0]?.complete).toBe(true);
+
+    const shortClosing = '````markdown-chart\n{"version":1}\n```';
+    const shortEnv = createMarkdownChartEnvironment({ streaming: true });
+    md.render(shortClosing, shortEnv);
+    expect(getMarkdownChartBlocks(shortEnv)[0]?.complete).toBe(false);
   });
 
   it('leaves unrelated fenced code unchanged', () => {

@@ -10,10 +10,13 @@ export interface MarkdownChartBlock {
   readonly id: string;
   readonly language: string;
   readonly source: string;
+  /** False only for an unterminated fence in an actively streaming document. */
+  readonly complete?: boolean;
 }
 
 export interface MarkdownChartEnvironmentState {
   readonly blocks: MarkdownChartBlock[];
+  readonly streaming?: boolean;
 }
 
 export type MarkdownChartEnvironment = Record<string, unknown> & {
@@ -25,6 +28,10 @@ export interface MarkdownChartPluginOptions {
   readonly isChartLanguage?: (language: string) => boolean;
   readonly idPrefix?: string;
   readonly placeholderClass?: string;
+}
+
+export interface CreateMarkdownChartEnvironmentOptions {
+  readonly streaming?: boolean;
 }
 
 const SAFE_TOKEN = /^[a-z][a-z0-9_-]*$/i;
@@ -53,6 +60,26 @@ export function getMarkdownChartBlocks(env: unknown): readonly MarkdownChartBloc
   }
   const state = (env as MarkdownChartEnvironment)[MARKDOWN_CHART_ENV_KEY];
   return state && Array.isArray(state.blocks) ? state.blocks : [];
+}
+
+export function createMarkdownChartEnvironment(
+  options: CreateMarkdownChartEnvironmentOptions = {},
+): MarkdownChartEnvironment {
+  return {
+    [MARKDOWN_CHART_ENV_KEY]: {
+      blocks: [],
+      streaming: options.streaming ?? false,
+    },
+  };
+}
+
+function fenceTokenIsClosed(token: { readonly content: string; readonly map: [number, number] | null }): boolean {
+  if (!token.map) {
+    return false;
+  }
+  const contentLines = (token.content.match(/\n/g) ?? []).length
+    + (token.content.length > 0 && !token.content.endsWith('\n') ? 1 : 0);
+  return token.map[1] - token.map[0] >= contentLines + 2;
 }
 
 export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPluginOptions = {}): void {
@@ -84,7 +111,20 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
 
     const state = stateFor(env);
     const id = `${idPrefix}-${state.blocks.length}`;
-    state.blocks.push({ id, language, source: token.content });
-    return `<div class="${placeholderClass}" data-markdown-chart-id="${id}" aria-label="Chart"></div>\n`;
+    let incompleteStreamingTail = false;
+    if (state.streaming === true && !fenceTokenIsClosed(token)) {
+      incompleteStreamingTail = true;
+      for (let followingIndex = index + 1; followingIndex < tokens.length; followingIndex += 1) {
+        if (tokens[followingIndex]?.nesting !== -1) {
+          incompleteStreamingTail = false;
+          break;
+        }
+      }
+    }
+    const complete = !incompleteStreamingTail;
+    state.blocks.push({ id, language, source: token.content, complete });
+    const streamingClass = complete ? '' : ' markdown-chart-streaming';
+    const busy = complete ? '' : ' aria-busy="true"';
+    return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="Chart"${busy}></div>\n`;
   };
 }
