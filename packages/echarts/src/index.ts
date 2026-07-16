@@ -1,26 +1,19 @@
 import {
+  MARKDOWN_CHART_LANGUAGE,
   MarkdownChartError,
   isJsonObject,
   type ChartHandle,
+  type ChartDataRow,
   type ChartRenderer,
+  type InlineChartData,
   type JsonPrimitive,
   type JsonValue,
+  type RefChartData,
 } from '@datafe/markdown-chart';
 
-export type DatasetRow = JsonPrimitive[] | Record<string, JsonPrimitive>;
-
-export interface InlineDataset {
-  readonly kind: 'inline';
-  readonly dimensions?: readonly string[];
-  readonly source: readonly DatasetRow[];
-}
-
-export interface RefDataset {
-  readonly kind: 'ref';
-  readonly ref: string;
-  readonly format?: 'csv' | 'json';
-  readonly dimensions?: readonly string[];
-}
+export type DatasetRow = ChartDataRow;
+export type InlineDataset = InlineChartData;
+export type RefDataset = RefChartData;
 
 export type EChartsDataset = InlineDataset | RefDataset;
 
@@ -69,7 +62,7 @@ export const DEFAULT_ECHARTS_LIMITS: Readonly<EChartsLimits> = Object.freeze({
 });
 
 export interface CreateEChartsRendererOptions {
-  readonly loadECharts: () => LoadedEChartsRuntime | Promise<LoadedEChartsRuntime>;
+  readonly loadECharts?: () => LoadedEChartsRuntime | Promise<LoadedEChartsRuntime>;
   readonly resolveDataRef?: ResolveDataRef;
   readonly validateDataRef?: (ref: string) => boolean;
   readonly limits?: Partial<EChartsLimits>;
@@ -218,7 +211,7 @@ function validateRows(
   return rows;
 }
 
-function parseData(value: JsonValue, limits: EChartsLimits): EChartsDataset {
+function parseData(value: unknown, limits: EChartsLimits): EChartsDataset {
   if (!isJsonObject(value) || typeof value.kind !== 'string') {
     return schemaError('echarts.data must be an inline or ref dataset object');
   }
@@ -310,14 +303,30 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
   }
 }
 
-function parseSpec(spec: JsonValue, limits: EChartsLimits): ParsedEChartsSpec {
+function parseSpec(
+  spec: JsonValue,
+  envelopeData: unknown,
+  canonical: boolean,
+  limits: EChartsLimits,
+): ParsedEChartsSpec {
   if (!isJsonObject(spec)) {
     return schemaError('ECharts specification must be an object');
   }
 
   let option: Record<string, JsonValue>;
   let data: EChartsDataset | undefined;
-  if (Object.prototype.hasOwnProperty.call(spec, 'option')) {
+  if (canonical) {
+    if (
+      Object.prototype.hasOwnProperty.call(spec, 'option')
+      || Object.prototype.hasOwnProperty.call(spec, 'data')
+    ) {
+      return schemaError(
+        'Canonical markdown-chart data must be a sibling of spec; spec must contain the ECharts option directly',
+      );
+    }
+    option = cloneJson(spec);
+    data = envelopeData === undefined ? undefined : parseData(envelopeData, limits);
+  } else if (Object.prototype.hasOwnProperty.call(spec, 'option')) {
     if (Object.prototype.hasOwnProperty.call(spec, 'version')) {
       return schemaError('echarts.version is not supported; version belongs to the markdown-chart envelope');
     }
@@ -355,14 +364,24 @@ function toDatasetOption(dataset: ResolvedDataset, limits: EChartsLimits): Recor
 
 const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 
-export function createEChartsRenderer(options: CreateEChartsRendererOptions): ChartRenderer<ParsedEChartsSpec> {
+export function createEChartsRenderer(
+  options: CreateEChartsRendererOptions = {},
+): ChartRenderer<ParsedEChartsSpec> {
   const limits: EChartsLimits = { ...DEFAULT_ECHARTS_LIMITS, ...options.limits };
+  const loadECharts = options.loadECharts ?? (async () => (
+    await import('echarts') as unknown as LoadedEChartsRuntime
+  ));
 
   return {
     id: 'echarts',
     aliases: ['echarts-fulldata'],
-    parse(spec) {
-      return parseSpec(spec, limits);
+    parse(spec, context) {
+      return parseSpec(
+        spec,
+        context.data,
+        context.language === MARKDOWN_CHART_LANGUAGE,
+        limits,
+      );
     },
     async mount(container, parsed, context) {
       const option = cloneJson(parsed.option);
@@ -399,7 +418,7 @@ export function createEChartsRenderer(options: CreateEChartsRendererOptions): Ch
 
       let runtime: EChartsRuntime;
       try {
-        runtime = normalizeRuntime(await options.loadECharts());
+        runtime = normalizeRuntime(await loadECharts());
       } catch (cause) {
         if (cause instanceof MarkdownChartError) {
           throw cause;

@@ -20,21 +20,22 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.tsx --format esm,cjs --dts --clean --external react --external react-markdown --external @datafe/markdown-chart",
+    "build": "tsup src/index.tsx --format esm,cjs --dts --clean --external react --external react-markdown --external @datafe/markdown-chart --external @datafe/markdown-chart-echarts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@datafe/markdown-chart": "workspace:*"
+    "@datafe/markdown-chart": "workspace:*",
+    "@datafe/markdown-chart-echarts": "workspace:*",
+    "react-markdown": "^10.1.0"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-markdown": "^9.0.0 || ^10.0.0"
+    "echarts": ">=5.5 <7",
+    "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-markdown": "^10.1.0"
+    "react-dom": "^19.1.0"
   }
 }

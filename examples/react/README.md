@@ -1,13 +1,17 @@
-# React + react-markdown example
+# React + react-markdown examples
 
-Install React, react-markdown, ECharts, and the three `@datafe` packages used
-below. `createMarkdownChartComponents` replaces the entire `pre` wrapper for
-chart fences. Its `chartClassName` must have a non-zero height; the example uses
-`min-height: 360px`.
+The examples are separate runnable projects so their dependency manifests show
+the actual integration cost:
 
-Run the complete Vite example from the repository root:
+- `simple/` only imports `MarkdownChart`; the adapter owns react-markdown and
+  creates the ECharts registry.
+- `advanced/` uses `MarkdownChartProvider` and
+  `createMarkdownChartComponents` around the host's own `ReactMarkdown`, with a
+  custom renderer registry.
+
+Run either Vite example from the repository root:
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-react build
-pnpm --filter @datafe/markdown-chart-example-react dev
+pnpm --filter @datafe/markdown-chart-example-react-simple dev
+pnpm --filter @datafe/markdown-chart-example-react-advanced dev
 ```

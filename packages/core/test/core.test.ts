@@ -5,6 +5,7 @@ import {
   ChartRendererRegistry,
   MarkdownChartError,
   parseChartJson,
+  parseMarkdownChartEnvelope,
   type ChartRenderer,
 } from '../src/index';
 
@@ -23,11 +24,21 @@ describe('ChartRendererRegistry', () => {
     const prepared = await registry.prepare('markdown-chart', JSON.stringify({
       version: 1,
       renderer: 'plotly',
-      spec: { data: [] },
+      data: {
+        kind: 'inline',
+        dimensions: ['name', 'value'],
+        source: [['A', 1]],
+      },
+      spec: { traces: [] },
     }));
 
     expect(prepared.rendererId).toBe('plotly');
-    expect(prepared.parsed).toBe('{"data":[]}');
+    expect(prepared.parsed).toBe('{"traces":[]}');
+    expect(prepared.data).toEqual({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    });
   });
 
   it('routes renderer-specific aliases', async () => {
@@ -107,5 +118,36 @@ describe('parseChartJson', () => {
   it('enforces source size limits before parsing', () => {
     expect(() => parseChartJson('{"long":"value"}', { maxCharacters: 4 }))
       .toThrowError(/character limit/);
+  });
+});
+
+describe('parseMarkdownChartEnvelope', () => {
+  it('exposes inline data independently from the renderer spec', () => {
+    const envelope = parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      data: {
+        kind: 'inline',
+        dimensions: ['category', 'value'],
+        source: [['A', 10], ['B', 20]],
+      },
+      spec: { series: [{ type: 'bar' }] },
+    }));
+
+    expect(envelope.data).toEqual({
+      kind: 'inline',
+      dimensions: ['category', 'value'],
+      source: [['A', 10], ['B', 20]],
+    });
+    expect(envelope.spec).toEqual({ series: [{ type: 'bar' }] });
+  });
+
+  it('rejects malformed canonical data before invoking a renderer', () => {
+    expect(() => parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      data: { kind: 'inline', source: [['A', { nested: true }]] },
+      spec: {},
+    }))).toThrowError(/JSON scalars/);
   });
 });

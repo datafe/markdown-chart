@@ -9,13 +9,18 @@ import {
   useRef,
   type ReactElement,
   type ReactNode,
+  type CSSProperties,
 } from 'react';
-import type { Components } from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import {
   ChartController,
+  ChartRendererRegistry,
   MARKDOWN_CHART_LANGUAGE,
-  type ChartRendererRegistry,
 } from '@datafe/markdown-chart';
+import {
+  createEChartsRenderer,
+  type CreateEChartsRendererOptions,
+} from '@datafe/markdown-chart-echarts';
 
 export type MarkdownChartReactErrorHandler = (
   error: unknown,
@@ -53,6 +58,7 @@ export interface MarkdownChartBlockProps {
   readonly language: string;
   readonly source: string;
   readonly className?: string;
+  readonly style?: CSSProperties;
 }
 
 export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement {
@@ -103,12 +109,14 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   return createElement('div', {
     ref: containerRef,
     className,
+    style: props.style,
     'aria-label': 'Chart',
   });
 }
 
 export interface CreateMarkdownChartComponentsOptions {
   readonly chartClassName?: string;
+  readonly chartStyle?: CSSProperties;
 }
 
 interface CodeElementProps {
@@ -144,6 +152,7 @@ export function createMarkdownChartComponents(
             language,
             source,
             ...(options.chartClassName ? { className: options.chartClassName } : {}),
+            ...(options.chartStyle ? { style: options.chartStyle } : {}),
           });
         }
       }
@@ -151,4 +160,37 @@ export function createMarkdownChartComponents(
     },
   };
   return components;
+}
+
+export interface MarkdownChartProps {
+  readonly source: string;
+  readonly registry?: ChartRendererRegistry;
+  readonly echarts?: CreateEChartsRendererOptions;
+  readonly theme?: unknown;
+  readonly streaming?: boolean;
+  readonly onError?: MarkdownChartReactErrorHandler;
+  readonly chartClassName?: string;
+  readonly chartStyle?: CSSProperties;
+}
+
+export function MarkdownChart(props: MarkdownChartProps): ReactElement {
+  const automaticRegistry = useMemo(() => (
+    new ChartRendererRegistry().register(createEChartsRenderer(props.echarts))
+  ), [props.echarts]);
+  const registry = props.registry ?? automaticRegistry;
+  const components = useMemo(() => createMarkdownChartComponents({
+    ...(props.chartClassName ? { chartClassName: props.chartClassName } : {}),
+    chartStyle: { minHeight: 360, ...props.chartStyle },
+  }), [props.chartClassName, props.chartStyle]);
+
+  return createElement(
+    MarkdownChartProvider,
+    {
+      registry,
+      children: createElement(ReactMarkdown, { components }, props.source),
+      ...(props.theme !== undefined ? { theme: props.theme } : {}),
+      ...(props.streaming !== undefined ? { streaming: props.streaming } : {}),
+      ...(props.onError ? { onError: props.onError } : {}),
+    },
+  );
 }

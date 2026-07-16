@@ -17,6 +17,22 @@ function testRenderer(onMount: () => void): ChartRenderer {
 }
 
 describe('MarkdownChart reactive object props', () => {
+  it('provides zero-config parsing, registry, and chart height defaults', async () => {
+    const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, streaming: true });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => {
+      const placeholder = root.querySelector<HTMLElement>('.markdown-chart-placeholder');
+      expect(placeholder?.style.minHeight).toBe('360px');
+    });
+    app.unmount();
+  });
+
   it('refreshes when markdownIt or registry instances are replaced', async () => {
     const firstMount = vi.fn();
     const secondMount = vi.fn();

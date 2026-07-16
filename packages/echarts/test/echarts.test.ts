@@ -31,7 +31,13 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
 }
 
 describe('createEChartsRenderer', () => {
-  it('injects inline data and supports the echarts shorthand fence', async () => {
+  it('can be created without an explicit ECharts loader', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare('echarts', '{"series":[]}'))
+      .resolves.toMatchObject({ rendererId: 'echarts' });
+  });
+
+  it('injects canonical inline data from outside the renderer spec', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
@@ -41,14 +47,16 @@ describe('createEChartsRenderer', () => {
     const controller = new ChartController(registry);
 
     await controller.render(document.createElement('div'), {
-      language: 'echarts',
+      language: 'markdown-chart',
       source: JSON.stringify({
+        version: 1,
+        renderer: 'echarts',
         data: {
           kind: 'inline',
           dimensions: ['name', 'value'],
           source: [['A', 1], ['B', 2]],
         },
-        option: {
+        spec: {
           xAxis: { type: 'category' },
           yAxis: {},
           series: [{ type: 'bar' }],
@@ -62,6 +70,20 @@ describe('createEChartsRenderer', () => {
     });
     controller.dispose();
     expect(fake.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('rejects renderer-specific data envelopes inside canonical spec', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => { throw new Error('must not load'); },
+    }));
+    await expect(registry.prepare('markdown-chart', JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      spec: {
+        data: { kind: 'inline', source: [['A', 1]] },
+        option: { series: [{ type: 'bar' }] },
+      },
+    }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
   it('resolves opaque data references only through the injected resolver', async () => {
