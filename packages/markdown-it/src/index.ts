@@ -111,12 +111,16 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
 
     const state = stateFor(env);
     const id = `${idPrefix}-${state.blocks.length}`;
-    const onlyContainerClosuresFollow = tokens
-      .slice(index + 1)
-      .every((following) => following.nesting === -1);
-    const incompleteStreamingTail = state.streaming === true
-      && !fenceTokenIsClosed(token)
-      && onlyContainerClosuresFollow;
+    let incompleteStreamingTail = false;
+    if (state.streaming === true && !fenceTokenIsClosed(token)) {
+      incompleteStreamingTail = true;
+      for (let followingIndex = index + 1; followingIndex < tokens.length; followingIndex += 1) {
+        if (tokens[followingIndex]?.nesting !== -1) {
+          incompleteStreamingTail = false;
+          break;
+        }
+      }
+    }
     const complete = !incompleteStreamingTail;
     state.blocks.push({ id, language, source: token.content, complete });
     const streamingClass = complete ? '' : ' markdown-chart-streaming';

@@ -7,6 +7,7 @@ import {
   MarkdownChartError,
   parseChartJson,
   parseMarkdownChartEnvelope,
+  validateChartJsonValue,
   type ChartRenderer,
 } from '../src/index';
 
@@ -191,6 +192,74 @@ describe('ChartController', () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
+  it('invalidates an in-flight mount when an incomplete streaming update arrives', async () => {
+    let finishMount: ((handle: { dispose(): void }) => void) | undefined;
+    let mountSignal: AbortSignal | undefined;
+    const staleDispose = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount(_container, _parsed, context) {
+        mountSignal = context.signal;
+        return new Promise<{ dispose(): void }>((resolve) => {
+          finishMount = resolve;
+        });
+      },
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    const render = controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', dimensions: ['value'], source: [[1]] },
+        spec: {},
+      }),
+    });
+    await vi.waitFor(() => expect(finishMount).toBeTypeOf('function'));
+    expect(element.classList.contains('markdown-chart-card')).toBe(true);
+
+    await controller.render(element, { language: 'test', source: '{', streaming: true });
+    expect(mountSignal?.aborted).toBe(true);
+    expect(element.classList.contains('markdown-chart-card')).toBe(false);
+    expect(element.childElementCount).toBe(0);
+
+    finishMount?.({ dispose: staleDispose });
+    await render;
+    expect(staleDispose).toHaveBeenCalledOnce();
+  });
+
+  it('prevents an in-flight prepare from mounting after a streaming update', async () => {
+    let finishParse: ((parsed: unknown) => void) | undefined;
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse() {
+        return new Promise((resolve) => {
+          finishParse = resolve;
+        });
+      },
+      mount,
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    const render = controller.render(element, {
+      language: 'test',
+      source: '{}',
+    });
+    await vi.waitFor(() => expect(finishParse).toBeTypeOf('function'));
+
+    await controller.render(element, {
+      language: 'test',
+      source: '{',
+      streaming: true,
+    });
+    finishParse?.({});
+    await render;
+    expect(mount).not.toHaveBeenCalled();
+  });
+
   it('provides chart and canonical inline data views without remounting the chart', async () => {
     const resize = vi.fn();
     const dispose = vi.fn();
@@ -211,8 +280,11 @@ describe('ChartController', () => {
         renderer: 'test',
         data: {
           kind: 'inline',
-          dimensions: ['month', 'sales'],
-          source: [['Jan', 100], ['<script>', null]],
+          dimensions: ['month', 'sales', 'empty', 'missing'],
+          source: [
+            ['Jan', 100, ''],
+            { month: '<script>', sales: null, empty: '' },
+          ],
         },
         spec: {},
       }),
@@ -231,6 +303,10 @@ describe('ChartController', () => {
     expect(dataView?.textContent).toContain('Jan');
     expect(dataView?.textContent).toContain('<script>');
     expect(dataView?.querySelector('script')).toBeNull();
+    expect([...dataView?.querySelectorAll('tbody td') ?? []].map((cell) => cell.textContent)).toEqual([
+      'Jan', '100', '""', 'undefined',
+      '<script>', 'null', '""', 'undefined',
+    ]);
     expect(dispose).not.toHaveBeenCalled();
 
     showChart?.click();
@@ -238,6 +314,40 @@ describe('ChartController', () => {
     expect(resize).toHaveBeenCalledOnce();
     controller.dispose();
     expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('restores host classes and inline styles before a render without inline data', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount() {
+        return { dispose() {} };
+      },
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    element.className = 'host-chart';
+    element.style.overflow = 'auto';
+    element.style.border = '2px solid red';
+    element.style.borderRadius = '3px';
+
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', source: [['A', 1]] },
+        spec: {},
+      }),
+    });
+    expect(element.classList.contains('markdown-chart-card')).toBe(true);
+
+    await controller.render(element, { language: 'test', source: '{}' });
+    expect(element.className).toBe('host-chart');
+    expect(element.style.overflow).toBe('auto');
+    expect(element.style.border).toBe('2px solid red');
+    expect(element.style.borderRadius).toBe('3px');
+    controller.dispose();
   });
 });
 
@@ -263,6 +373,19 @@ describe('parseChartJson', () => {
   it('enforces source size limits before parsing', () => {
     expect(() => parseChartJson('{"long":"value"}', { maxCharacters: 4 }))
       .toThrowError(/character limit/);
+  });
+
+  it('validates materialized JSON values without a character limit', () => {
+    const value = { rows: ['x'.repeat(500_001)] };
+    expect(validateChartJsonValue(value)).toBe(value);
+    expect(() => validateChartJsonValue(Object.create({ inherited: true })))
+      .toThrowError(/non-JSON value/);
+    expect(() => validateChartJsonValue(JSON.parse('{"constructor":{}}')))
+      .toThrowError(/forbidden key/);
+    expect(() => validateChartJsonValue(new Array(1)))
+      .toThrowError(/not a JSON data property/);
+    expect(() => validateChartJsonValue(Object.defineProperty({}, 'value', { get: () => 1 })))
+      .toThrowError(/not a JSON data property/);
   });
 });
 

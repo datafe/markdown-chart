@@ -115,18 +115,57 @@ function assertJsonValue(
     return;
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => assertJsonValue(item, limits, state, depth + 1, `${path}[${index}]`));
+    for (const key of Reflect.ownKeys(value)) {
+      if (key === 'length') {
+        continue;
+      }
+      if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= value.length) {
+        throw new MarkdownChartError('INVALID_JSON', `${path} contains a non-JSON array property`);
+      }
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+        throw new MarkdownChartError('INVALID_JSON', `${path}[${index}] is not a JSON data property`);
+      }
+      assertJsonValue(descriptor.value, limits, state, depth + 1, `${path}[${index}]`);
+    }
     return;
   }
   if (!isJsonObject(value)) {
     throw new MarkdownChartError('INVALID_JSON', `${path} contains a non-JSON value`);
   }
-  for (const [key, child] of Object.entries(value)) {
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') {
+      throw new MarkdownChartError('INVALID_JSON', `${path} contains a symbol key`);
+    }
     if (FORBIDDEN_KEYS.has(key)) {
       throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains forbidden key ${key}`);
     }
-    assertJsonValue(child, limits, state, depth + 1, `${path}.${key}`);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+      throw new MarkdownChartError('INVALID_JSON', `${path}.${key} is not a JSON data property`);
+    }
+    assertJsonValue(descriptor.value, limits, state, depth + 1, `${path}.${key}`);
   }
+}
+
+/**
+ * Validates an already materialized value without applying the source-text
+ * character limit used for Markdown fences.
+ *
+ * This is intended for trusted host integration boundaries that return values
+ * directly (for example, data resolvers). It still rejects non-JSON values,
+ * non-plain object prototypes, dangerous keys, excessive depth, and excessive
+ * node counts.
+ */
+export function validateChartJsonValue(
+  value: unknown,
+  overrides: Partial<Pick<JsonParseLimits, 'maxDepth' | 'maxNodes'>> = {},
+): JsonValue {
+  const limits: JsonParseLimits = { ...DEFAULT_JSON_LIMITS, ...overrides };
+  assertJsonValue(value, limits, { nodes: 0 }, 0, '$');
+  return value;
 }
 
 export function parseChartJson(
@@ -581,7 +620,13 @@ function createInlineDataTable(data: InlineChartData): HTMLElement {
     visibleColumns.forEach((column, columnIndex) => {
       const cell = document.createElement('td');
       const value = inlineDataCell(row, column, columnIndex);
-      cell.textContent = value == null ? '' : String(value);
+      cell.textContent = value === undefined
+        ? 'undefined'
+        : value === null
+          ? 'null'
+          : value === ''
+            ? '""'
+            : String(value);
       setStyles(cell, {
         padding: '8px 12px',
         border: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
@@ -607,6 +652,12 @@ function createChartView(
   data: InlineChartData,
   onShowChart: () => void,
 ): ChartView {
+  const hadCardClass = container.classList.contains('markdown-chart-card');
+  const previousStyles = {
+    overflow: container.style.overflow,
+    border: container.style.border,
+    borderRadius: container.style.borderRadius,
+  };
   container.classList.add('markdown-chart-card');
   setStyles(container, {
     overflow: 'hidden',
@@ -663,6 +714,12 @@ function createChartView(
     dispose() {
       chartButton.removeEventListener('click', showChart);
       dataButton.removeEventListener('click', showData);
+      if (!hadCardClass) {
+        container.classList.remove('markdown-chart-card');
+      }
+      container.style.overflow = previousStyles.overflow;
+      container.style.border = previousStyles.border;
+      container.style.borderRadius = previousStyles.borderRadius;
     },
   };
 }
@@ -680,6 +737,14 @@ export class ChartController {
 
   async render(container: HTMLElement, request: ChartRenderRequest): Promise<void> {
     if (request.streaming) {
+      if (this.#abortController) {
+        this.#generation += 1;
+        this.#abortController.abort();
+        this.#abortController = undefined;
+        this.#view?.dispose();
+        this.#view = undefined;
+        container.replaceChildren();
+      }
       return;
     }
 
@@ -693,25 +758,39 @@ export class ChartController {
 
     const abortController = new AbortController();
     this.#abortController = abortController;
-    const prepared = await this.#registry.prepare(request.language, request.source);
-    if (generation !== this.#generation || abortController.signal.aborted) {
-      return;
-    }
+    try {
+      const prepared = await this.#registry.prepare(request.language, request.source);
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
 
-    const inlineData = prepared.data?.kind === 'inline' ? prepared.data : undefined;
-    const view = inlineData
-      ? createChartView(container, inlineData, () => this.#handle?.resize?.())
-      : undefined;
-    this.#view = view;
-    const handle = await prepared.renderer.mount(view?.chartContainer ?? container, prepared.parsed, {
-      signal: abortController.signal,
-      theme: request.theme,
-    });
-    if (generation !== this.#generation || abortController.signal.aborted) {
-      handle?.dispose();
-      return;
+      const inlineData = prepared.data?.kind === 'inline' ? prepared.data : undefined;
+      const view = inlineData
+        ? createChartView(container, inlineData, () => this.#handle?.resize?.())
+        : undefined;
+      this.#view = view;
+      const handle = await prepared.renderer.mount(view?.chartContainer ?? container, prepared.parsed, {
+        signal: abortController.signal,
+        theme: request.theme,
+      });
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        handle?.dispose();
+        return;
+      }
+      this.#handle = handle || undefined;
+    } catch (error) {
+      if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
+      this.#view?.dispose();
+      this.#view = undefined;
+      container.replaceChildren();
+      throw error;
+    } finally {
+      if (this.#abortController === abortController) {
+        this.#abortController = undefined;
+      }
     }
-    this.#handle = handle || undefined;
   }
 
   dispose(): void {

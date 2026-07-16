@@ -2,7 +2,7 @@ import {
   MARKDOWN_CHART_LANGUAGE,
   MarkdownChartError,
   isJsonObject,
-  parseChartJson,
+  validateChartJsonValue,
   type ChartHandle,
   type ChartDataRow,
   type ChartRenderer,
@@ -439,11 +439,10 @@ export function createEChartsRenderer(
         }
         let normalized: JsonValue;
         try {
-          const serialized = JSON.stringify(resolved);
-          if (serialized === undefined) {
-            return schemaError('Temporary ChatBI resolver must return data and spec');
-          }
-          normalized = parseChartJson(serialized);
+          normalized = validateChartJsonValue(resolved, {
+            maxDepth: limits.maxDepth,
+            maxNodes: limits.maxNodes,
+          });
         } catch (cause) {
           if (cause instanceof MarkdownChartError) {
             throw cause;

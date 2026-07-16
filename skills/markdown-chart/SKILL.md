@@ -150,9 +150,10 @@ Reference data envelope example, only when a real host-provided ref exists:
 - Do not set `spec.dataset`; canonical `data` is the only dataset source.
 - Do not emit large `data.source` payloads, and strictly do not use large
   object-row datasets. Inline rows must be arrays, not objects.
-- For visible value labels, either omit `label.formatter` or use dimension
-  templates such as `"{@conversionRate}%"` and `"¥{@aov}"`, matching the exact
-  key used in `data.dimensions` and `series.encode.y`.
+- For visible value labels, use `"label": { "show": true }`; do not emit
+  `label.formatter`, because formatter fields are rejected by the renderer's
+  safety policy. Put units in axis names, chart titles, or the surrounding
+  explanation instead.
 - If the data is too large, aggregate or sample it first, and explain that
   treatment outside the block.
 

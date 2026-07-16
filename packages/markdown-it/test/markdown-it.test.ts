@@ -57,6 +57,23 @@ describe('markdownChartPlugin', () => {
     expect(getMarkdownChartBlocks(env).map((block) => block.complete)).toEqual([true, false]);
   });
 
+  it('does not allocate or scan a trailing token slice for a closed chart', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const env = createMarkdownChartEnvironment({ streaming: true });
+    const parsed = md.parse('```markdown-chart\n{}\n```\n\nFollowing text', env);
+    const tokens = new Proxy(parsed, {
+      get(target, property, receiver) {
+        if (property === 'slice') {
+          throw new Error('closed chart must not slice trailing tokens');
+        }
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+    const renderFence = md.renderer.rules.fence;
+    expect(renderFence).toBeTypeOf('function');
+    expect(() => renderFence?.(tokens, 0, md.options, env, md.renderer)).not.toThrow();
+  });
+
   it('treats an implicitly closed container fence followed by text as complete', () => {
     const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
     const source = [

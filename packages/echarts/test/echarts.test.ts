@@ -125,6 +125,38 @@ describe('createEChartsRenderer', () => {
     });
   });
 
+  it('accepts legacy resolver data over 500 KB within ECharts row and cell limits', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const source = Array.from({ length: 2_000 }, (_, rowIndex) => (
+      Array.from({ length: 20 }, (_, columnIndex) => (
+        `${rowIndex}-${columnIndex}-${'x'.repeat(16)}`
+      ))
+    ));
+    const resolved = {
+      data: {
+        kind: 'inline' as const,
+        dimensions: Array.from({ length: 20 }, (_, index) => `column_${index}`),
+        source,
+      },
+      spec: { series: [{ type: 'bar' }] },
+    };
+    expect(JSON.stringify(resolved).length).toBeGreaterThan(500_000);
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resolveLegacyEChartQuery: async () => resolved,
+      resizeObserver: false,
+    }));
+
+    await new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+    });
+
+    const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
+    expect(dataset?.source).toHaveLength(2_000);
+  });
+
   it('requires a host callback for the temporary ChatBI query fence', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
@@ -149,6 +181,26 @@ describe('createEChartsRenderer', () => {
       language: 'echarts-chatbi_query_8660210443288600709-0',
       source: 'var option = {};',
     })).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
+    expect(loadECharts).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-JSON prototypes returned by the temporary resolver', async () => {
+    const loadECharts = vi.fn();
+    const spec = Object.assign(Object.create({ inherited: true }) as Record<string, JsonValue>, {
+      series: [],
+    });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      resolveLegacyEChartQuery: async () => ({
+        data: { kind: 'inline', source: [] },
+        spec,
+      }),
+    }));
+
+    await expect(new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+    })).rejects.toMatchObject({ code: 'INVALID_JSON' });
     expect(loadECharts).not.toHaveBeenCalled();
   });
 
