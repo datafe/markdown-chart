@@ -15,6 +15,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import {
   ChartController,
   ChartRendererRegistry,
+  isMarkdownFenceClosed,
   MARKDOWN_CHART_LANGUAGE,
 } from '@datafe/markdown-chart';
 import {
@@ -32,6 +33,7 @@ interface MarkdownChartContextValue {
   readonly registry: ChartRendererRegistry;
   readonly theme: unknown;
   readonly streaming: boolean;
+  readonly source: string | undefined;
   readonly onError: MarkdownChartReactErrorHandler | undefined;
 }
 
@@ -41,23 +43,35 @@ export interface MarkdownChartProviderProps {
   readonly registry: ChartRendererRegistry;
   readonly theme?: unknown;
   readonly streaming?: boolean;
+  /** Optional when the direct child already receives the Markdown as children. */
+  readonly source?: string;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly children: ReactNode;
 }
 
+function markdownSourceFromChildren(children: ReactNode): string | undefined {
+  if (!isValidElement<{ children?: ReactNode }>(children)) {
+    return undefined;
+  }
+  return typeof children.props.children === 'string' ? children.props.children : undefined;
+}
+
 export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactElement {
+  const source = props.source ?? markdownSourceFromChildren(props.children);
   const value = useMemo<MarkdownChartContextValue>(() => ({
     registry: props.registry,
     theme: props.theme,
     streaming: props.streaming ?? false,
+    source,
     onError: props.onError,
-  }), [props.registry, props.theme, props.streaming, props.onError]);
+  }), [props.registry, props.theme, props.streaming, source, props.onError]);
   return createElement(MarkdownChartContext.Provider, { value }, props.children);
 }
 
 export interface MarkdownChartBlockProps {
   readonly language: string;
   readonly source: string;
+  readonly streaming?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
 }
@@ -68,6 +82,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
     throw new Error('MarkdownChartBlock must be rendered inside MarkdownChartProvider');
   }
   const containerRef = useRef<HTMLDivElement>(null);
+  const streaming = props.streaming ?? configuration.streaming;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -80,7 +95,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
       language: props.language,
       source: props.source,
       theme: configuration.theme,
-      streaming: configuration.streaming,
+      streaming,
     }).catch((error: unknown) => {
       if (disposed) {
         return;
@@ -100,18 +115,24 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   }, [
     configuration.registry,
     configuration.theme,
-    configuration.streaming,
     configuration.onError,
     props.language,
     props.source,
+    streaming,
   ]);
 
-  const className = ['markdown-chart-placeholder', props.className].filter(Boolean).join(' ');
+  const className = [
+    'markdown-chart-placeholder',
+    streaming ? 'markdown-chart-streaming' : undefined,
+    props.className,
+  ].filter(Boolean).join(' ');
   return createElement('div', {
     ref: containerRef,
     className,
     style: props.style,
     'aria-label': 'Chart',
+    'aria-busy': streaming || undefined,
+    'data-markdown-chart-complete': String(!streaming),
   });
 }
 
@@ -123,6 +144,23 @@ export interface CreateMarkdownChartComponentsOptions {
 interface CodeElementProps {
   readonly className?: string;
   readonly children?: ReactNode;
+}
+
+interface PositionedNode {
+  readonly position?: {
+    readonly start: { readonly offset?: number | undefined };
+    readonly end: { readonly offset?: number | undefined };
+  } | undefined;
+}
+
+function isCompleteChartNode(source: string | undefined, node: PositionedNode | undefined): boolean {
+  const start = node?.position?.start?.offset;
+  const end = node?.position?.end?.offset;
+  if (source === undefined || start === undefined || end === undefined) {
+    return false;
+  }
+  return isMarkdownFenceClosed(source.slice(start, end))
+    || source.slice(end).trim().length > 0;
 }
 
 export function isRegisteredChartLanguage(
@@ -139,7 +177,7 @@ export function createMarkdownChartComponents(
     code({ node: _node, ...props }) {
       return createElement('code', props);
     },
-    pre: function MarkdownChartPre({ node: _node, children, ...props }) {
+    pre: function MarkdownChartPre({ node, children, ...props }) {
       const configuration = useContext(MarkdownChartContext);
       if (isValidElement(children)) {
         const code = children as ReactElement<CodeElementProps>;
@@ -152,6 +190,8 @@ export function createMarkdownChartComponents(
           return createElement(MarkdownChartBlock, {
             language,
             source,
+            streaming: configuration?.streaming === true
+              && !isCompleteChartNode(configuration.source, node),
             ...(options.chartClassName ? { className: options.chartClassName } : {}),
             ...(options.chartStyle ? { style: options.chartStyle } : {}),
           });
@@ -195,6 +235,7 @@ export function MarkdownChart(props: MarkdownChartProps): ReactElement {
     MarkdownChartProvider,
     {
       registry,
+      source: props.source,
       children: createElement(ReactMarkdown, { components }, props.source),
       ...(props.theme !== undefined ? { theme: props.theme } : {}),
       ...(props.streaming !== undefined ? { streaming: props.streaming } : {}),

@@ -65,4 +65,26 @@ describe('react-markdown runtime adapter', () => {
     expect(advancedHtml).toContain('markdown-chart-placeholder');
     expect(advancedHtml).not.toContain('<pre>');
   });
+
+  it('infers completed and pending fences in advanced streaming mode without an extra source prop', () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount() {},
+    });
+    const components = createMarkdownChartComponents();
+    const render = (source: string) => renderToStaticMarkup(
+      <MarkdownChartProvider registry={registry} streaming>
+        <ReactMarkdown components={components}>{source}</ReactMarkdown>
+      </MarkdownChartProvider>,
+    );
+
+    const complete = render('```markdown-chart\n{"version":1,"renderer":"test","spec":{}}\n```\n\nMore');
+    expect(complete).toContain('data-markdown-chart-complete="true"');
+    expect(complete).not.toContain('aria-busy="true"');
+
+    const pending = render('```markdown-chart\n{"version":1');
+    expect(pending).toContain('markdown-chart-streaming');
+    expect(pending).toContain('aria-busy="true"');
+  });
 });

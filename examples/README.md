@@ -8,4 +8,5 @@ Each example is an independent Vite workspace with its own dependency manifest:
 | Vue | [`vue/simple/`](./vue/simple/) | [`vue/advanced/`](./vue/advanced/) |
 
 Simple examples use the all-in-one framework component. Advanced examples show
-host-owned Markdown parsing and renderer registration.
+host-owned Markdown parsing and renderer registration. Canonical examples use
+inline data, so both modes also demonstrate the built-in Chart/Data switch.

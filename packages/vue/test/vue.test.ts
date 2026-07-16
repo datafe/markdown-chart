@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import MarkdownIt from 'markdown-it';
 import { describe, expect, it, vi } from 'vitest';
-import { createApp, defineComponent, h, nextTick, shallowRef } from 'vue';
+import { createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue';
 import { ChartRendererRegistry, type ChartRenderer } from '@datafe/markdown-chart';
 import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
@@ -114,5 +114,95 @@ describe('MarkdownChart reactive object props', () => {
       expect(advancedRoot.querySelector('.markdown-chart-placeholder')).not.toBeNull();
     });
     advancedApp.unmount();
+  });
+
+  it('preserves a completed chart while streaming text is appended', async () => {
+    const mount = vi.fn();
+    const dispose = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount(container) {
+        mount(container);
+        return { dispose };
+      },
+    });
+    const body = JSON.stringify({
+      version: 1,
+      renderer: 'test',
+      data: {
+        kind: 'inline',
+        dimensions: ['month', 'sales'],
+        source: [['Jan', 100], ['Feb', 180]],
+      },
+      spec: {},
+    });
+    const complete = `\`\`\`markdown-chart\n${body}\n\`\`\``;
+    const source = ref(complete);
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source: source.value,
+          registry,
+          streaming: true,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledOnce());
+    const original = root.querySelector('.markdown-chart-placeholder');
+
+    source.value = `${complete}\n\nThe analysis continues.`;
+    await nextTick();
+    await vi.waitFor(() => {
+      expect(root.textContent).toContain('The analysis continues.');
+    });
+    expect(root.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(mount).toHaveBeenCalledOnce();
+    expect(dispose).not.toHaveBeenCalled();
+
+    const showData = root.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    showData?.click();
+    expect(root.querySelector<HTMLElement>('[data-markdown-chart-data-view]')?.hidden).toBe(false);
+    expect(root.textContent).toContain('Jan');
+
+    app.unmount();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('mounts only after the active streaming fence closes', async () => {
+    const mount = vi.fn();
+    const parse = vi.fn((spec) => spec);
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse,
+      mount() {
+        mount();
+      },
+    });
+    const body = JSON.stringify({ version: 1, renderer: 'test', spec: {} });
+    const source = ref(`\`\`\`markdown-chart\n${body}`);
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source: source.value,
+          registry,
+          streaming: true,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => {
+      expect(root.querySelector('.markdown-chart-streaming')).not.toBeNull();
+    });
+    expect(parse).not.toHaveBeenCalled();
+
+    source.value = `${source.value}\n\`\`\``;
+    await nextTick();
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledOnce());
+    expect(parse).toHaveBeenCalledOnce();
+    app.unmount();
   });
 });

@@ -44,7 +44,8 @@ currently registered.
 ## Data
 
 Canonical data is either inline or referenced. Inline data is directly
-available to hosts for actions such as “View data”:
+available to hosts for actions such as “View data”. The default framework
+adapters expose a Chart/Data switch for inline data:
 
 ```json
 {
@@ -86,8 +87,16 @@ to host data viewers.
 
 ## Streaming
 
-Hosts pass streaming state to the lifecycle controller. A streaming block is
-not parsed or mounted. Once complete, the same block can be rendered normally.
+Hosts pass the outer document streaming state to a Markdown adapter. The adapter
+MUST translate it into block-level state: explicitly closed chart fences render
+immediately, while only an unterminated fence at the active tail is deferred.
+An implicitly closed fence followed by later document content is complete.
+
+Adapters SHOULD preserve the DOM element and mounted renderer for unchanged,
+completed blocks as later tokens arrive. An incomplete block is not parsed or
+mounted. Once its fence closes, the same block is rendered normally. Invalid
+JSON in an explicitly completed block is an error even while the surrounding
+document is still streaming.
 
 ## Evolution
 

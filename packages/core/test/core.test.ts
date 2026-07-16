@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
   ChartRendererRegistry,
+  isMarkdownFenceClosed,
   MarkdownChartError,
   parseChartJson,
   parseMarkdownChartEnvelope,
@@ -164,6 +165,92 @@ describe('ChartController', () => {
       streaming: true,
     });
     expect(parse).not.toHaveBeenCalled();
+  });
+
+  it('keeps the last completed chart mounted while a block update is incomplete', async () => {
+    const parse = vi.fn((spec) => spec);
+    const dispose = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse,
+      mount() {
+        return { dispose };
+      },
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    await controller.render(element, { language: 'test', source: '{}' });
+    await controller.render(element, {
+      language: 'test',
+      source: '{',
+      streaming: true,
+    });
+    expect(parse).toHaveBeenCalledOnce();
+    expect(dispose).not.toHaveBeenCalled();
+    controller.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('provides chart and canonical inline data views without remounting the chart', async () => {
+    const resize = vi.fn();
+    const dispose = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount(container) {
+        container.dataset.mounted = 'true';
+        return { resize, dispose };
+      },
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: {
+          kind: 'inline',
+          dimensions: ['month', 'sales'],
+          source: [['Jan', 100], ['<script>', null]],
+        },
+        spec: {},
+      }),
+    });
+
+    const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    const showChart = element.querySelector<HTMLButtonElement>('button[aria-label="Show chart"]');
+    const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    expect(chartView?.dataset.mounted).toBe('true');
+    expect(dataView?.hidden).toBe(true);
+
+    showData?.click();
+    expect(chartView?.hidden).toBe(true);
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.textContent).toContain('Jan');
+    expect(dataView?.textContent).toContain('<script>');
+    expect(dataView?.querySelector('script')).toBeNull();
+    expect(dispose).not.toHaveBeenCalled();
+
+    showChart?.click();
+    expect(chartView?.hidden).toBe(false);
+    expect(resize).toHaveBeenCalledOnce();
+    controller.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+});
+
+describe('isMarkdownFenceClosed', () => {
+  it('recognizes matching backtick and tilde closing fences', () => {
+    expect(isMarkdownFenceClosed('```markdown-chart\n{}\n```')).toBe(true);
+    expect(isMarkdownFenceClosed('~~~~markdown-chart\n{}\n~~~~')).toBe(true);
+    expect(isMarkdownFenceClosed('````markdown-chart\n```\n````')).toBe(true);
+  });
+
+  it('rejects unterminated or too-short closing fences', () => {
+    expect(isMarkdownFenceClosed('```markdown-chart\n{}')).toBe(false);
+    expect(isMarkdownFenceClosed('````markdown-chart\n{}\n```')).toBe(false);
   });
 });
 
