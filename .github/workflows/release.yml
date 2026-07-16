@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Version or publish packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org/
+
+      - name: Use an OIDC-capable npm CLI
+        run: npm install --global npm@11.7.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build packages and examples
+        run: pnpm build
+
+      - name: Check package tarballs
+        run: pnpm check:pack
+
+      - name: Check npm bootstrap state
+        id: npm_bootstrap
+        shell: bash
+        run: |
+          packages=(
+            "@datafe/markdown-chart"
+            "@datafe/markdown-chart-echarts"
+            "@datafe/markdown-chart-markdown-it"
+            "@datafe/markdown-chart-react"
+            "@datafe/markdown-chart-vue"
+          )
+          all_published=true
+          for package in "${packages[@]}"; do
+            if ! npm view "$package" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+              all_published=false
+            fi
+          done
+          echo "all_published=$all_published" >> "$GITHUB_OUTPUT"
+
+      - name: Maintain release pull request before initial publish
+        if: steps.npm_bootstrap.outputs.all_published != 'true'
+        uses: changesets/action@v1.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Maintain release pull request or publish
+        if: steps.npm_bootstrap.outputs.all_published == 'true'
+        uses: changesets/action@v1.9.0
+        with:
+          publish: pnpm release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

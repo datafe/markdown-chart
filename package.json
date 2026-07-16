@@ -6,13 +6,17 @@
   "scripts": {
     "build": "pnpm --filter './packages/**' build && pnpm build:examples",
     "build:examples": "pnpm --filter './examples/**' build",
+    "changeset": "changeset",
     "check:pack": "node scripts/check-pack.mjs",
     "pack:check": "node scripts/check-pack.mjs",
+    "release": "changeset publish",
     "typecheck": "pnpm --filter './packages/**' typecheck && pnpm --filter './examples/**' typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "2.31.1",
     "@types/node": "^22.15.0",
     "jsdom": "^26.1.0",
     "tsup": "^8.5.0",
