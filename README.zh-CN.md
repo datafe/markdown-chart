@@ -101,7 +101,9 @@ defineProps<{ source: string }>();
 </template>
 ```
 
-两个组件都会自动注册 ECharts，在首次挂载图表时加载运行时，并自动设置 360px 的最小高度。标准格式中的 inline 数据还会自动启用 `Chart / Data` 切换和有边界、可滚动的数据表格。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。
+两个组件都会自动注册 ECharts，在首次挂载图表时加载运行时，并自动设置 360px 的最小高度。标准格式中的 inline 数据还会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均参考 Qwen Code WebShell；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。
+
+宿主应用可以通过 `--markdown-chart-background`、`--markdown-chart-subtle-background` 和 `--markdown-chart-accent` 对齐卡片颜色。高级模式可以设置 `createEChartsRenderer({ defaultStyle: false })`，让通过安全校验的 ECharts option 保持原样。
 
 ## 高级配置
 

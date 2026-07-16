@@ -81,6 +81,8 @@ export interface CreateEChartsRendererOptions {
   readonly validateDataRef?: (ref: string) => boolean;
   readonly limits?: Partial<EChartsLimits>;
   readonly resizeObserver?: boolean;
+  /** Apply Qwen Code WebShell-inspired safe defaults while preserving explicit spec values. */
+  readonly defaultStyle?: boolean;
   /** @deprecated Temporary ChatBI migration hook. Do not use for new content. */
   readonly resolveLegacyEChartQuery?: ResolveLegacyEChartQuery;
 }
@@ -380,6 +382,220 @@ function toDatasetOption(dataset: ResolvedDataset, limits: EChartsLimits): Recor
   return dimensions ? { dimensions, source } : { source };
 }
 
+type DefaultStyleTheme = 'light' | 'dark';
+
+const DEFAULT_STYLE_THEME = {
+  light: {
+    background: '#ffffff',
+    foreground: '#343434',
+    muted: '#838d95',
+    border: '#e0e6f1',
+    axisLine: '#5d666f',
+    axisPointer: '#7c8a96',
+    tooltipBackground: '#ffffff',
+    primary: '#6250f9',
+    palette: [
+      '#6250F9', '#33AFA9', '#AB7BFF', '#5F99F9',
+      '#A9AFFF', '#60CCC5', '#C2A5FF', '#8EB8FE',
+      '#E0E3FE', '#98E3DD', '#E8E1FA', '#D7E6FF',
+    ],
+  },
+  dark: {
+    background: '#0d0d0d',
+    foreground: '#f4f7ff',
+    muted: '#9aa3b7',
+    border: 'rgba(129,145,209,0.24)',
+    axisLine: '#657086',
+    axisPointer: '#8a98b3',
+    tooltipBackground: '#161616',
+    primary: '#8aa0ff',
+    palette: [
+      '#8AA0FF', '#60CCC5', '#C2A5FF', '#5F99F9',
+      '#A9AFFF', '#33AFA9', '#AB7BFF', '#8EB8FE',
+      '#E0E3FE', '#98E3DD', '#E8E1FA', '#D7E6FF',
+    ],
+  },
+} satisfies Record<DefaultStyleTheme, {
+  background: string;
+  foreground: string;
+  muted: string;
+  border: string;
+  axisLine: string;
+  axisPointer: string;
+  tooltipBackground: string;
+  primary: string;
+  palette: string[];
+}>;
+
+function mergeObjectDefaults(
+  defaults: Record<string, JsonValue>,
+  value: Record<string, JsonValue>,
+): Record<string, JsonValue> {
+  const merged: Record<string, JsonValue> = { ...cloneJson(defaults), ...value };
+  for (const [key, defaultValue] of Object.entries(defaults)) {
+    const explicitValue = value[key];
+    if (isJsonObject(defaultValue) && isJsonObject(explicitValue)) {
+      merged[key] = mergeObjectDefaults(defaultValue, explicitValue);
+    }
+  }
+  return merged;
+}
+
+function styleComponent(
+  value: JsonValue | undefined,
+  defaults: Record<string, JsonValue>,
+): JsonValue {
+  if (Array.isArray(value)) {
+    return value.map((entry) => isJsonObject(entry)
+      ? mergeObjectDefaults(defaults, entry)
+      : entry);
+  }
+  if (isJsonObject(value)) {
+    return mergeObjectDefaults(defaults, value);
+  }
+  return value === undefined || value === null ? cloneJson(defaults) : value;
+}
+
+function styleAxis(
+  value: JsonValue,
+  defaults: (index: number) => Record<string, JsonValue>,
+): JsonValue {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => isJsonObject(entry)
+      ? mergeObjectDefaults(defaults(index), entry)
+      : entry);
+  }
+  return isJsonObject(value) ? mergeObjectDefaults(defaults(0), value) : value;
+}
+
+function styleSeriesEntry(
+  series: Record<string, JsonValue>,
+  tokens: (typeof DEFAULT_STYLE_THEME)[DefaultStyleTheme],
+): Record<string, JsonValue> {
+  const type = typeof series.type === 'string' ? series.type : undefined;
+  let defaults: Record<string, JsonValue> = {
+    emphasis: {
+      focus: 'series',
+      itemStyle: { borderColor: tokens.background, borderWidth: 2 },
+    },
+    labelLayout: { hideOverlap: true },
+  };
+  if (type === 'line') {
+    defaults = mergeObjectDefaults(defaults, {
+      lineStyle: { width: 2 },
+      itemStyle: { borderWidth: 1 },
+      symbol: 'circle',
+      symbolSize: 4,
+    });
+  } else if (type === 'bar') {
+    defaults = mergeObjectDefaults(defaults, {
+      barCategoryGap: '48%',
+      barMaxWidth: 42,
+      itemStyle: { borderRadius: [3, 3, 0, 0] },
+    });
+  } else if (type === 'pie') {
+    defaults = mergeObjectDefaults(defaults, {
+      itemStyle: { borderColor: tokens.background, borderWidth: 2 },
+    });
+  }
+  return mergeObjectDefaults(defaults, series);
+}
+
+function defaultTooltipTrigger(option: Record<string, JsonValue>): 'axis' | 'item' {
+  if (!Object.prototype.hasOwnProperty.call(option, 'xAxis')
+    && !Object.prototype.hasOwnProperty.call(option, 'yAxis')) {
+    return 'item';
+  }
+  const series = Array.isArray(option.series)
+    ? option.series.filter(isJsonObject)
+    : isJsonObject(option.series) ? [option.series] : [];
+  const itemOnlyTypes = new Set(['pie', 'funnel', 'gauge', 'radar', 'treemap']);
+  return series.length > 0
+    && series.every((entry) => typeof entry.type === 'string' && itemOnlyTypes.has(entry.type))
+    ? 'item'
+    : 'axis';
+}
+
+function resolveDefaultStyleTheme(theme: unknown): DefaultStyleTheme | undefined {
+  if (theme === undefined || theme === null || theme === 'light') {
+    return 'light';
+  }
+  return theme === 'dark' ? 'dark' : undefined;
+}
+
+export function applyEChartsDefaultStyle(
+  option: Record<string, JsonValue>,
+  theme: DefaultStyleTheme = 'light',
+): Record<string, JsonValue> {
+  const tokens = DEFAULT_STYLE_THEME[theme];
+  const styled = cloneJson(option);
+  styled.backgroundColor ??= tokens.background;
+  styled.color ??= [...tokens.palette];
+  styled.textStyle = styleComponent(styled.textStyle, {
+    color: tokens.foreground,
+    fontFamily: "'pingfang SC', 'helvetica neue', arial, 'hiragino sans gb', 'microsoft yahei ui', 'microsoft yahei', sans-serif",
+  });
+  styled.grid = styleComponent(styled.grid, {
+    top: 24,
+    right: 36,
+    bottom: 48,
+    left: 24,
+    containLabel: true,
+  });
+  styled.tooltip = styleComponent(styled.tooltip, {
+    trigger: defaultTooltipTrigger(option),
+    confine: true,
+    enterable: false,
+    renderMode: 'richText',
+    backgroundColor: tokens.tooltipBackground,
+    borderColor: tokens.border,
+    borderWidth: 1,
+    padding: [8, 10],
+    textStyle: { color: tokens.foreground, fontSize: 12 },
+    axisPointer: {
+      lineStyle: { color: tokens.axisPointer, width: 1 },
+      crossStyle: { color: tokens.axisPointer, width: 1 },
+    },
+  });
+  styled.legend = styleComponent(styled.legend, {
+    type: 'scroll',
+    bottom: 8,
+    padding: [4, 16],
+    textStyle: { color: tokens.muted, fontSize: 12 },
+    pageIconColor: tokens.primary,
+    pageIconInactiveColor: tokens.border,
+    pageTextStyle: { color: tokens.muted },
+  });
+  if (styled.xAxis !== undefined) {
+    styled.xAxis = styleAxis(styled.xAxis, () => ({
+      axisLine: { show: true, lineStyle: { color: tokens.axisLine } },
+      axisTick: { show: true, lineStyle: { color: tokens.axisLine } },
+      axisLabel: { color: tokens.muted, fontSize: 12, hideOverlap: true },
+      splitLine: { show: false, lineStyle: { color: tokens.border } },
+      nameTextStyle: { color: tokens.muted },
+    }));
+  }
+  if (styled.yAxis !== undefined) {
+    styled.yAxis = styleAxis(styled.yAxis, (index) => ({
+      alignTicks: true,
+      axisLine: { show: false, lineStyle: { color: tokens.axisLine } },
+      axisTick: { show: false, lineStyle: { color: tokens.axisLine } },
+      axisLabel: { color: tokens.muted, fontSize: 12, hideOverlap: true },
+      splitLine: { show: index === 0, lineStyle: { color: tokens.border } },
+      nameGap: 12,
+      nameTextStyle: { color: tokens.muted, align: index === 0 ? 'left' : 'right' },
+    }));
+  }
+  if (Array.isArray(styled.series)) {
+    styled.series = styled.series.map((entry) => isJsonObject(entry)
+      ? styleSeriesEntry(entry, tokens)
+      : entry);
+  } else if (isJsonObject(styled.series)) {
+    styled.series = styleSeriesEntry(styled.series, tokens);
+  }
+  return styled;
+}
+
 const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 
 export function createEChartsRenderer(
@@ -526,7 +742,11 @@ export function createEChartsRenderer(
           ? context.theme
           : undefined;
         instance = runtime.init(container, theme);
-        instance.setOption(option, { notMerge: true, lazyUpdate: false });
+        const styleTheme = resolveDefaultStyleTheme(context.theme);
+        const renderedOption = options.defaultStyle === false || !styleTheme
+          ? option
+          : applyEChartsDefaultStyle(option, styleTheme);
+        instance.setOption(renderedOption, { notMerge: true, lazyUpdate: false });
         if (options.resizeObserver !== false && typeof ResizeObserver !== 'undefined') {
           observer = new ResizeObserver(() => instance?.resize());
           observer.observe(container);

@@ -111,10 +111,17 @@ defineProps<{ source: string }>();
 
 Both components register ECharts, load it on first chart mount, and apply a
 360px minimum height automatically. Canonical inline data also enables a
-built-in Chart/Data switch with a bounded, scrollable data table. The React
-package includes `react-markdown`, and the Vue package includes `markdown-it`.
-Pass a custom `registry`, parser, theme, or renderer options only when the
-defaults are not sufficient.
+built-in icon-based Chart/Data switch with a bounded, scrollable data table.
+The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series
+styling follow Qwen Code WebShell while explicit ECharts option values still
+win. The React package includes `react-markdown`, and the Vue package includes
+`markdown-it`. Pass a custom `registry`, parser, theme, or renderer options only
+when the defaults are not sufficient.
+
+Card colors can be aligned with the host through `--markdown-chart-background`,
+`--markdown-chart-subtle-background`, and `--markdown-chart-accent`. Advanced
+registries can set `createEChartsRenderer({ defaultStyle: false })` to keep the
+validated ECharts option unchanged.
 
 ## Advanced setup
 

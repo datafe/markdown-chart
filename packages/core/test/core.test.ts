@@ -296,6 +296,13 @@ describe('ChartController', () => {
     const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
     expect(chartView?.dataset.mounted).toBe('true');
     expect(dataView?.hidden).toBe(true);
+    expect(showChart?.title).toBe('Chart');
+    expect(showData?.title).toBe('Data');
+    expect(showChart?.textContent).toBe('');
+    expect(showData?.textContent).toBe('');
+    expect(showChart?.querySelector('svg')).not.toBeNull();
+    expect(showData?.querySelector('svg')).not.toBeNull();
+    expect(element.querySelector('.markdown-chart-toggle')?.getAttribute('role')).toBe('group');
 
     showData?.click();
     expect(chartView?.hidden).toBe(true);

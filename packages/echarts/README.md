@@ -7,6 +7,16 @@ evaluates chart JavaScript.
 `createEChartsRenderer()` loads the host-installed `echarts` peer dependency on
 first mount. Pass `loadECharts` only when supplying a custom ECharts build.
 
+By default the renderer applies safe presentation defaults derived from Qwen
+Code WebShell: light/dark palettes, typography, grid spacing, axes, tooltip,
+legend, and bar/line/pie series details. Explicit values in the validated
+ECharts option override these defaults. Pass `defaultStyle: false` when the host
+needs the validated option sent to ECharts unchanged:
+
+```ts
+createEChartsRenderer({ defaultStyle: false });
+```
+
 In a canonical `markdown-chart` envelope, renderer-neutral `data` is a sibling
 of `spec`, and `spec` is the ECharts option directly. This lets hosts inspect
 inline data without understanding ECharts.
