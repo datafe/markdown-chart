@@ -3,7 +3,11 @@ import {
   ChartController,
   ChartRendererRegistry,
 } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import {
+  createEChartsRenderer,
+  type CreateEChartsRendererOptions,
+  type ResolveLegacyEChartQuery,
+} from '@datafe/markdown-chart-echarts';
 import {
   getMarkdownChartBlocks,
   markdownChartPlugin,
@@ -192,6 +196,11 @@ export const MarkdownChart = defineComponent({
     source: { type: String, required: true },
     markdownIt: { type: Object as PropType<MarkdownIt>, required: false },
     registry: { type: Object as PropType<ChartRendererRegistry>, required: false },
+    echarts: { type: Object as PropType<CreateEChartsRendererOptions>, required: false },
+    resolveLegacyEChartQuery: {
+      type: Function as PropType<ResolveLegacyEChartQuery>,
+      required: false,
+    },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
     minHeight: {
@@ -204,8 +213,15 @@ export const MarkdownChart = defineComponent({
     },
   },
   setup(props) {
-    const automaticRegistry = new ChartRendererRegistry().register(createEChartsRenderer());
-    const registry = computed(() => props.registry ?? automaticRegistry);
+    const automaticRegistry = computed(() => (
+      new ChartRendererRegistry().register(createEChartsRenderer({
+        ...props.echarts,
+        ...(props.resolveLegacyEChartQuery
+          ? { resolveLegacyEChartQuery: props.resolveLegacyEChartQuery }
+          : {}),
+      }))
+    ));
+    const registry = computed(() => props.registry ?? automaticRegistry.value);
     const automaticMarkdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
       registry: { has: (language) => registry.value.has(language) },
     });

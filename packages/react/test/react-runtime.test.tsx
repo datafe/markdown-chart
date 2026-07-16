@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
 import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
 import {
   createMarkdownChartComponents,
   MarkdownChart,
@@ -37,5 +38,31 @@ describe('react-markdown runtime adapter', () => {
     const chartHtml = render();
     expect(chartHtml).toContain('markdown-chart-placeholder plotly-chart');
     expect(chartHtml).not.toContain('<pre>');
+  });
+
+  it('routes the temporary ChatBI fence in simple and advanced modes', () => {
+    const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
+    const resolveLegacyEChartQuery = async () => ({
+      data: { kind: 'inline' as const, source: [] },
+      spec: { series: [] },
+    });
+
+    const simpleHtml = renderToStaticMarkup(
+      <MarkdownChart source={source} resolveLegacyEChartQuery={resolveLegacyEChartQuery} />,
+    );
+    expect(simpleHtml).toContain('markdown-chart-placeholder');
+    expect(simpleHtml).not.toContain('<pre>');
+
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      resolveLegacyEChartQuery,
+    }));
+    const components = createMarkdownChartComponents({ chartStyle: { minHeight: 360 } });
+    const advancedHtml = renderToStaticMarkup(
+      <MarkdownChartProvider registry={registry}>
+        <ReactMarkdown components={components}>{source}</ReactMarkdown>
+      </MarkdownChartProvider>,
+    );
+    expect(advancedHtml).toContain('markdown-chart-placeholder');
+    expect(advancedHtml).not.toContain('<pre>');
   });
 });

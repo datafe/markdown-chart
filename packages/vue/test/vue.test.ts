@@ -3,6 +3,7 @@ import MarkdownIt from 'markdown-it';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick, shallowRef } from 'vue';
 import { ChartRendererRegistry, type ChartRenderer } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
 import { MarkdownChart } from '../src/index';
 
@@ -68,5 +69,50 @@ describe('MarkdownChart reactive object props', () => {
       expect(root.querySelector('[data-markdown-it="second"]')).not.toBeNull();
     });
     app.unmount();
+  });
+
+  it('routes the temporary ChatBI fence in simple and advanced modes', async () => {
+    const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
+    const resolveLegacyEChartQuery = async () => ({
+      data: { kind: 'inline' as const, source: [] },
+      spec: { series: [] },
+    });
+
+    const simpleApp = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source,
+          streaming: true,
+          resolveLegacyEChartQuery,
+        });
+      },
+    }));
+    const simpleRoot = document.createElement('div');
+    simpleApp.mount(simpleRoot);
+    await vi.waitFor(() => {
+      expect(simpleRoot.querySelector('.markdown-chart-placeholder')).not.toBeNull();
+    });
+    simpleApp.unmount();
+
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      resolveLegacyEChartQuery,
+    }));
+    const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
+    const advancedApp = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source,
+          markdownIt,
+          registry,
+          streaming: true,
+        });
+      },
+    }));
+    const advancedRoot = document.createElement('div');
+    advancedApp.mount(advancedRoot);
+    await vi.waitFor(() => {
+      expect(advancedRoot.querySelector('.markdown-chart-placeholder')).not.toBeNull();
+    });
+    advancedApp.unmount();
   });
 });

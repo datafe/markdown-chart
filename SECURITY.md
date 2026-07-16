@@ -5,7 +5,8 @@ untrusted model.
 
 ## Guarantees
 
-- Fence bodies are parsed with `JSON.parse`; JavaScript is never evaluated.
+- Canonical and documented renderer bodies are parsed with `JSON.parse`.
+  JavaScript is never evaluated by this library.
 - Canonical `data` is validated independently from renderer-owned `spec`;
   inline rows may contain only JSON scalar arrays or scalar-valued objects.
 - The ECharts renderer uses a strict top-level option allowlist plus a recursive
@@ -34,6 +35,9 @@ untrusted model.
   enabling raw HTML. This is separate from chart placeholder safety.
 - Treat `resolveDataRef` as a privileged boundary. Validate schemes and
   authorization, honor its `AbortSignal`, and avoid returning secrets in errors.
+- Treat any host-provided legacy conversion callback as a privileged boundary.
+  If conversion requires code execution, isolate it outside this library and
+  return only JSON data and renderer specifications.
 - Apply a Content Security Policy suitable for the surrounding application.
 - Use a trusted ECharts runtime and keep it patched.
 - Do not add an "unsafe" option that evaluates formatters or `renderItem` code.
