@@ -6,6 +6,8 @@ inline datasets receive a built-in Chart/Data switch and bounded data table.
 The switch uses accessible chart/table icons and Qwen Code WebShell-inspired
 card styling. Hosts can override `--markdown-chart-background`,
 `--markdown-chart-subtle-background`, and `--markdown-chart-accent`.
+See [Third-party notices](./THIRD_PARTY_NOTICES.md) for source attribution and
+license details.
 
 Canonical envelopes keep `data` separate from renderer-owned `spec`.
 `parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a

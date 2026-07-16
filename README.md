@@ -2,6 +2,11 @@
 
 English | [简体中文](./README.zh-CN.md)
 
+> [!IMPORTANT]
+> **Pre-release:** the `@datafe/markdown-chart*` packages are not published to
+> npm yet. The install commands below describe the planned public interface.
+> Until the first release, clone this repository and run the local examples.
+
 `markdown-chart` provides portable chart blocks for streaming Markdown, with
 inspectable data and pluggable renderers. Its core is framework-neutral and
 independent of any chat product.
@@ -113,15 +118,35 @@ Both components register ECharts, load it on first chart mount, and apply a
 360px minimum height automatically. Canonical inline data also enables a
 built-in icon-based Chart/Data switch with a bounded, scrollable data table.
 The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series
-styling follow Qwen Code WebShell while explicit ECharts option values still
-win. The React package includes `react-markdown`, and the Vue package includes
-`markdown-it`. Pass a custom `registry`, parser, theme, or renderer options only
-when the defaults are not sufficient.
+styling are adapted from the
+[Qwen Code WebShell implementation](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx),
+while explicit ECharts option values still win. The React package includes
+`react-markdown`, and the Vue package includes `markdown-it`. Pass a custom
+`registry`, parser, theme, or renderer options only when the defaults are not
+sufficient. See [Third-party notices](./THIRD_PARTY_NOTICES.md) for attribution.
 
 Card colors can be aligned with the host through `--markdown-chart-background`,
 `--markdown-chart-subtle-background`, and `--markdown-chart-accent`. Advanced
-registries can set `createEChartsRenderer({ defaultStyle: false })` to keep the
-validated ECharts option unchanged.
+registries can set `createEChartsRenderer({ defaultStyle: false })` to disable
+the presentation defaults. Validation, canonical data injection, and data-ref
+resolution still apply.
+
+## Streaming
+
+Pass the outer document streaming state to the framework component:
+
+```tsx
+<MarkdownChart source={source} streaming={isStreaming} />
+```
+
+```vue
+<MarkdownChart :source="source" :streaming="isStreaming" />
+```
+
+Closed chart fences render immediately and keep their mounted chart instance as
+later text arrives. Only the active unterminated tail fence waits for more
+input. Advanced React applications pass the same state to
+`MarkdownChartProvider`; advanced Vue applications pass it to `MarkdownChart`.
 
 ## Advanced setup
 
@@ -165,18 +190,57 @@ const chartComponents = createMarkdownChartComponents({
 ```
 
 The provider infers `source` from its direct `ReactMarkdown` child, so streaming
-support does not add another required prop in this common advanced setup. In
-simple mode, pass the same state through the component's `streaming` prop.
-
-During streaming, closed chart fences render immediately and keep their mounted
-chart instance as later text arrives. Only the active unterminated tail fence
-waits for more input.
+support does not add another required prop in this common advanced setup.
 
 Because the application imports `react-markdown` directly in this mode,
-declare it as an application dependency as well:
+declare every directly imported package as an application dependency:
 
 ```sh
-pnpm add echarts react-markdown @datafe/markdown-chart-react
+pnpm add echarts react-markdown \
+  @datafe/markdown-chart \
+  @datafe/markdown-chart-echarts \
+  @datafe/markdown-chart-react
+```
+
+### Existing Vue + markdown-it applications
+
+Vue applications can keep their existing markdown-it instance and pass the
+same registry to both the plugin and component:
+
+```vue
+<script setup lang="ts">
+import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import MarkdownIt from 'markdown-it';
+
+defineProps<{ source: string; isStreaming: boolean }>();
+
+const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
+  registry,
+});
+</script>
+
+<template>
+  <MarkdownChart
+    :source="source"
+    :streaming="isStreaming"
+    :markdown-it="markdownIt"
+    :registry="registry"
+  />
+</template>
+```
+
+Declare the packages imported by this advanced setup directly:
+
+```sh
+pnpm add echarts markdown-it \
+  @datafe/markdown-chart \
+  @datafe/markdown-chart-echarts \
+  @datafe/markdown-chart-markdown-it \
+  @datafe/markdown-chart-vue
 ```
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
@@ -190,7 +254,7 @@ pnpm install
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm build:examples
+pnpm check:pack
 ```
 
 The root build validates both publishable packages and all four React/Vue Vite
@@ -199,4 +263,5 @@ tarballs.
 
 ## License
 
-MIT
+MIT. Portions are adapted from Qwen Code under Apache-2.0; see
+[Third-party notices](./THIRD_PARTY_NOTICES.md).
