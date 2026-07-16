@@ -1,0 +1,9 @@
+{
+  "name": "dataworks-chart",
+  "version": "0.1.0",
+  "description": "DataWorks chart skill for canonical dataset-backed markdown-chart blocks using the ECharts renderer.",
+  "license": "MIT",
+  "files": [
+    "SKILL.md"
+  ]
+}
