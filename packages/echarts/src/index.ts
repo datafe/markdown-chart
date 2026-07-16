@@ -625,87 +625,92 @@ export function createEChartsRenderer(
         legacyEChartQuery: parseLegacyEChartQueryBlock(context.language, source),
       };
     },
-    async mount(container, parsed, context) {
-      let materialized = parsed;
-      if (parsed.legacyEChartQuery) {
-        if (!options.resolveLegacyEChartQuery) {
-          throw new MarkdownChartError(
-            'REF_RESOLVER_MISSING',
-            'resolveLegacyEChartQuery is required for this temporary ChatBI fence',
-          );
-        }
-        let resolved: unknown;
-        try {
-          resolved = await options.resolveLegacyEChartQuery({
-            ...parsed.legacyEChartQuery,
-            signal: context.signal,
-          });
-        } catch (cause) {
-          if (context.signal.aborted) {
-            return EMPTY_HANDLE;
-          }
-          throw new MarkdownChartError(
-            'REF_RESOLUTION_FAILED',
-            'The temporary ChatBI chart could not be resolved',
-            { cause },
-          );
-        }
-        if (context.signal.aborted) {
-          return EMPTY_HANDLE;
-        }
-        let normalized: JsonValue;
-        try {
-          normalized = validateChartJsonValue(resolved, {
-            maxDepth: limits.maxDepth,
-            maxNodes: limits.maxNodes,
-          });
-        } catch (cause) {
-          if (cause instanceof MarkdownChartError) {
-            throw cause;
-          }
-          throw new MarkdownChartError(
-            'SCHEMA_INVALID',
-            'Temporary ChatBI resolver returned a non-JSON result',
-            { cause },
-          );
-        }
-        if (!isJsonObject(normalized)) {
-          return schemaError('Temporary ChatBI resolver must return an object');
-        }
-        if (
-          !Object.prototype.hasOwnProperty.call(normalized, 'data')
-          || !Object.prototype.hasOwnProperty.call(normalized, 'spec')
-        ) {
-          return schemaError('Temporary ChatBI resolver must return data and spec');
-        }
-        const resolvedSpec = parseSpec(
-          normalized.spec as JsonValue,
-          normalized.data,
-          true,
-          limits,
+    async materialize(parsed, context) {
+      if (!parsed.legacyEChartQuery) {
+        return { parsed, data: context.data };
+      }
+      if (!options.resolveLegacyEChartQuery) {
+        throw new MarkdownChartError(
+          'REF_RESOLVER_MISSING',
+          'resolveLegacyEChartQuery is required for this temporary ChatBI fence',
         );
-        if (resolvedSpec.data?.kind !== 'inline') {
-          return schemaError('Temporary ChatBI resolver must return inline data');
+      }
+      let resolved: unknown;
+      try {
+        resolved = await options.resolveLegacyEChartQuery({
+          ...parsed.legacyEChartQuery,
+          signal: context.signal,
+        });
+      } catch (cause) {
+        if (context.signal.aborted) {
+          return { parsed, data: context.data };
         }
-        materialized = resolvedSpec;
+        throw new MarkdownChartError(
+          'REF_RESOLUTION_FAILED',
+          'The temporary ChatBI chart could not be resolved',
+          { cause },
+        );
+      }
+      if (context.signal.aborted) {
+        return { parsed, data: context.data };
+      }
+      let normalized: JsonValue;
+      try {
+        normalized = validateChartJsonValue(resolved, {
+          maxDepth: limits.maxDepth,
+          maxNodes: limits.maxNodes,
+        });
+      } catch (cause) {
+        if (cause instanceof MarkdownChartError) {
+          throw cause;
+        }
+        throw new MarkdownChartError(
+          'SCHEMA_INVALID',
+          'Temporary ChatBI resolver returned a non-JSON result',
+          { cause },
+        );
+      }
+      if (!isJsonObject(normalized)) {
+        return schemaError('Temporary ChatBI resolver must return an object');
+      }
+      if (
+        !Object.prototype.hasOwnProperty.call(normalized, 'data')
+        || !Object.prototype.hasOwnProperty.call(normalized, 'spec')
+      ) {
+        return schemaError('Temporary ChatBI resolver must return data and spec');
+      }
+      const resolvedSpec = parseSpec(
+        normalized.spec as JsonValue,
+        normalized.data,
+        true,
+        limits,
+      );
+      if (resolvedSpec.data?.kind !== 'inline') {
+        return schemaError('Temporary ChatBI resolver must return inline data');
+      }
+      return { parsed: resolvedSpec, data: resolvedSpec.data };
+    },
+    async mount(container, parsed, context) {
+      if (parsed.legacyEChartQuery) {
+        return schemaError('Temporary ChatBI charts must be materialized before mounting');
       }
 
-      const option = cloneJson(materialized.option);
-      if (materialized.data) {
+      const option = cloneJson(parsed.option);
+      if (parsed.data) {
         let dataset: ResolvedDataset;
-        if (materialized.data.kind === 'inline') {
-          dataset = materialized.data;
+        if (parsed.data.kind === 'inline') {
+          dataset = parsed.data;
         } else {
-          if (options.validateDataRef && !options.validateDataRef(materialized.data.ref)) {
+          if (options.validateDataRef && !options.validateDataRef(parsed.data.ref)) {
             throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
           }
           if (!options.resolveDataRef) {
             throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
           }
           try {
-            dataset = await options.resolveDataRef(materialized.data.ref, {
-              format: materialized.data.format,
-              dimensions: materialized.data.dimensions,
+            dataset = await options.resolveDataRef(parsed.data.ref, {
+              format: parsed.data.format,
+              dimensions: parsed.data.dimensions,
               signal: context.signal,
             });
           } catch (cause) {

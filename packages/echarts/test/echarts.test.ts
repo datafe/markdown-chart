@@ -9,6 +9,7 @@ import {
 import {
   createEChartsRenderer,
   type EChartsRuntime,
+  type ResolvedLegacyEChartQuery,
 } from '../src/index';
 
 function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
@@ -175,8 +176,10 @@ describe('createEChartsRenderer', () => {
       resolveLegacyEChartQuery,
       resizeObserver: false,
     }));
+    const controller = new ChartController(registry);
+    const container = document.createElement('div');
 
-    await new ChartController(registry).render(document.createElement('div'), {
+    await controller.render(container, {
       language: 'echarts-chatbi_query_8660210443288600709-0',
       source: 'var option = { series: [] };\n//#end',
     });
@@ -192,6 +195,50 @@ describe('createEChartsRenderer', () => {
       dimensions: ['name', 'value'],
       source: [{ name: 'A', value: 10 }, { name: 'B', value: 20 }],
     });
+    const showData = container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    expect(showData).not.toBeNull();
+    showData?.click();
+    const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+    expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
+    controller.dispose();
+  });
+
+  it('aborts an in-flight temporary ChatBI resolver before UI or runtime creation', async () => {
+    let finishResolve: ((value: ResolvedLegacyEChartQuery) => void) | undefined;
+    let resolverSignal: AbortSignal | undefined;
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      resolveLegacyEChartQuery: ({ signal }) => {
+        resolverSignal = signal;
+        return new Promise((resolve) => {
+          finishResolve = resolve;
+        });
+      },
+    }));
+    const controller = new ChartController(registry);
+    const container = document.createElement('div');
+    const render = controller.render(container, {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+    });
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+
+    await controller.render(container, {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+      streaming: true,
+    });
+    expect(resolverSignal?.aborted).toBe(true);
+    finishResolve?.({
+      data: { kind: 'inline', source: [] },
+      spec: { series: [] },
+    });
+    await render;
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(container.childElementCount).toBe(0);
   });
 
   it('accepts legacy resolver data over 500 KB within ECharts row and cell limits', async () => {
