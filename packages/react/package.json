@@ -1,6 +1,6 @@
 {
   "name": "@datafe/markdown-chart-react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "react-markdown adapter for Markdown Chart",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
