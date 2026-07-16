@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["vite/client"]
   },
-  "include": ["App.vue", "main.ts", "vite.config.ts"]
+  "include": ["*.ts", "*.vue"]
 }

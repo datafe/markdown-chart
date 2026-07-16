@@ -9,8 +9,12 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@datafe/markdown-chart": "workspace:*",
+    "@datafe/markdown-chart-echarts": "workspace:*",
+    "@datafe/markdown-chart-markdown-it": "workspace:*",
     "@datafe/markdown-chart-vue": "workspace:*",
     "echarts": "^6.0.0",
+    "markdown-it": "^14.1.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {

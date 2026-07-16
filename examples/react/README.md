@@ -1,7 +1,12 @@
 # React + react-markdown example
 
-This zero-config example only imports `MarkdownChart`. The React adapter owns
-its `react-markdown` dependency and applies a 360px minimum chart height.
+This runnable app renders both integration styles:
+
+- `SimpleExample.tsx` only imports `MarkdownChart`; the adapter owns
+  react-markdown and creates the ECharts registry.
+- `AdvancedExample.tsx` uses `MarkdownChartProvider` and
+  `createMarkdownChartComponents` around the host's own `ReactMarkdown`, with a
+  custom renderer registry.
 
 Run the complete Vite example from the repository root:
 

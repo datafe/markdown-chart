@@ -9,10 +9,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@datafe/markdown-chart": "workspace:*",
+    "@datafe/markdown-chart-echarts": "workspace:*",
     "@datafe/markdown-chart-react": "workspace:*",
     "echarts": "^6.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.2",

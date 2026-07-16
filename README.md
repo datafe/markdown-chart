@@ -144,7 +144,8 @@ pnpm add echarts react-markdown @datafe/markdown-chart-react
 ```
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
-examples under `examples/`.
+examples under `examples/`. Each runnable example renders simple and advanced
+integration modes side by side.
 
 ## Development
 

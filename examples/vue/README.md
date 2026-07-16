@@ -1,8 +1,11 @@
 # Vue + markdown-it example
 
-This zero-config example only imports `MarkdownChart`. The Vue adapter owns its
-`markdown-it` dependency, keeps raw HTML disabled, and applies a 360px minimum
-chart height.
+This runnable app renders both integration styles:
+
+- `SimpleExample.vue` only imports `MarkdownChart`; the adapter owns markdown-it
+  and creates the ECharts registry.
+- `AdvancedExample.vue` passes a host-created markdown-it instance, plugin, and
+  renderer registry to `MarkdownChart`.
 
 Run the complete Vite example from the repository root:
 
