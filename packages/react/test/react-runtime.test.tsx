@@ -18,6 +18,13 @@ describe('react-markdown runtime adapter', () => {
     expect(html).not.toContain('<pre>');
   });
 
+  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand as code', (language) => {
+    const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
+    const html = renderToStaticMarkup(<MarkdownChart source={source} />);
+    expect(html).toContain(`<code class="language-${language}">`);
+    expect(html).not.toContain('markdown-chart-placeholder');
+  });
+
   it('routes a newly registered alias through the provider registry', () => {
     const registry = new ChartRendererRegistry();
     const components = createMarkdownChartComponents({ chartClassName: 'plotly-chart' });

@@ -3,8 +3,9 @@
 A markdown-it fence plugin that emits safe generated placeholders. Chart source
 is returned through the render environment rather than copied into HTML.
 
-Pass the live renderer registry to the plugin so shorthand aliases are routed
-without adapter-specific language configuration:
+Pass the live renderer registry to the plugin so explicitly registered aliases
+and dynamic renderer languages are routed without adapter-specific language
+configuration. A renderer identifier alone is not treated as a fence language:
 
 ```ts
 const md = new MarkdownIt({ html: false })

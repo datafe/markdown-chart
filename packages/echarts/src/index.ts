@@ -1,5 +1,4 @@
 import {
-  MARKDOWN_CHART_LANGUAGE,
   MarkdownChartError,
   isJsonObject,
   validateChartJsonValue,
@@ -326,38 +325,22 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
 function parseSpec(
   spec: JsonValue,
   envelopeData: unknown,
-  canonical: boolean,
   limits: EChartsLimits,
 ): ParsedEChartsSpec {
   if (!isJsonObject(spec)) {
     return schemaError('ECharts specification must be an object');
   }
 
-  let option: Record<string, JsonValue>;
-  let data: EChartsDataset | undefined;
-  if (canonical) {
-    if (
-      Object.prototype.hasOwnProperty.call(spec, 'option')
-      || Object.prototype.hasOwnProperty.call(spec, 'data')
-    ) {
-      return schemaError(
-        'Canonical markdown-chart data must be a sibling of spec; spec must contain the ECharts option directly',
-      );
-    }
-    option = cloneJson(spec);
-    data = envelopeData === undefined ? undefined : parseData(envelopeData, limits);
-  } else if (Object.prototype.hasOwnProperty.call(spec, 'option')) {
-    if (Object.prototype.hasOwnProperty.call(spec, 'version')) {
-      return schemaError('echarts.version is not supported; version belongs to the markdown-chart envelope');
-    }
-    if (!isJsonObject(spec.option)) {
-      return schemaError('echarts.option must be an object');
-    }
-    option = cloneJson(spec.option);
-    data = spec.data === undefined ? undefined : parseData(spec.data, limits);
-  } else {
-    option = cloneJson(spec);
+  if (
+    Object.prototype.hasOwnProperty.call(spec, 'option')
+    || Object.prototype.hasOwnProperty.call(spec, 'data')
+  ) {
+    return schemaError(
+      'Canonical markdown-chart data must be a sibling of spec; spec must contain the ECharts option directly',
+    );
   }
+  const option = cloneJson(spec);
+  const data = envelopeData === undefined ? undefined : parseData(envelopeData, limits);
 
   if (data && Object.prototype.hasOwnProperty.call(option, 'dataset')) {
     return schemaError('echarts.option.dataset cannot be combined with echarts.data');
@@ -608,15 +591,9 @@ export function createEChartsRenderer(
 
   return {
     id: 'echarts',
-    aliases: ['echarts-fulldata'],
     matchLanguage: isLegacyEChartQueryLanguage,
     parse(spec, context) {
-      return parseSpec(
-        spec,
-        context.data,
-        context.language === MARKDOWN_CHART_LANGUAGE,
-        limits,
-      );
+      return parseSpec(spec, context.data, limits);
     },
     parseSource(source, context) {
       return {
@@ -682,7 +659,6 @@ export function createEChartsRenderer(
       const resolvedSpec = parseSpec(
         normalized.spec as JsonValue,
         normalized.data,
-        true,
         limits,
       );
       if (resolvedSpec.data?.kind !== 'inline') {

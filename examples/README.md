@@ -10,3 +10,8 @@ Each example is an independent Vite workspace with its own dependency manifest:
 Simple examples use the all-in-one framework component. Advanced examples show
 host-owned Markdown parsing and renderer registration. Canonical examples use
 inline data, so both modes also demonstrate the built-in Chart/Data switch.
+
+The [`react/chatbi-openapi/`](./react/chatbi-openapi/) integration example
+shows a third-party frontend resolving ChatBI artifact CSV data through its own
+same-origin DataWorks OpenAPI proxy and delegating temporary chart-source
+execution to a host sandbox.

@@ -378,7 +378,7 @@ export function parseMarkdownChartEnvelope(
 
 export class ChartRendererRegistry {
   readonly #renderers = new Map<string, ChartRenderer<unknown>>();
-  readonly #names = new Map<string, string>();
+  readonly #aliases = new Map<string, string>();
   readonly #jsonLimits: Partial<JsonParseLimits>;
 
   constructor(options: ChartRegistryOptions = {}) {
@@ -387,30 +387,47 @@ export class ChartRendererRegistry {
 
   register<Parsed>(renderer: ChartRenderer<Parsed>): this {
     const id = normalizeName(renderer.id, 'renderer id');
-    const names = [id, ...(renderer.aliases ?? []).map((alias) => normalizeName(alias, 'renderer alias'))];
-    for (const name of names) {
-      if (name === MARKDOWN_CHART_LANGUAGE) {
+    const aliases = (renderer.aliases ?? [])
+      .map((alias) => normalizeName(alias, 'renderer alias'));
+    const existingIdOwner = this.#aliases.get(id);
+    if (this.#renderers.has(id) || existingIdOwner) {
+      throw new MarkdownChartError(
+        'RENDERER_CONFLICT',
+        `Renderer id ${id} is already owned by ${existingIdOwner ?? id}`,
+      );
+    }
+    const uniqueAliases = new Set<string>();
+    for (const alias of aliases) {
+      if (alias === MARKDOWN_CHART_LANGUAGE) {
         throw new MarkdownChartError('RENDERER_CONFLICT', 'The canonical markdown-chart fence cannot be a renderer alias');
       }
-      const existing = this.#names.get(name);
+      if (uniqueAliases.has(alias)) {
+        throw new MarkdownChartError(
+          'RENDERER_CONFLICT',
+          `Renderer alias ${alias} is declared more than once`,
+        );
+      }
+      uniqueAliases.add(alias);
+      const existing = this.#aliases.get(alias)
+        ?? (alias !== id && this.#renderers.has(alias) ? alias : undefined);
       if (existing) {
         throw new MarkdownChartError(
           'RENDERER_CONFLICT',
-          `Renderer name ${name} is already owned by ${existing}`,
+          `Renderer alias ${alias} is already owned by ${existing}`,
         );
       }
     }
 
     const erased = renderer as ChartRenderer<unknown>;
     this.#renderers.set(id, erased);
-    names.forEach((name) => this.#names.set(name, id));
+    aliases.forEach((alias) => this.#aliases.set(alias, id));
     return this;
   }
 
   has(name: string): boolean {
     const normalized = name.trim().toLowerCase();
     return normalized === MARKDOWN_CHART_LANGUAGE
-      || this.#names.has(normalized)
+      || this.#aliases.has(normalized)
       || [...this.#renderers.values()].some((renderer) => renderer.matchLanguage?.(normalized) === true);
   }
 
@@ -431,7 +448,7 @@ export class ChartRendererRegistry {
       spec = envelope.spec;
       data = envelope.data;
     } else {
-      const exact = this.#names.get(language);
+      const exact = this.#aliases.get(language);
       const matched = exact ? [] : [...this.#renderers.entries()]
         .filter(([, renderer]) => renderer.matchLanguage?.(language) === true)
         .map(([id]) => id);

@@ -12,6 +12,15 @@ import {
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
 
+function canonical(spec: JsonValue, data?: JsonValue): string {
+  return JSON.stringify({
+    version: 1,
+    renderer: 'echarts',
+    ...(data === undefined ? {} : { data }),
+    spec,
+  });
+}
+
 function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
   runtime: EChartsRuntime;
   dispose: ReturnType<typeof vi.fn>;
@@ -32,9 +41,15 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
 }
 
 describe('createEChartsRenderer', () => {
-  it('can be created without an explicit ECharts loader', async () => {
+  it('uses only the canonical fence while retaining the ECharts renderer id', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    expect(registry.has('echarts')).toBe(false);
+    expect(registry.has('echarts-fulldata')).toBe(false);
     await expect(registry.prepare('echarts', '{"series":[]}'))
+      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
+    await expect(registry.prepare('echarts-fulldata', '{"series":[]}'))
+      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
+    await expect(registry.prepare('markdown-chart', canonical({ series: [] })))
       .resolves.toMatchObject({ rendererId: 'echarts' });
   });
 
@@ -82,8 +97,8 @@ describe('createEChartsRenderer', () => {
     }));
 
     await new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: JSON.stringify({
+      language: 'markdown-chart',
+      source: canonical({
         backgroundColor: '#fafafa',
         xAxis: { type: 'category', axisLabel: { color: '#ff0000' } },
         yAxis: {},
@@ -118,8 +133,8 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     await new ChartController(styledRegistry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[{"type":"line"}]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'line' }] }),
       theme: 'dark',
     });
 
@@ -129,8 +144,8 @@ describe('createEChartsRenderer', () => {
       defaultStyle: false,
     }));
     await new ChartController(plainRegistry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[{"type":"line"}]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'line' }] }),
     });
 
     expect(rendered[0]).toMatchObject({
@@ -335,11 +350,11 @@ describe('createEChartsRenderer', () => {
     }));
 
     await new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts-fulldata',
-      source: JSON.stringify({
-        data: { kind: 'ref', ref: 'app://datasets/sales', format: 'json' },
-        option: { series: [{ type: 'line' }] },
-      }),
+      language: 'markdown-chart',
+      source: canonical(
+        { series: [{ type: 'line' }] },
+        { kind: 'ref', ref: 'app://datasets/sales', format: 'json' },
+      ),
     });
 
     expect(resolver).toHaveBeenCalledOnce();
@@ -356,11 +371,11 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     const promise = new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: JSON.stringify({
-        data: { kind: 'ref', ref: 'app://datasets/sales' },
-        option: { series: [] },
-      }),
+      language: 'markdown-chart',
+      source: canonical(
+        { series: [] },
+        { kind: 'ref', ref: 'app://datasets/sales' },
+      ),
     });
     await expect(promise).rejects.toMatchObject({
       code: 'REF_RESOLVER_MISSING',
@@ -370,7 +385,7 @@ describe('createEChartsRenderer', () => {
   it('rejects URL-bearing options before loading ECharts', async () => {
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       series: [{ type: 'line', symbol: 'image://https://example.test/tracker.png' }],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
     expect(loadECharts).not.toHaveBeenCalled();
@@ -387,7 +402,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       title: { text: 'chart', [key]: value },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -401,7 +416,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       title: { text: value },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -411,7 +426,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       dataZoom: [{ type: 'inside' }],
       visualMap: { min: 0, max: 100 },
       series: [],
@@ -443,7 +458,7 @@ describe('createEChartsRenderer', () => {
   ])('rejects unsafe %s', async (_label, option) => {
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
-    await expect(registry.prepare('echarts', JSON.stringify(option)))
+    await expect(registry.prepare('markdown-chart', canonical(option)))
       .rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
     expect(loadECharts).not.toHaveBeenCalled();
   });
@@ -452,7 +467,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       futureExecutableSurface: { enabled: true },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -462,31 +477,31 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       series: [{ type: 'custom' }],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       data: { kind: 'inline', source: [] },
       option: { dataset: { source: [] } },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
-  it('rejects a renderer-level version because version belongs to markdown-chart', async () => {
+  it('rejects the removed renderer-specific envelope inside canonical spec', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       version: 1,
       option: { series: [] },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
-  it('applies dataset limits to direct ECharts options', async () => {
+  it('applies dataset limits to canonical ECharts specs', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
       limits: { maxRows: 1 },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       dataset: { source: [['A', 1], ['B', 2]] },
       series: [{ type: 'bar' }],
     }))).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
@@ -499,8 +514,8 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     await expect(new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [] }),
     })).rejects.toMatchObject({ code: 'RENDER_FAILED' });
     expect(fake.dispose).toHaveBeenCalledOnce();
   });
@@ -524,8 +539,8 @@ describe('createEChartsRenderer', () => {
     }));
     try {
       await expect(new ChartController(registry).render(document.createElement('div'), {
-        language: 'echarts',
-        source: '{"series":[]}',
+        language: 'markdown-chart',
+        source: canonical({ series: [] }),
       })).rejects.toMatchObject({ code: 'RENDER_FAILED' });
       expect(disconnect).toHaveBeenCalledOnce();
       expect(fake.dispose).toHaveBeenCalledOnce();

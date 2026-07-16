@@ -116,6 +116,19 @@ describe('markdownChartPlugin', () => {
     expect(getMarkdownChartBlocks(env)).toEqual([]);
   });
 
+  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand unchanged', (language) => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'echarts',
+      parse: (spec) => spec,
+      mount() {},
+    });
+    const md = new MarkdownIt().use(markdownChartPlugin, { registry });
+    const env: MarkdownChartEnvironment = {};
+    const html = md.render(`\`\`\`${language}\n{"series":[]}\n\`\`\``, env);
+    expect(html).toContain(`<code class="language-${language}">`);
+    expect(getMarkdownChartBlocks(env)).toEqual([]);
+  });
+
   it('consults the live registry for future renderer aliases', () => {
     const registry = new ChartRendererRegistry();
     const md = new MarkdownIt().use(markdownChartPlugin, { registry });

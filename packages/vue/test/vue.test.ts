@@ -50,6 +50,21 @@ describe('MarkdownChart reactive object props', () => {
     app.unmount();
   });
 
+  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand as code', async (language) => {
+    const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await nextTick();
+    expect(root.querySelector(`code.language-${language}`)).not.toBeNull();
+    expect(root.querySelector('.markdown-chart-placeholder')).toBeNull();
+    app.unmount();
+  });
+
   it('refreshes when markdownIt or registry instances are replaced', async () => {
     const firstMount = vi.fn();
     const secondMount = vi.fn();
@@ -157,6 +172,7 @@ describe('MarkdownChart reactive object props', () => {
     });
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount,
     });

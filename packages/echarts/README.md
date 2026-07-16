@@ -26,6 +26,6 @@ In a canonical `markdown-chart` envelope, renderer-neutral `data` is a sibling
 of `spec`, and `spec` is the ECharts option directly. This lets hosts inspect
 inline data without understanding ECharts.
 
-The `echarts` and `echarts-fulldata` shorthand fences also accept a direct
-option or the renderer-specific `{ data, option }` body. A renderer spec never
-defines its own `version`; protocol versioning belongs to `markdown-chart`.
+The renderer is selected by `"renderer": "echarts"` in the canonical
+`markdown-chart` envelope. A renderer spec never defines its own `version`;
+protocol versioning belongs to `markdown-chart`.
