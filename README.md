@@ -56,7 +56,47 @@ recognizes `echarts` and the migration alias `echarts-fulldata`:
 ```
 ````
 
-## Core setup
+## React + react-markdown
+
+With the canonical Markdown above stored in `source`:
+
+```sh
+pnpm add echarts react-markdown @datafe/markdown-chart-react
+```
+
+```tsx
+import { MarkdownChart } from '@datafe/markdown-chart-react';
+
+export function App({ source }: { source: string }) {
+  return <MarkdownChart source={source} />;
+}
+```
+
+## Vue 3 + markdown-it
+
+```sh
+pnpm add echarts markdown-it @datafe/markdown-chart-vue
+```
+
+```vue
+<script setup lang="ts">
+import { MarkdownChart } from '@datafe/markdown-chart-vue';
+
+defineProps<{ source: string }>();
+</script>
+
+<template>
+  <MarkdownChart :source="source" />
+</template>
+```
+
+Both components register ECharts, load it on first chart mount, and apply a
+360px minimum height automatically. Pass a custom `registry`, parser, theme, or
+renderer options only when the defaults are not sufficient.
+
+## Advanced setup
+
+Create and pass a registry only when adding renderers or resolving host data:
 
 ```ts
 import { ChartRendererRegistry } from '@datafe/markdown-chart';
@@ -64,118 +104,14 @@ import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
 
 const registry = new ChartRendererRegistry();
 registry.register(createEChartsRenderer({
-  loadECharts: () => import('echarts'),
   resolveDataRef: async (ref, meta) => loadApplicationDataset(ref, meta.signal),
 }));
 ```
 
 Pass the same live registry to framework adapters. Renderer aliases registered
 later, such as `vega-lite` or `plotly`, are then recognized without updating an
-adapter language list:
-
-```ts
-const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, { registry });
-```
-
-The package never fetches a data reference itself. Applications decide which
-reference schemes are allowed and provide the resolver.
-
-## React + react-markdown
-
-```sh
-pnpm add echarts react-markdown @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts @datafe/markdown-chart-react
-```
-
-````tsx
-import ReactMarkdown from 'react-markdown';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import {
-  createMarkdownChartComponents,
-  MarkdownChartProvider,
-} from '@datafe/markdown-chart-react';
-
-const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-  loadECharts: () => import('echarts'),
-}));
-const components = createMarkdownChartComponents({
-  chartClassName: 'markdown-chart-block',
-});
-const source = `# Sales
-
-\`\`\`markdown-chart
-{
-  "version": 1,
-  "renderer": "echarts",
-  "spec": {
-    "xAxis": { "type": "category", "data": ["A", "B"] },
-    "yAxis": {},
-    "series": [{ "type": "bar", "data": [10, 20] }]
-  }
-}
-\`\`\``;
-
-export function App() {
-  return (
-    <MarkdownChartProvider registry={registry}>
-      <ReactMarkdown components={components}>{source}</ReactMarkdown>
-    </MarkdownChartProvider>
-  );
-}
-````
-
-```css
-.markdown-chart-block {
-  min-height: 360px;
-}
-```
-
-## Vue 3 + markdown-it
-
-```sh
-pnpm add echarts markdown-it @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts @datafe/markdown-chart-markdown-it \
-  @datafe/markdown-chart-vue
-```
-
-`````vue
-<script setup lang="ts">
-import MarkdownIt from 'markdown-it';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
-
-const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-  loadECharts: () => import('echarts'),
-}));
-const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, { registry });
-const source = `# Sales
-
-\`\`\`markdown-chart
-{
-  "version": 1,
-  "renderer": "echarts",
-  "spec": {
-    "xAxis": { "type": "category", "data": ["A", "B"] },
-    "yAxis": {},
-    "series": [{ "type": "bar", "data": [10, 20] }]
-  }
-}
-\`\`\``;
-</script>
-
-<template>
-  <MarkdownChart :source="source" :markdown-it="md" :registry="registry" />
-</template>
-
-<style>
-.markdown-chart-placeholder {
-  min-height: 360px;
-}
-</style>
-`````
+adapter language list. The package never fetches a data reference itself;
+applications decide which reference schemes are allowed.
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
 examples under `examples/`.

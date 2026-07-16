@@ -69,7 +69,7 @@ export const DEFAULT_ECHARTS_LIMITS: Readonly<EChartsLimits> = Object.freeze({
 });
 
 export interface CreateEChartsRendererOptions {
-  readonly loadECharts: () => LoadedEChartsRuntime | Promise<LoadedEChartsRuntime>;
+  readonly loadECharts?: () => LoadedEChartsRuntime | Promise<LoadedEChartsRuntime>;
   readonly resolveDataRef?: ResolveDataRef;
   readonly validateDataRef?: (ref: string) => boolean;
   readonly limits?: Partial<EChartsLimits>;
@@ -355,8 +355,13 @@ function toDatasetOption(dataset: ResolvedDataset, limits: EChartsLimits): Recor
 
 const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 
-export function createEChartsRenderer(options: CreateEChartsRendererOptions): ChartRenderer<ParsedEChartsSpec> {
+export function createEChartsRenderer(
+  options: CreateEChartsRendererOptions = {},
+): ChartRenderer<ParsedEChartsSpec> {
   const limits: EChartsLimits = { ...DEFAULT_ECHARTS_LIMITS, ...options.limits };
+  const loadECharts = options.loadECharts ?? (async () => (
+    await import('echarts') as unknown as LoadedEChartsRuntime
+  ));
 
   return {
     id: 'echarts',
@@ -399,7 +404,7 @@ export function createEChartsRenderer(options: CreateEChartsRendererOptions): Ch
 
       let runtime: EChartsRuntime;
       try {
-        runtime = normalizeRuntime(await options.loadECharts());
+        runtime = normalizeRuntime(await loadECharts());
       } catch (cause) {
         if (cause instanceof MarkdownChartError) {
           throw cause;

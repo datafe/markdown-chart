@@ -31,6 +31,12 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
 }
 
 describe('createEChartsRenderer', () => {
+  it('can be created without an explicit ECharts loader', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare('echarts', '{"series":[]}'))
+      .resolves.toMatchObject({ rendererId: 'echarts' });
+  });
+
   it('injects inline data and supports the echarts shorthand fence', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });

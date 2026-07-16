@@ -26,12 +26,6 @@ importers:
 
   examples/react:
     dependencies:
-      '@datafe/markdown-chart':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@datafe/markdown-chart-echarts':
-        specifier: workspace:*
-        version: link:../../packages/echarts
       '@datafe/markdown-chart-react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -66,15 +60,6 @@ importers:
 
   examples/vue:
     dependencies:
-      '@datafe/markdown-chart':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@datafe/markdown-chart-echarts':
-        specifier: workspace:*
-        version: link:../../packages/echarts
-      '@datafe/markdown-chart-markdown-it':
-        specifier: workspace:*
-        version: link:../../packages/markdown-it
       '@datafe/markdown-chart-vue':
         specifier: workspace:*
         version: link:../../packages/vue
@@ -111,6 +96,10 @@ importers:
       '@datafe/markdown-chart':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
 
   packages/markdown-it:
     dependencies:
@@ -130,6 +119,12 @@ importers:
       '@datafe/markdown-chart':
         specifier: workspace:*
         version: link:../core
+      '@datafe/markdown-chart-echarts':
+        specifier: workspace:*
+        version: link:../echarts
+      echarts:
+        specifier: '>=5.5 <7'
+        version: 6.1.0
     devDependencies:
       '@types/react':
         specifier: ^19.1.2
@@ -152,9 +147,15 @@ importers:
       '@datafe/markdown-chart':
         specifier: workspace:*
         version: link:../core
+      '@datafe/markdown-chart-echarts':
+        specifier: workspace:*
+        version: link:../echarts
       '@datafe/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../markdown-it
+      echarts:
+        specifier: '>=5.5 <7'
+        version: 6.1.0
     devDependencies:
       '@types/markdown-it':
         specifier: ^14.1.2

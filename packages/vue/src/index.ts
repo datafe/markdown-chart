@@ -1,15 +1,18 @@
-import type MarkdownIt from 'markdown-it';
+import MarkdownIt from 'markdown-it';
 import {
   ChartController,
-  type ChartRendererRegistry,
+  ChartRendererRegistry,
 } from '@datafe/markdown-chart';
+import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
 import {
   getMarkdownChartBlocks,
+  markdownChartPlugin,
   type MarkdownChartBlock,
   type MarkdownChartEnvironment,
 } from '@datafe/markdown-chart-markdown-it';
 import {
   defineComponent,
+  computed,
   h,
   nextTick,
   onBeforeUnmount,
@@ -33,6 +36,7 @@ export type MarkdownChartVueErrorHandler = (
 export interface MountMarkdownChartBlocksOptions {
   readonly theme?: unknown;
   readonly streaming?: boolean;
+  readonly minHeight?: string | number | undefined;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -47,10 +51,16 @@ export function mountMarkdownChartBlocks(
   registry: ChartRendererRegistry,
   options: MountMarkdownChartBlocksOptions = {},
 ): MountedMarkdownCharts {
+  const minHeight = typeof options.minHeight === 'number'
+    ? `${options.minHeight}px`
+    : options.minHeight;
   const placeholders = new Map<string, HTMLElement>();
   container.querySelectorAll<HTMLElement>('[data-markdown-chart-id]').forEach((element) => {
     const id = element.dataset.markdownChartId;
     if (id) {
+      if (minHeight) {
+        element.style.minHeight = minHeight;
+      }
       placeholders.set(id, element);
     }
   });
@@ -97,6 +107,7 @@ export interface UseMarkdownChartOptions {
   readonly registry: MaybeRef<ChartRendererRegistry>;
   readonly theme?: MaybeRef<unknown>;
   readonly streaming?: MaybeRef<boolean>;
+  readonly minHeight?: MaybeRef<string | number | undefined>;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -117,6 +128,9 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
   const currentStreaming = (): boolean => options.streaming === undefined
     ? false
     : Boolean(toValue(options.streaming));
+  const currentMinHeight = (): string | number | undefined => options.minHeight === undefined
+    ? undefined
+    : toValue(options.minHeight);
 
   const refresh = async (): Promise<void> => {
     const localGeneration = ++generation;
@@ -133,6 +147,7 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
     mounted = mountMarkdownChartBlocks(container.value, blocks, toValue(options.registry), {
       theme: currentTheme(),
       streaming: currentStreaming(),
+      minHeight: currentMinHeight(),
       ...(options.onError ? { onError: options.onError } : {}),
     });
     await mounted.ready;
@@ -145,6 +160,7 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
       () => toValue(options.registry),
       currentTheme,
       currentStreaming,
+      currentMinHeight,
     ],
     () => { void refresh(); },
     { flush: 'post' },
@@ -174,22 +190,33 @@ export const MarkdownChart = defineComponent({
   name: 'MarkdownChart',
   props: {
     source: { type: String, required: true },
-    markdownIt: { type: Object as PropType<MarkdownIt>, required: true },
-    registry: { type: Object as PropType<ChartRendererRegistry>, required: true },
+    markdownIt: { type: Object as PropType<MarkdownIt>, required: false },
+    registry: { type: Object as PropType<ChartRendererRegistry>, required: false },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
+    minHeight: {
+      type: [String, Number] as PropType<string | number>,
+      default: 360,
+    },
     onError: {
       type: Function as PropType<MarkdownChartVueErrorHandler>,
       required: false,
     },
   },
   setup(props) {
+    const automaticRegistry = new ChartRendererRegistry().register(createEChartsRenderer());
+    const registry = computed(() => props.registry ?? automaticRegistry);
+    const automaticMarkdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
+      registry: { has: (language) => registry.value.has(language) },
+    });
+    const markdownIt = computed(() => props.markdownIt ?? automaticMarkdownIt);
     const state = useMarkdownChart({
       source: toRef(props, 'source'),
-      markdownIt: toRef(props, 'markdownIt'),
-      registry: toRef(props, 'registry'),
+      markdownIt,
+      registry,
       theme: toRef(props, 'theme'),
       streaming: toRef(props, 'streaming'),
+      minHeight: toRef(props, 'minHeight'),
       onError: (error, block) => props.onError?.(error, block),
     });
     return () => h('div', {

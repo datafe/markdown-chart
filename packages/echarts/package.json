@@ -20,10 +20,16 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external @datafe/markdown-chart",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external @datafe/markdown-chart --external echarts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@datafe/markdown-chart": "workspace:*"
+  },
+  "peerDependencies": {
+    "echarts": ">=5.5 <7"
+  },
+  "devDependencies": {
+    "echarts": "^6.0.0"
   }
 }
