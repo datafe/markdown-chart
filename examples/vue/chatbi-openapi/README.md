@@ -1,9 +1,8 @@
-# Vue + markdown-it + ChatBI OpenAPI example
+# Vue + markdown-it + ChatBI OpenAPI 示例
 
-This runnable Vue 3 example renders streaming Markdown returned by ChatBI while
-keeping the application's existing markdown-it pipeline. The reusable
-`ChatBIChartMessage.vue` rebuilds its parser and renderer context only when the
-artifact lookup scope changes:
+这个可直接运行的 Vue 3 示例在保留应用现有 markdown-it 处理链路的同时，渲染
+ChatBI 返回的流式 Markdown。可复用的 `ChatBIChartMessage.vue` 只会在 artifact
+查找范围变化时重建解析器和渲染上下文：
 
 ```vue
 <script setup lang="ts">
@@ -47,39 +46,35 @@ const context = computed(() => {
 </template>
 ```
 
-The callback returns raw CSV `ArtifactContent`. The renderer owns bounded CSV
-parsing, temporary source sanitization and sandboxed conversion, JSON
-validation, and inline data materialization. This example never parses CSV or
-executes chart source in the application window.
+回调返回原始 CSV `ArtifactContent`。渲染器内部负责有界 CSV 解析、临时图表 source
+净化和沙箱转换、JSON 校验以及内联数据物化。本示例不会在应用窗口中解析 CSV 或
+执行图表 source。
 
-Keep the `registry` and `markdownIt` instances stable while text is appended to
-one stream: completed chart blocks are then reused. Rebuild both when
-`sessionId` or `requestId` changes so cached artifact data cannot cross ChatBI
-contexts. Pass the current `requestId` whenever available; session-wide lookup
-can otherwise find an old artifact with the same name.
+向同一个流追加文本时，应保持 `registry` 和 `markdownIt` 实例稳定，以便复用
+已完成的图表块。`sessionId` 或 `requestId` 变化时，应同时重建这两个实例，避免
+缓存的 artifact 数据跨越 ChatBI 上下文。只要能够获得当前 `requestId`，就应将其
+传入；否则会话级查找可能命中同名的历史 artifact。
 
-## Browser-to-backend contracts
+## 浏览器到后端的契约
 
-The third-party backend exposes only two same-origin routes:
+第三方后端只暴露两个同源路由：
 
-| Browser endpoint | Backend responsibility |
+| 浏览器端点 | 后端职责 |
 | --- | --- |
-| `POST /api/dataworks/list-agent-session-artifacts` | Authorize, sign, and call [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts), then forward the JSON-RPC response. |
-| `POST /api/dataworks/get-agent-session-artifact-meta` | Authorize, sign, and call [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta), then forward the JSON-RPC response. |
+| `POST /api/dataworks/list-agent-session-artifacts` | 完成鉴权和签名，调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，然后转发 JSON-RPC 响应。 |
+| `POST /api/dataworks/get-agent-session-artifact-meta` | 完成鉴权和签名，调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，然后转发 JSON-RPC 响应。 |
 
-The local helper follows List pagination, requires exactly one artifact named
-for the requested job, calls Get with `SessionId + ArtifactPath`, and returns
-`ArtifactContent` unchanged. Keep AccessKey credentials and signing on the
-backend, and enforce authorization and response-size limits there.
+本地辅助函数会遍历 List 分页，要求恰好存在一个以所请求 job 命名的 artifact，使用
+`SessionId + ArtifactPath` 调用 Get，并原样返回 `ArtifactContent`。AccessKey 凭证
+和签名逻辑应保留在后端，鉴权与响应大小限制也应由后端执行。
 
-Run the example after providing both routes:
+提供上述两个路由后，运行示例：
 
 ```sh
 pnpm --filter @datafe/markdown-chart-example-vue-chatbi-openapi dev
 ```
 
-The ArtifactContent resolver and temporary renderer adapter are deprecated
-migration code. They are isolated in this dedicated example and the ECharts
-package's `legacy/` directory so they can be deleted together after ChatBI
-stops emitting the legacy stream format. Canonical `markdown-chart` support and
-the ordinary Vue/markdown-it examples do not depend on them.
+`ArtifactContent` resolver 和临时渲染器适配器都是已弃用的迁移代码。它们被隔离
+在这个专用示例和 ECharts 包的 `legacy/` 目录中；ChatBI 停止输出 legacy 流格式后，
+可以将二者一并删除。canonical `markdown-chart` 支持以及普通的 Vue/markdown-it
+示例都不依赖这些代码。
