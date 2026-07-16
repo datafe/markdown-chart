@@ -1,6 +1,6 @@
-# DataWorks Chart Skill
+# Markdown Chart Skill
 
-`dataworks-chart` teaches an agent to emit dataset-backed canonical
+`markdown-chart` teaches an agent to emit dataset-backed canonical
 `markdown-chart` fenced code blocks that explicitly select the ECharts renderer.
 
 Installing this skill is the signal that the host can render those blocks. The

@@ -1,5 +1,5 @@
 ---
-name: dataworks-chart
+name: markdown-chart
 description: >
   Automatically generate renderable, dataset-backed charts with canonical
   `markdown-chart` fenced code blocks and the ECharts renderer. Use for
@@ -12,7 +12,7 @@ description: >
   text/table only.
 ---
 
-# DataWorks Chart Skill
+# Markdown Chart Skill
 
 Use this skill to emit dataset-backed **`markdown-chart` chart blocks** that
 select the ECharts renderer. This skill defines only the model output contract;
