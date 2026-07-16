@@ -12,11 +12,15 @@ const registry = new ChartRendererRegistry().register(createEChartsRenderer({
 const components = createMarkdownChartComponents({ chartClassName: 'markdown-chart-block' });
 const source = `# Sales
 
-\`\`\`echarts
+\`\`\`markdown-chart
 {
-  "xAxis": { "type": "category", "data": ["A", "B"] },
-  "yAxis": {},
-  "series": [{ "type": "bar", "data": [10, 20] }]
+  "version": 1,
+  "renderer": "echarts",
+  "spec": {
+    "xAxis": { "type": "category", "data": ["A", "B"] },
+    "yAxis": {},
+    "series": [{ "type": "bar", "data": [10, 20] }]
+  }
 }
 \`\`\``;
 

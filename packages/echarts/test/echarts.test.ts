@@ -43,7 +43,6 @@ describe('createEChartsRenderer', () => {
     await controller.render(document.createElement('div'), {
       language: 'echarts',
       source: JSON.stringify({
-        version: 1,
         data: {
           kind: 'inline',
           dimensions: ['name', 'value'],
@@ -82,7 +81,6 @@ describe('createEChartsRenderer', () => {
     await new ChartController(registry).render(document.createElement('div'), {
       language: 'echarts-fulldata',
       source: JSON.stringify({
-        version: 1,
         data: { kind: 'ref', ref: 'app://datasets/sales', format: 'json' },
         option: { series: [{ type: 'line' }] },
       }),
@@ -104,7 +102,6 @@ describe('createEChartsRenderer', () => {
     const promise = new ChartController(registry).render(document.createElement('div'), {
       language: 'echarts',
       source: JSON.stringify({
-        version: 1,
         data: { kind: 'ref', ref: 'app://datasets/sales' },
         option: { series: [] },
       }),
@@ -213,9 +210,18 @@ describe('createEChartsRenderer', () => {
       series: [{ type: 'custom' }],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
     await expect(registry.prepare('echarts', JSON.stringify({
-      version: 1,
       data: { kind: 'inline', source: [] },
       option: { dataset: { source: [] } },
+    }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  it('rejects a renderer-level version because version belongs to markdown-chart', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => { throw new Error('must not load'); },
+    }));
+    await expect(registry.prepare('echarts', JSON.stringify({
+      version: 1,
+      option: { series: [] },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 

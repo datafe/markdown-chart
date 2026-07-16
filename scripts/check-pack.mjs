@@ -13,10 +13,10 @@ for (const packageName of packages) {
   });
   const manifest = JSON.parse(output);
   const files = new Set(manifest.files.map((file) => file.path));
-  for (const required of ['LICENSE', 'NOTICE']) {
+  for (const required of ['LICENSE']) {
     if (!files.has(required)) {
       throw new Error(`${manifest.name} tarball is missing ${required}`);
     }
   }
-  console.log(`${manifest.name}: LICENSE, NOTICE`);
+  console.log(`${manifest.name}: LICENSE`);
 }

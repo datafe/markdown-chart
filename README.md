@@ -11,7 +11,7 @@ other renderer packages without adding chart-specific switches to the core.
 
 | Package | Purpose |
 | --- | --- |
-| `@datafe/markdown-chart` | Renderer registry, canonical `chart` routing, and lifecycle controller |
+| `@datafe/markdown-chart` | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
 | `@datafe/markdown-chart-echarts` | Strict JSON-only ECharts renderer |
 | `@datafe/markdown-chart-markdown-it` | Safe placeholder plugin and environment side channel |
 | `@datafe/markdown-chart-vue` | Vue 3 component and composable |
@@ -20,12 +20,11 @@ other renderer packages without adding chart-specific switches to the core.
 ## Canonical Markdown
 
 ````markdown
-```chart
+```markdown-chart
 {
   "version": 1,
   "renderer": "echarts",
   "spec": {
-    "version": 1,
     "data": {
       "kind": "inline",
       "dimensions": ["month", "sales"],
@@ -41,8 +40,11 @@ other renderer packages without adding chart-specific switches to the core.
 ```
 ````
 
-Renderer-specific fences are shorthand. The ECharts package recognizes
-`echarts` and the migration alias `echarts-fulldata`:
+There is only one protocol `version`, on the outer `markdown-chart` envelope.
+Renderer specs do not repeat it.
+
+Renderer-specific fences remain available as shorthand. The ECharts package
+recognizes `echarts` and the migration alias `echarts-fulldata`:
 
 ````markdown
 ```echarts
@@ -97,4 +99,4 @@ tarballs.
 
 ## License
 
-Apache-2.0
+MIT

@@ -12,7 +12,7 @@ const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, { registry }
 
 const source = `# Sales
 
-\`\`\`chart
+\`\`\`markdown-chart
 {
   "version": 1,
   "renderer": "echarts",

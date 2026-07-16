@@ -11,5 +11,6 @@ const md = new MarkdownIt({ html: false })
   .use(markdownChartPlugin, { registry });
 ```
 
-The canonical `chart` fence is always recognized. Advanced hosts may supply an
-`isChartLanguage` predicate instead of, or in addition to, a registry.
+The canonical `markdown-chart` fence is always recognized. Advanced hosts may
+supply an `isChartLanguage` predicate instead of, or in addition to, a
+registry.

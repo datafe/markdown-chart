@@ -318,8 +318,8 @@ function parseSpec(spec: JsonValue, limits: EChartsLimits): ParsedEChartsSpec {
   let option: Record<string, JsonValue>;
   let data: EChartsDataset | undefined;
   if (Object.prototype.hasOwnProperty.call(spec, 'option')) {
-    if (spec.version !== 1) {
-      throw new MarkdownChartError('UNSUPPORTED_VERSION', 'Only ECharts envelope version 1 is supported');
+    if (Object.prototype.hasOwnProperty.call(spec, 'version')) {
+      return schemaError('echarts.version is not supported; version belongs to the markdown-chart envelope');
     }
     if (!isJsonObject(spec.option)) {
       return schemaError('echarts.option must be an object');

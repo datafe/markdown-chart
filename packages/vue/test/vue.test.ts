@@ -28,7 +28,7 @@ describe('MarkdownChart reactive object props', () => {
 
     const registry = shallowRef(firstRegistry);
     const markdownIt = shallowRef(firstMarkdownIt);
-    const source = '# Chart\n\n```chart\n{"version":1,"renderer":"test","spec":{}}\n```';
+    const source = '# Chart\n\n```markdown-chart\n{"version":1,"renderer":"test","spec":{}}\n```';
     const app = createApp(defineComponent({
       setup() {
         return () => h(MarkdownChart, {
