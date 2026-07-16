@@ -75,4 +75,3 @@ describe('temporary legacy source sanitizer', () => {
     expect(sanitizeLegacyEChartSource(source)).toBe('var option = { series: [] };');
   });
 });
-

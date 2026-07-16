@@ -31,4 +31,3 @@ export function parseLegacyEChartQueryBlock(
     source: source.trim(),
   };
 }
-

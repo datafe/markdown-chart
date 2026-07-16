@@ -13,4 +13,3 @@ export function sanitizeLegacyEChartSource(source: string): string {
     .join('\n')
     .trim();
 }
-
