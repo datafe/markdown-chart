@@ -2,11 +2,10 @@
 
 English | [简体中文](./README.zh-CN.md)
 
-> [!IMPORTANT]
-> **Pre-release:** the `@datafe-open/markdown-chart*` packages are not published to
-> npm yet. The install commands below describe the planned public interface.
-> Until the first release, clone this repository and run the local examples.
-> Maintainers should follow [RELEASING.md](./RELEASING.md).
+> [!NOTE]
+> All five `@datafe-open/markdown-chart*` packages are published on npm. The
+> install commands below use the public packages. Maintainers should follow
+> [RELEASING.md](./RELEASING.md) for subsequent releases.
 
 `markdown-chart` provides portable chart blocks for streaming Markdown, with
 inspectable data and pluggable renderers. Its core is framework-neutral and
@@ -20,11 +19,11 @@ other renderer packages without adding chart-specific switches to the core.
 
 | Package | Purpose |
 | --- | --- |
-| `@datafe-open/markdown-chart` | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
-| `@datafe-open/markdown-chart-echarts` | Strict JSON-only ECharts renderer |
-| `@datafe-open/markdown-chart-markdown-it` | Safe placeholder plugin and environment side channel |
-| `@datafe-open/markdown-chart-vue` | Vue 3 component and composable |
-| `@datafe-open/markdown-chart-react` | react-markdown `code`/`pre` adapter |
+| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
+| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON-only canonical ECharts renderer and deprecated ChatBI legacy adapter |
+| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | Safe placeholder plugin and environment side channel |
+| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 component and composable |
+| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown `code`/`pre` adapter |
 
 ## Canonical Markdown
 
@@ -39,6 +38,7 @@ other renderer packages without adding chart-specific switches to the core.
     "source": [["Jan", 100], ["Feb", 180]]
   },
   "spec": {
+    "title": { "text": "Monthly sales" },
     "xAxis": { "type": "category" },
     "yAxis": {},
     "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
@@ -51,6 +51,11 @@ There is only one protocol `version`, on the outer `markdown-chart` envelope.
 `data` is renderer-neutral so hosts can expose the inline rows independently,
 for example in a “View data” action. `spec` belongs to the selected renderer and
 does not repeat the data or version.
+
+For ECharts, the shared card title comes only from `spec.title.text`, which is
+the ECharts option's `title.text`. If it is absent or blank, the title element
+is omitted instead of showing a fallback. The Chart/Data controls remain
+right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
 
 Hosts can inspect canonical data without loading a chart runtime:
 
