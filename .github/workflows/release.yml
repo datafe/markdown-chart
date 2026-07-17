@@ -56,11 +56,11 @@ jobs:
         shell: bash
         run: |
           packages=(
-            "@datafe/markdown-chart"
-            "@datafe/markdown-chart-echarts"
-            "@datafe/markdown-chart-markdown-it"
-            "@datafe/markdown-chart-react"
-            "@datafe/markdown-chart-vue"
+            "@datafe-open/markdown-chart"
+            "@datafe-open/markdown-chart-echarts"
+            "@datafe-open/markdown-chart-markdown-it"
+            "@datafe-open/markdown-chart-react"
+            "@datafe-open/markdown-chart-vue"
           )
           all_published=true
           for package in "${packages[@]}"; do

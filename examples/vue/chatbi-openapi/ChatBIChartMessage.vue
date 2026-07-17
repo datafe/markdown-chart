@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import { createChatBIChartContext } from './chart-context';
 
 const props = withDefaults(defineProps<{

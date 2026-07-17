@@ -1,5 +1,5 @@
 ---
-'@datafe/markdown-chart-echarts': minor
+'@datafe-open/markdown-chart-echarts': minor
 ---
 
 Add the built-in Chart/Data switch for datasets materialized by `resolveDataRef`,

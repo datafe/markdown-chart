@@ -13,7 +13,7 @@ the actual integration cost:
 Run any Vite example from the repository root:
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-vue-simple dev
-pnpm --filter @datafe/markdown-chart-example-vue-advanced dev
-pnpm --filter @datafe/markdown-chart-example-vue-chatbi-openapi dev
+pnpm --filter @datafe-open/markdown-chart-example-vue-simple dev
+pnpm --filter @datafe-open/markdown-chart-example-vue-advanced dev
+pnpm --filter @datafe-open/markdown-chart-example-vue-chatbi-openapi dev
 ```

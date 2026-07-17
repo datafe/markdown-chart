@@ -1,4 +1,4 @@
-import { MarkdownChartError } from '@datafe/markdown-chart';
+import { MarkdownChartError } from '@datafe-open/markdown-chart';
 import { parseLegacyArtifactCsv } from './csv';
 import { sanitizeLegacyEChartSource } from './sanitize';
 import { executeLegacyChartSource } from './sandbox';

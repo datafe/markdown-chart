@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-example-vue-chatbi-openapi",
+  "name": "@datafe-open/markdown-chart-example-vue-chatbi-openapi",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,10 +9,10 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@datafe/markdown-chart": "workspace:*",
-    "@datafe/markdown-chart-echarts": "workspace:*",
-    "@datafe/markdown-chart-markdown-it": "workspace:*",
-    "@datafe/markdown-chart-vue": "workspace:*",
+    "@datafe-open/markdown-chart": "workspace:*",
+    "@datafe-open/markdown-chart-echarts": "workspace:*",
+    "@datafe-open/markdown-chart-markdown-it": "workspace:*",
+    "@datafe-open/markdown-chart-vue": "workspace:*",
     "echarts": "^6.0.0",
     "markdown-it": "^14.1.0",
     "vue": "^3.5.13"

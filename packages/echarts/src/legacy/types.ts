@@ -2,7 +2,7 @@ import {
   MarkdownChartError,
   type InlineChartData,
   type JsonValue,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 
 /** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
 export interface LegacyEChartQueryBlock {

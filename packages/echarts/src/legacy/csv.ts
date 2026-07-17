@@ -4,7 +4,7 @@ import {
   type ChartDataRow,
   type InlineChartData,
   type JsonPrimitive,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 import type { LegacyArtifactLimits } from './types';
 
 const FORBIDDEN_COLUMN_NAMES = new Set(['__proto__', 'prototype', 'constructor']);

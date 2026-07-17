@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-echarts",
+  "name": "@datafe-open/markdown-chart-echarts",
   "version": "0.0.0",
   "description": "Secure canonical ECharts renderer for Markdown Chart",
   "license": "MIT",
@@ -30,11 +30,11 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external @datafe/markdown-chart --external echarts --external papaparse",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external @datafe-open/markdown-chart --external echarts --external papaparse",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@datafe/markdown-chart": "workspace:*",
+    "@datafe-open/markdown-chart": "workspace:*",
     "papaparse": "^5.5.3"
   },
   "peerDependencies": {

@@ -1,4 +1,4 @@
-import { MarkdownChartError } from '@datafe/markdown-chart';
+import { MarkdownChartError } from '@datafe-open/markdown-chart';
 import type { LegacyEChartQueryBlock } from './types';
 
 const LEGACY_ECHART_QUERY_LANGUAGE = /^echarts-chatbi_query_(\d+)-(\d+)$/;

@@ -2,19 +2,19 @@ import MarkdownIt from 'markdown-it';
 import {
   ChartController,
   ChartRendererRegistry,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
   type ResolveLegacyArtifactContent,
-} from '@datafe/markdown-chart-echarts';
+} from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartEnvironment,
   getMarkdownChartBlocks,
   markdownChartPlugin,
   type MarkdownChartBlock,
   type MarkdownChartEnvironment,
-} from '@datafe/markdown-chart-markdown-it';
+} from '@datafe-open/markdown-chart-markdown-it';
 import {
   defineComponent,
   computed,

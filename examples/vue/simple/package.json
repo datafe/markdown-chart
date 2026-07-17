@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-example-vue-simple",
+  "name": "@datafe-open/markdown-chart-example-vue-simple",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@datafe/markdown-chart-vue": "workspace:*",
+    "@datafe-open/markdown-chart-vue": "workspace:*",
     "echarts": "^6.0.0",
     "vue": "^3.5.13"
   },

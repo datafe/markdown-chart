@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
 import { isRegisteredChartLanguage } from '../src/index';
 
 describe('react-markdown chart routing', () => {

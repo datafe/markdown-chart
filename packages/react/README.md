@@ -1,4 +1,4 @@
-# @datafe/markdown-chart-react
+# @datafe-open/markdown-chart-react
 
 Zero-config `<MarkdownChart source={markdown} />`, provider, chart block, and
 `createMarkdownChartComponents()` adapter for react-markdown. The zero-config
@@ -9,7 +9,7 @@ datasets automatically include a Chart/Data icon switch.
 Install the zero-config component with:
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-react
+pnpm add echarts @datafe-open/markdown-chart-react
 ```
 
 `react-markdown` is included by this package. Applications using the lower-level

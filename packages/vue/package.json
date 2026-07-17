@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-vue",
+  "name": "@datafe-open/markdown-chart-vue",
   "version": "0.0.0",
   "description": "Vue 3 lifecycle adapter for Markdown Chart",
   "license": "MIT",
@@ -30,13 +30,13 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external vue --external markdown-it --external @datafe/markdown-chart --external @datafe/markdown-chart-echarts --external @datafe/markdown-chart-markdown-it",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external vue --external markdown-it --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts --external @datafe-open/markdown-chart-markdown-it",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@datafe/markdown-chart": "workspace:*",
-    "@datafe/markdown-chart-echarts": "workspace:*",
-    "@datafe/markdown-chart-markdown-it": "workspace:*",
+    "@datafe-open/markdown-chart": "workspace:*",
+    "@datafe-open/markdown-chart-echarts": "workspace:*",
+    "@datafe-open/markdown-chart-markdown-it": "workspace:*",
     "@types/markdown-it": "^14.1.2",
     "markdown-it": "^14.1.0"
   },

@@ -1,4 +1,4 @@
-import { MarkdownChart } from '@datafe/markdown-chart-react';
+import { MarkdownChart } from '@datafe-open/markdown-chart-react';
 
 const source = `# Sales
 

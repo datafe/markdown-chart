@@ -1,6 +1,6 @@
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
 import MarkdownIt from 'markdown-it';
 import { createChatBIArtifactContentResolver } from './data';
 

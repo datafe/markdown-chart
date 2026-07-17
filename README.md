@@ -3,7 +3,7 @@
 English | [简体中文](./README.zh-CN.md)
 
 > [!IMPORTANT]
-> **Pre-release:** the `@datafe/markdown-chart*` packages are not published to
+> **Pre-release:** the `@datafe-open/markdown-chart*` packages are not published to
 > npm yet. The install commands below describe the planned public interface.
 > Until the first release, clone this repository and run the local examples.
 > Maintainers should follow [RELEASING.md](./RELEASING.md).
@@ -20,11 +20,11 @@ other renderer packages without adding chart-specific switches to the core.
 
 | Package | Purpose |
 | --- | --- |
-| `@datafe/markdown-chart` | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
-| `@datafe/markdown-chart-echarts` | Strict JSON-only ECharts renderer |
-| `@datafe/markdown-chart-markdown-it` | Safe placeholder plugin and environment side channel |
-| `@datafe/markdown-chart-vue` | Vue 3 component and composable |
-| `@datafe/markdown-chart-react` | react-markdown `code`/`pre` adapter |
+| `@datafe-open/markdown-chart` | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
+| `@datafe-open/markdown-chart-echarts` | Strict JSON-only ECharts renderer |
+| `@datafe-open/markdown-chart-markdown-it` | Safe placeholder plugin and environment side channel |
+| `@datafe-open/markdown-chart-vue` | Vue 3 component and composable |
+| `@datafe-open/markdown-chart-react` | react-markdown `code`/`pre` adapter |
 
 ## Canonical Markdown
 
@@ -55,11 +55,11 @@ does not repeat the data or version.
 Hosts can inspect canonical data without loading a chart runtime:
 
 ```sh
-pnpm add @datafe/markdown-chart
+pnpm add @datafe-open/markdown-chart
 ```
 
 ```ts
-import { parseMarkdownChartEnvelope } from '@datafe/markdown-chart';
+import { parseMarkdownChartEnvelope } from '@datafe-open/markdown-chart';
 
 // chartFenceBody is the JSON text inside one markdown-chart fence.
 const { data } = parseMarkdownChartEnvelope(chartFenceBody);
@@ -73,11 +73,11 @@ if (data?.kind === 'inline') {
 With the canonical Markdown above stored in `source`:
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-react
+pnpm add echarts @datafe-open/markdown-chart-react
 ```
 
 ```tsx
-import { MarkdownChart } from '@datafe/markdown-chart-react';
+import { MarkdownChart } from '@datafe-open/markdown-chart-react';
 
 export function App({ source }: { source: string }) {
   return <MarkdownChart source={source} />;
@@ -87,12 +87,12 @@ export function App({ source }: { source: string }) {
 ## Vue 3 + markdown-it
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-vue
+pnpm add echarts @datafe-open/markdown-chart-vue
 ```
 
 ```vue
 <script setup lang="ts">
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 
 defineProps<{ source: string }>();
 </script>
@@ -142,8 +142,8 @@ input. Advanced React applications pass the same state to
 Create and pass a registry only when adding renderers or resolving host data:
 
 ```ts
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
 
 const registry = new ChartRendererRegistry();
 registry.register(createEChartsRenderer({
@@ -172,7 +172,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   MarkdownChartProvider,
   createMarkdownChartComponents,
-} from '@datafe/markdown-chart-react';
+} from '@datafe-open/markdown-chart-react';
 
 const chartComponents = createMarkdownChartComponents({
   chartStyle: { minHeight: 360 },
@@ -191,9 +191,9 @@ declare every directly imported package as an application dependency:
 
 ```sh
 pnpm add echarts react-markdown \
-  @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts \
-  @datafe/markdown-chart-react
+  @datafe-open/markdown-chart \
+  @datafe-open/markdown-chart-echarts \
+  @datafe-open/markdown-chart-react
 ```
 
 ### Existing Vue + markdown-it applications
@@ -203,10 +203,10 @@ same registry to both the plugin and component:
 
 ```vue
 <script setup lang="ts">
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 
 defineProps<{ source: string; isStreaming: boolean }>();
@@ -231,10 +231,10 @@ Declare the packages imported by this advanced setup directly:
 
 ```sh
 pnpm add echarts markdown-it \
-  @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts \
-  @datafe/markdown-chart-markdown-it \
-  @datafe/markdown-chart-vue
+  @datafe-open/markdown-chart \
+  @datafe-open/markdown-chart-echarts \
+  @datafe-open/markdown-chart-markdown-it \
+  @datafe-open/markdown-chart-vue
 ```
 
 See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React

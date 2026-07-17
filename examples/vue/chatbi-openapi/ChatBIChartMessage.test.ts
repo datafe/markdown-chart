@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { computed, createApp, defineComponent, h, nextTick, ref } from 'vue';
 import { createChatBIChartContext } from './chart-context';
 
-vi.mock('@datafe/markdown-chart-vue', async () => (
+vi.mock('@datafe-open/markdown-chart-vue', async () => (
   import('../../../packages/vue/src/index')
 ));
 
@@ -25,7 +25,7 @@ const echartsRuntime = vi.hoisted(() => {
 
 vi.mock('echarts', () => ({ init: echartsRuntime.init }));
 
-const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
 
 beforeEach(() => {

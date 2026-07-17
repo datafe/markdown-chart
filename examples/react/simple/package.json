@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-example-react-simple",
+  "name": "@datafe-open/markdown-chart-example-react-simple",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@datafe/markdown-chart-react": "workspace:*",
+    "@datafe-open/markdown-chart-react": "workspace:*",
     "echarts": "^6.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

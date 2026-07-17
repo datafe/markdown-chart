@@ -14,7 +14,7 @@ the actual integration cost:
 Run either Vite example from the repository root:
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-react-simple dev
-pnpm --filter @datafe/markdown-chart-example-react-advanced dev
-pnpm --filter @datafe/markdown-chart-example-react-chatbi-openapi dev
+pnpm --filter @datafe-open/markdown-chart-example-react-simple dev
+pnpm --filter @datafe-open/markdown-chart-example-react-advanced dev
+pnpm --filter @datafe-open/markdown-chart-example-react-chatbi-openapi dev
 ```

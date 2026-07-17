@@ -9,7 +9,7 @@ import {
   type JsonPrimitive,
   type JsonValue,
   type RefChartData,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 import {
   isLegacyEChartQueryLanguage,
   parseLegacyEChartQueryBlock,

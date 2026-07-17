@@ -1,4 +1,4 @@
-# @datafe/markdown-chart-markdown-it
+# @datafe-open/markdown-chart-markdown-it
 
 A markdown-it fence plugin that emits safe generated placeholders. Chart source
 is returned through the render environment rather than copied into HTML.
