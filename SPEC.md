@@ -31,10 +31,11 @@ The canonical language is `markdown-chart`. Its body is a strict JSON object:
 - Unknown renderer identifiers MUST fail without falling back to executable
   content.
 
-Renderer packages MAY define shorthand fence aliases. A shorthand fence sends
-the entire JSON body to that renderer and does not create renderer-neutral
-canonical data. Aliases are resolved by the registry; the core has no
-hard-coded ECharts, Plotly, or Vega branches.
+Renderer packages MAY explicitly define shorthand fence aliases. A renderer
+identifier alone is not a fence language. A shorthand fence sends the entire
+JSON body to that renderer and does not create renderer-neutral canonical
+data. Aliases are resolved by the registry; the core has no hard-coded
+ECharts, Plotly, or Vega branches.
 
 Markdown adapters MUST route shorthand fences through the live registry rather
 than maintain renderer-specific language defaults. The canonical
@@ -82,11 +83,6 @@ For the canonical fence, `spec` is the ECharts option object directly:
 
 When canonical `data` is present, `spec.dataset` is reserved and MUST NOT also
 be set. The renderer inserts the resolved dataset before calling ECharts.
-
-For the `echarts` and `echarts-fulldata` shorthand fences, the body MAY remain
-a direct ECharts option or the renderer-specific `{ "data": ..., "option": ...
-}` envelope. Renderer-specific shorthand data is not exposed as canonical data
-to host data viewers.
 
 ## Streaming
 

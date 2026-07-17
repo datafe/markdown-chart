@@ -1,0 +1,27 @@
+{
+  "name": "@datafe/markdown-chart-example-vue-chatbi-openapi",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm typecheck && vite build",
+    "dev": "vite",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@datafe/markdown-chart": "workspace:*",
+    "@datafe/markdown-chart-echarts": "workspace:*",
+    "@datafe/markdown-chart-markdown-it": "workspace:*",
+    "@datafe/markdown-chart-vue": "workspace:*",
+    "echarts": "^6.0.0",
+    "markdown-it": "^14.1.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vue-tsc": "^2.2.10"
+  }
+}

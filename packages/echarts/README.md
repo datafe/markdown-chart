@@ -1,8 +1,8 @@
 # @datafe/markdown-chart-echarts
 
-Strict JSON-only ECharts renderer. The ECharts runtime and any referenced
-dataset resolver are supplied by the host; this package never fetches data or
-evaluates chart JavaScript.
+Strict JSON-only ECharts renderer for the canonical `markdown-chart` protocol.
+The ECharts runtime and any referenced dataset resolver are supplied by the
+host; the canonical path never fetches data or evaluates JavaScript.
 
 `createEChartsRenderer()` loads the host-installed `echarts` peer dependency on
 first mount. Pass `loadECharts` only when supplying a custom ECharts build.
@@ -26,11 +26,24 @@ In a canonical `markdown-chart` envelope, renderer-neutral `data` is a sibling
 of `spec`, and `spec` is the ECharts option directly. This lets hosts inspect
 inline data without understanding ECharts.
 
-The `echarts` and `echarts-fulldata` shorthand fences also accept a direct
-option or the renderer-specific `{ data, option }` body. A renderer spec never
-defines its own `version`; protocol versioning belongs to `markdown-chart`.
+The renderer is selected by `"renderer": "echarts"` in the canonical
+`markdown-chart` envelope. A renderer spec never defines its own `version`;
+protocol versioning belongs to `markdown-chart`.
 
 When `resolveDataRef` materializes a referenced dataset, the renderer injects
 the validated rows into `option.dataset` and returns the same rows through the
-core materialization flow for the Chart/Data view. This applies to canonical
-and renderer-specific ref envelopes.
+core materialization flow for the Chart/Data view.
+
+## Temporary legacy adapter
+
+`resolveLegacyArtifactContent` is a deprecated migration hook for existing
+ChatBI streams. The host callback only returns the raw CSV `ArtifactContent`;
+this package applies byte/row/column/cell limits, parses it, sanitizes the
+temporary source, and evaluates that source in a dedicated Worker owned by a
+unique-origin bootstrap iframe with a deny-by-default CSP. The JSON-only result
+then passes through the same ECharts option validation as canonical content.
+
+All migration code lives under `src/legacy`; its exported types and options are
+marked `@deprecated`. Removing that directory and the thin renderer hook does
+not change the canonical envelope, parser, or validation path. See the ChatBI
+OpenAPI example for host-side List/Get proxy integration.

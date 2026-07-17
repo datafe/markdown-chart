@@ -68,19 +68,6 @@ if (data?.kind === 'inline') {
 }
 ```
 
-Renderer-specific fences remain available as shorthand. The ECharts package
-recognizes `echarts` and the migration alias `echarts-fulldata`:
-
-````markdown
-```echarts
-{
-  "xAxis": { "type": "category", "data": ["A", "B"] },
-  "yAxis": {},
-  "series": [{ "type": "bar", "data": [10, 20] }]
-}
-```
-````
-
 ## React + react-markdown
 
 With the canonical Markdown above stored in `source`:
@@ -264,7 +251,7 @@ pnpm build
 pnpm check:pack
 ```
 
-The root build validates both publishable packages and all four React/Vue Vite
+The root build validates both publishable packages and all React/Vue Vite
 examples. Example workspaces are private and are never included in package
 tarballs. Published-package changes use Changesets; see
 [RELEASING.md](./RELEASING.md) for bootstrap and automated release steps.

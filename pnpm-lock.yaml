@@ -67,6 +67,43 @@ importers:
         specifier: ^6.3.5
         version: 6.4.3(@types/node@22.20.1)
 
+  examples/react/chatbi-openapi:
+    dependencies:
+      '@datafe/markdown-chart':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@datafe/markdown-chart-echarts':
+        specifier: workspace:*
+        version: link:../../../packages/echarts
+      '@datafe/markdown-chart-react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
+      react:
+        specifier: ^19.1.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.2
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.1.2
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^4.4.1
+        version: 4.7.0(vite@6.4.3(@types/node@22.20.1))
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.3(@types/node@22.20.1)
+
   examples/react/simple:
     dependencies:
       '@datafe/markdown-chart-react':
@@ -138,6 +175,46 @@ importers:
         specifier: ^2.2.10
         version: 2.2.12(typescript@5.9.3)
 
+  examples/vue/chatbi-openapi:
+    dependencies:
+      '@datafe/markdown-chart':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@datafe/markdown-chart-echarts':
+        specifier: workspace:*
+        version: link:../../../packages/echarts
+      '@datafe/markdown-chart-markdown-it':
+        specifier: workspace:*
+        version: link:../../../packages/markdown-it
+      '@datafe/markdown-chart-vue':
+        specifier: workspace:*
+        version: link:../../../packages/vue
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
+      markdown-it:
+        specifier: ^14.1.0
+        version: 14.3.0
+      vue:
+        specifier: ^3.5.13
+        version: 3.5.40(typescript@5.9.3)
+    devDependencies:
+      '@types/markdown-it':
+        specifier: ^14.1.2
+        version: 14.1.2
+      '@vitejs/plugin-vue':
+        specifier: ^5.2.4
+        version: 5.2.4(vite@6.4.3(@types/node@22.20.1))(vue@3.5.40(typescript@5.9.3))
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.3.5
+        version: 6.4.3(@types/node@22.20.1)
+      vue-tsc:
+        specifier: ^2.2.10
+        version: 2.2.12(typescript@5.9.3)
+
   examples/vue/simple:
     dependencies:
       '@datafe/markdown-chart-vue':
@@ -170,7 +247,13 @@ importers:
       '@datafe/markdown-chart':
         specifier: workspace:*
         version: link:../core
+      papaparse:
+        specifier: ^5.5.3
+        version: 5.5.4
     devDependencies:
+      '@types/papaparse':
+        specifier: ^5.3.16
+        version: 5.5.2
       echarts:
         specifier: ^6.0.0
         version: 6.1.0
@@ -1106,6 +1189,9 @@ packages:
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
 
+  '@types/papaparse@5.5.2':
+    resolution: {integrity: sha512-gFnFp/JMzLHCwRf7tQHrNnfhN4eYBVYYI897CGX4MY1tzY9l2aLkVyx2IlKZ/SAqDbB3I1AOZW5gTMGGsqWliA==}
+
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
     peerDependencies:
@@ -1836,6 +1922,9 @@ packages:
 
   package-manager-detector@0.2.11:
     resolution: {integrity: sha512-BEnLolu+yuz22S56CU1SUKq3XC3PkwD5wv4ikR4MfGvnRVcmzXR9DwSlW2fEamyTPyXHomBJRzgapeuBvRNzJQ==}
+
+  papaparse@5.5.4:
+    resolution: {integrity: sha512-SwzWD9gl/ElwYLCI0nUja1mFJzjq2D8ziShfNBa7zCHzkOozeOGDwHWQ+tvCzEZcewecWZ5U7kUopDnG+DFYEQ==}
 
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
@@ -3111,6 +3200,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/papaparse@5.5.2':
+    dependencies:
+      '@types/node': 22.20.1
+
   '@types/react-dom@19.2.3(@types/react@19.2.17)':
     dependencies:
       '@types/react': 19.2.17
@@ -4056,6 +4149,8 @@ snapshots:
   package-manager-detector@0.2.11:
     dependencies:
       quansync: 0.2.11
+
+  papaparse@5.5.4: {}
 
   parse-entities@4.0.2:
     dependencies:

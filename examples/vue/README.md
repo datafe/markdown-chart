@@ -7,10 +7,13 @@ the actual integration cost:
   creates the ECharts registry.
 - `advanced/` passes a host-created markdown-it instance, plugin, and renderer
   registry to `MarkdownChart`.
+- `chatbi-openapi/` keeps a host-owned markdown-it pipeline while resolving raw
+  ChatBI artifact content through two same-origin OpenAPI proxy routes.
 
-Run either Vite example from the repository root:
+Run any Vite example from the repository root:
 
 ```sh
 pnpm --filter @datafe/markdown-chart-example-vue-simple dev
 pnpm --filter @datafe/markdown-chart-example-vue-advanced dev
+pnpm --filter @datafe/markdown-chart-example-vue-chatbi-openapi dev
 ```

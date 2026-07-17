@@ -58,18 +58,6 @@ if (data?.kind === 'inline') {
 }
 ```
 
-渲染器专属代码块仍然可以作为简写使用。ECharts 包支持 `echarts`，也支持迁移别名 `echarts-fulldata`：
-
-````markdown
-```echarts
-{
-  "xAxis": { "type": "category", "data": ["A", "B"] },
-  "yAxis": {},
-  "series": [{ "type": "bar", "data": [10, 20] }]
-}
-```
-````
-
 ## React + react-markdown
 
 假设前面的标准 Markdown 已保存在 `source` 中：
@@ -223,7 +211,7 @@ pnpm build
 pnpm check:pack
 ```
 
-根目录构建会同时验证所有可发布包，以及四个 React/Vue Vite 示例。示例 workspace 均为私有包，不会包含在 npm 包产物中。发布包变更使用 Changesets 管理，首次发布和自动发布步骤见[发布流程](./RELEASING.md)。
+根目录构建会同时验证所有可发布包，以及全部 React/Vue Vite 示例。示例 workspace 均为私有包，不会包含在 npm 包产物中。发布包变更使用 Changesets 管理，首次发布和自动发布步骤见[发布流程](./RELEASING.md)。
 
 ## 许可证
 

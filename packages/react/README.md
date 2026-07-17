@@ -26,3 +26,9 @@ arriving. Closed chart fences render immediately; only the active unterminated
 tail fence waits. The provider automatically infers the Markdown source from a
 direct `ReactMarkdown` child, so the usual advanced integration needs no extra
 source prop.
+
+The deprecated ChatBI migration prop `resolveLegacyArtifactContent` accepts a
+callback that returns raw CSV content. `legacyArtifactContextKey` can keep an
+equivalent inline callback stable across rerenders; change the key when its
+session or authorization context changes. If the key is omitted, callback
+identity is used as the safe cache boundary.

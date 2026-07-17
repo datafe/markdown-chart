@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import MarkdownIt from 'markdown-it';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue';
 import { ChartRendererRegistry, type ChartRenderer } from '@datafe/markdown-chart';
 import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
@@ -10,6 +10,23 @@ import {
   useMarkdownChart,
   type UseMarkdownChartResult,
 } from '../src/index';
+
+const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
+
+beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: ArrayBufferView) => {
+    if (array instanceof Uint32Array) {
+      array.set([1, 2, 3, 4]);
+    }
+    return array;
+  }) as Crypto['getRandomValues']);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.querySelectorAll('iframe[title="Temporary chart sandbox"]').forEach((frame) => frame.remove());
+});
 
 function testRenderer(onMount: () => void): ChartRenderer {
   return {
@@ -33,6 +50,23 @@ function fakeEChartsRuntime(): EChartsRuntime {
   };
 }
 
+async function answerLegacySandbox(option: Record<string, unknown>): Promise<void> {
+  await vi.waitFor(() => {
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
+  });
+  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
+  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
+  window.dispatchEvent(new MessageEvent('message', {
+    source: iframe.contentWindow,
+    data: {
+      channel: LEGACY_CHANNEL,
+      type: 'result',
+      requestId: LEGACY_REQUEST_ID,
+      option,
+    },
+  }));
+}
+
 describe('MarkdownChart reactive object props', () => {
   it('provides zero-config parsing, registry, and chart height defaults', async () => {
     const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
@@ -47,6 +81,21 @@ describe('MarkdownChart reactive object props', () => {
       const placeholder = root.querySelector<HTMLElement>('.markdown-chart-placeholder');
       expect(placeholder?.style.minHeight).toBe('360px');
     });
+    app.unmount();
+  });
+
+  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand as code', async (language) => {
+    const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await nextTick();
+    expect(root.querySelector(`code.language-${language}`)).not.toBeNull();
+    expect(root.querySelector('.markdown-chart-placeholder')).toBeNull();
     app.unmount();
   });
 
@@ -89,14 +138,7 @@ describe('MarkdownChart reactive object props', () => {
 
   it('shows materialized legacy data in simple and advanced modes', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
-    const resolveLegacyEChartQuery = async () => ({
-      data: {
-        kind: 'inline' as const,
-        dimensions: ['name', 'value'],
-        source: [['A', 10], ['B', 20]],
-      },
-      spec: { series: [{ type: 'bar' }] },
-    });
+    const resolveLegacyArtifactContent = async () => 'name,value\nA,10\nB,20\n';
     const assertDataView = async (root: HTMLElement): Promise<void> => {
       await vi.waitFor(() => {
         expect(root.querySelector('button[aria-label="Show data"]')).not.toBeNull();
@@ -112,7 +154,7 @@ describe('MarkdownChart reactive object props', () => {
       setup() {
         return () => h(MarkdownChart, {
           source,
-          resolveLegacyEChartQuery,
+          resolveLegacyArtifactContent,
           echarts: {
             loadECharts: fakeEChartsRuntime,
             resizeObserver: false,
@@ -122,12 +164,13 @@ describe('MarkdownChart reactive object props', () => {
     }));
     const simpleRoot = document.createElement('div');
     simpleApp.mount(simpleRoot);
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
     await assertDataView(simpleRoot);
     simpleApp.unmount();
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: fakeEChartsRuntime,
-      resolveLegacyEChartQuery,
+      resolveLegacyArtifactContent,
       resizeObserver: false,
     }));
     const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
@@ -142,8 +185,106 @@ describe('MarkdownChart reactive object props', () => {
     }));
     const advancedRoot = document.createElement('div');
     advancedApp.mount(advancedRoot);
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
     await assertDataView(advancedRoot);
     advancedApp.unmount();
+  });
+
+  it('does not refetch when an inline legacy resolver changes identity under one context key', async () => {
+    const chart = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const source = ref(chart);
+    const resolver = vi.fn(async (_request: unknown) => 'name,value\nA,10\n');
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source: source.value,
+          streaming: true,
+          legacyArtifactContextKey: 'session-a',
+          resolveLegacyArtifactContent: (request) => resolver(request),
+          echarts: {
+            loadECharts: fakeEChartsRuntime,
+            resizeObserver: false,
+          },
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+
+    source.value = `${chart}\n\nMore streamed analysis.`;
+    await nextTick();
+    await vi.waitFor(() => expect(root.textContent).toContain('More streamed analysis.'));
+    expect(resolver).toHaveBeenCalledOnce();
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
+
+    app.unmount();
+  });
+
+  it('refetches when an unkeyed legacy resolver changes identity', async () => {
+    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const firstResolver = vi.fn(async () => 'name,value\nA,10\n');
+    const secondResolver = vi.fn(async () => 'name,value\nB,20\n');
+    const activeResolver = shallowRef(firstResolver);
+    const echarts = {
+      loadECharts: fakeEChartsRuntime,
+      resizeObserver: false,
+    };
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source,
+          echarts,
+          resolveLegacyArtifactContent: activeResolver.value,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(firstResolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+
+    activeResolver.value = secondResolver;
+    await nextTick();
+    await vi.waitFor(() => expect(secondResolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+    expect(firstResolver).toHaveBeenCalledOnce();
+    expect(secondResolver).toHaveBeenCalledOnce();
+
+    app.unmount();
+  });
+
+  it('refetches when the explicit legacy artifact context key changes', async () => {
+    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
+    const contextKey = ref('session-a');
+    const resolver = vi.fn(async () => 'name,value\nA,10\n');
+    const echarts = {
+      loadECharts: fakeEChartsRuntime,
+      resizeObserver: false,
+    };
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source,
+          echarts,
+          legacyArtifactContextKey: contextKey.value,
+          resolveLegacyArtifactContent: resolver,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(1));
+    await answerLegacySandbox({ series: [] });
+
+    contextKey.value = 'session-b';
+    await nextTick();
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
+    await answerLegacySandbox({ series: [] });
+    expect(resolver).toHaveBeenCalledTimes(2);
+
+    app.unmount();
   });
 
   it('retries a failed entry with the same input and clears its error state', async () => {
@@ -157,6 +298,7 @@ describe('MarkdownChart reactive object props', () => {
     });
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount,
     });

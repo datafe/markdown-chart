@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
   ChartRendererRegistry,
@@ -12,6 +12,32 @@ import {
   type ResolvedDataset,
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
+
+const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
+
+beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: ArrayBufferView) => {
+    if (array instanceof Uint32Array) {
+      array.set([1, 2, 3, 4]);
+    }
+    return array;
+  }) as Crypto['getRandomValues']);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.querySelectorAll('iframe[title="Temporary chart sandbox"]').forEach((frame) => frame.remove());
+});
+
+function canonical(spec: JsonValue, data?: JsonValue): string {
+  return JSON.stringify({
+    version: 1,
+    renderer: 'echarts',
+    ...(data === undefined ? {} : { data }),
+    spec,
+  });
+}
 
 function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
   runtime: EChartsRuntime;
@@ -32,10 +58,33 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
   };
 }
 
+async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<void> {
+  await vi.waitFor(() => {
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
+  });
+  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
+  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
+  window.dispatchEvent(new MessageEvent('message', {
+    source: iframe.contentWindow,
+    data: {
+      channel: LEGACY_CHANNEL,
+      type: 'result',
+      requestId: LEGACY_REQUEST_ID,
+      option,
+    },
+  }));
+}
+
 describe('createEChartsRenderer', () => {
-  it('can be created without an explicit ECharts loader', async () => {
+  it('uses only the canonical fence while retaining the ECharts renderer id', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    expect(registry.has('echarts')).toBe(false);
+    expect(registry.has('echarts-fulldata')).toBe(false);
     await expect(registry.prepare('echarts', '{"series":[]}'))
+      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
+    await expect(registry.prepare('echarts-fulldata', '{"series":[]}'))
+      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
+    await expect(registry.prepare('markdown-chart', canonical({ series: [] })))
       .resolves.toMatchObject({ rendererId: 'echarts' });
   });
 
@@ -83,8 +132,8 @@ describe('createEChartsRenderer', () => {
     }));
 
     await new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: JSON.stringify({
+      language: 'markdown-chart',
+      source: canonical({
         backgroundColor: '#fafafa',
         xAxis: { type: 'category', axisLabel: { color: '#ff0000' } },
         yAxis: {},
@@ -119,8 +168,8 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     await new ChartController(styledRegistry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[{"type":"line"}]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'line' }] }),
       theme: 'dark',
     });
 
@@ -130,8 +179,8 @@ describe('createEChartsRenderer', () => {
       defaultStyle: false,
     }));
     await new ChartController(plainRegistry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[{"type":"line"}]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'line' }] }),
     });
 
     expect(rendered[0]).toMatchObject({
@@ -204,6 +253,73 @@ describe('createEChartsRenderer', () => {
     expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
     expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
     controller.dispose();
+  });
+
+  it('owns CSV parsing and sandbox conversion for the ArtifactContent resolver', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const resolveLegacyArtifactContent = vi.fn(async () => (
+      'category,value,active\nA,10,true\nB,20,false\n'
+    ));
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resolveLegacyArtifactContent,
+      resizeObserver: false,
+    }));
+    const controller = new ChartController(registry);
+    const render = controller.render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source: 'var option = { series: [{ type: "bar" }] };\n//#end',
+    });
+    await answerLegacySandbox({
+      xAxis: { type: 'category' },
+      yAxis: {},
+      series: [{ type: 'bar' }],
+    });
+    await render;
+
+    expect(resolveLegacyArtifactContent).toHaveBeenCalledWith({
+      language: 'echarts-chatbi_query_42-0',
+      jobId: 'chatbi_query_42',
+      index: 0,
+      signal: expect.any(AbortSignal),
+    });
+    expect(rendered?.dataset).toEqual({
+      dimensions: ['category', 'value', 'active'],
+      source: [
+        { category: 'A', value: 10, active: true },
+        { category: 'B', value: 20, active: false },
+      ],
+    });
+    controller.dispose();
+  });
+
+  it('rejects ambiguous legacy resolver configuration immediately', () => {
+    expect(() => createEChartsRenderer({
+      resolveLegacyArtifactContent: async () => 'a\n1\n',
+      resolveLegacyEChartQuery: async () => ({
+        data: { kind: 'inline', source: [] },
+        spec: { series: [] },
+      }),
+    })).toThrow(/either resolveLegacyArtifactContent or resolveLegacyEChartQuery/);
+  });
+
+  it('revalidates sandbox-produced ArtifactContent options before loading ECharts', async () => {
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+    }));
+    const render = new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source: 'var option = {};',
+    });
+    await answerLegacySandbox({
+      tooltip: { formatter: '{b}' },
+      series: [],
+    });
+    await expect(render).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
+    expect(loadECharts).not.toHaveBeenCalled();
   });
 
   it('aborts an in-flight temporary ChatBI resolver before UI or runtime creation', async () => {
@@ -336,16 +452,16 @@ describe('createEChartsRenderer', () => {
 
     const element = document.createElement('div');
     await new ChartController(registry).render(element, {
-      language: 'echarts-fulldata',
-      source: JSON.stringify({
-        data: {
+      language: 'markdown-chart',
+      source: canonical(
+        { series: [{ type: 'line' }] },
+        {
           kind: 'ref',
           ref: 'artifact://chart-data/sales-q1.csv',
           format: 'csv',
           dimensions: ['month', 'sales'],
         },
-        option: { series: [{ type: 'line' }] },
-      }),
+      ),
     });
 
     expect(resolver).toHaveBeenCalledOnce();
@@ -414,11 +530,11 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     const promise = new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: JSON.stringify({
-        data: { kind: 'ref', ref: 'app://datasets/sales' },
-        option: { series: [] },
-      }),
+      language: 'markdown-chart',
+      source: canonical(
+        { series: [] },
+        { kind: 'ref', ref: 'app://datasets/sales' },
+      ),
     });
     await expect(promise).rejects.toMatchObject({
       code: 'REF_RESOLVER_MISSING',
@@ -428,7 +544,7 @@ describe('createEChartsRenderer', () => {
   it('rejects URL-bearing options before loading ECharts', async () => {
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       series: [{ type: 'line', symbol: 'image://https://example.test/tracker.png' }],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
     expect(loadECharts).not.toHaveBeenCalled();
@@ -445,7 +561,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       title: { text: 'chart', [key]: value },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -459,7 +575,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       title: { text: value },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -469,7 +585,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       dataZoom: [{ type: 'inside' }],
       visualMap: { min: 0, max: 100 },
       series: [],
@@ -501,7 +617,7 @@ describe('createEChartsRenderer', () => {
   ])('rejects unsafe %s', async (_label, option) => {
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
-    await expect(registry.prepare('echarts', JSON.stringify(option)))
+    await expect(registry.prepare('markdown-chart', canonical(option)))
       .rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
     expect(loadECharts).not.toHaveBeenCalled();
   });
@@ -510,7 +626,7 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       futureExecutableSurface: { enabled: true },
       series: [],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -520,31 +636,31 @@ describe('createEChartsRenderer', () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       series: [{ type: 'custom' }],
     }))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       data: { kind: 'inline', source: [] },
       option: { dataset: { source: [] } },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
-  it('rejects a renderer-level version because version belongs to markdown-chart', async () => {
+  it('rejects the removed renderer-specific envelope inside canonical spec', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       version: 1,
       option: { series: [] },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
-  it('applies dataset limits to direct ECharts options', async () => {
+  it('applies dataset limits to canonical ECharts specs', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
       limits: { maxRows: 1 },
     }));
-    await expect(registry.prepare('echarts', JSON.stringify({
+    await expect(registry.prepare('markdown-chart', canonical({
       dataset: { source: [['A', 1], ['B', 2]] },
       series: [{ type: 'bar' }],
     }))).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
@@ -557,8 +673,8 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     await expect(new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts',
-      source: '{"series":[]}',
+      language: 'markdown-chart',
+      source: canonical({ series: [] }),
     })).rejects.toMatchObject({ code: 'RENDER_FAILED' });
     expect(fake.dispose).toHaveBeenCalledOnce();
   });
@@ -582,8 +698,8 @@ describe('createEChartsRenderer', () => {
     }));
     try {
       await expect(new ChartController(registry).render(document.createElement('div'), {
-        language: 'echarts',
-        source: '{"series":[]}',
+        language: 'markdown-chart',
+        source: canonical({ series: [] }),
       })).rejects.toMatchObject({ code: 'RENDER_FAILED' });
       expect(disconnect).toHaveBeenCalledOnce();
       expect(fake.dispose).toHaveBeenCalledOnce();

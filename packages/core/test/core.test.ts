@@ -41,6 +41,9 @@ describe('ChartRendererRegistry', () => {
       dimensions: ['name', 'value'],
       source: [['A', 1]],
     });
+    expect(registry.has('plotly')).toBe(false);
+    await expect(registry.prepare('plotly', '{"traces":[]}'))
+      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
   });
 
   it('routes renderer-specific aliases', async () => {
@@ -136,6 +139,7 @@ describe('ChartController', () => {
     let mounts = 0;
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount() {
         mounts += 1;
@@ -156,6 +160,7 @@ describe('ChartController', () => {
     const parse = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse,
       mount() {},
     });
@@ -173,6 +178,7 @@ describe('ChartController', () => {
     const dispose = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse,
       mount() {
         return { dispose };
@@ -198,6 +204,7 @@ describe('ChartController', () => {
     const staleDispose = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount(_container, _parsed, context) {
         mountSignal = context.signal;
@@ -235,6 +242,7 @@ describe('ChartController', () => {
     const mount = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse() {
         return new Promise((resolve) => {
           finishParse = resolve;
@@ -291,6 +299,7 @@ describe('ChartController', () => {
     });
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse,
       materialize,
       mount,
@@ -322,6 +331,7 @@ describe('ChartController', () => {
     const mount = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       materialize(parsed, context) {
         materializeSignal = context.signal;
@@ -349,6 +359,7 @@ describe('ChartController', () => {
     const dispose = vi.fn();
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount(container) {
         container.dataset.mounted = 'true';
@@ -410,6 +421,7 @@ describe('ChartController', () => {
   it('restores host classes and inline styles before a render without inline data', async () => {
     const registry = new ChartRendererRegistry().register({
       id: 'test',
+      aliases: ['test'],
       parse: (spec) => spec,
       mount() {
         return { dispose() {} };
