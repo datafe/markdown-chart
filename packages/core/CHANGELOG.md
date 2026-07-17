@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.1.1
+
+### Patch Changes
+
+- ec064cd: Show renderer-provided chart titles in data-view card headers and omit the title when the chart spec has none. Keep chart content clear of the header with explicit vertical spacing.
+
 ## 0.1.0
 
 ### Minor Changes
