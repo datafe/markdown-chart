@@ -17,12 +17,12 @@ import {
   ChartRendererRegistry,
   isMarkdownFenceClosed,
   MARKDOWN_CHART_LANGUAGE,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
   type ResolveLegacyArtifactContent,
-} from '@datafe/markdown-chart-echarts';
+} from '@datafe-open/markdown-chart-echarts';
 
 export type MarkdownChartReactErrorHandler = (
   error: unknown,

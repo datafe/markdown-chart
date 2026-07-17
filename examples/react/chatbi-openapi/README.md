@@ -46,5 +46,5 @@ artifact。
 提供上述两个路由后，运行示例：
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-react-chatbi-openapi dev
+pnpm --filter @datafe-open/markdown-chart-example-react-chatbi-openapi dev
 ```

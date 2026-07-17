@@ -112,20 +112,20 @@ try {
     path.join(
       consumerDirectory,
       'node_modules',
-      '@datafe',
+      '@datafe-open',
       'markdown-chart-react',
       'package.json',
     ),
     'utf8',
   ));
   if ('main' in installedReactManifest || installedReactManifest.exports?.['.']?.require) {
-    throw new Error('@datafe/markdown-chart-react must not publish a CommonJS entry point');
+    throw new Error('@datafe-open/markdown-chart-react must not publish a CommonJS entry point');
   }
 
   writeFileSync(
     path.join(consumerDirectory, 'import-smoke.mjs'),
     [
-      "import { MarkdownChart } from '@datafe/markdown-chart-react';",
+      "import { MarkdownChart } from '@datafe-open/markdown-chart-react';",
       "if (typeof MarkdownChart !== 'function') throw new Error('React ESM export is unavailable');",
       '',
     ].join('\n'),
@@ -134,11 +134,11 @@ try {
     cwd: consumerDirectory,
     encoding: 'utf8',
   });
-  console.log(`@datafe/markdown-chart-react: ESM import passed on Node ${process.versions.node}`);
+  console.log(`@datafe-open/markdown-chart-react: ESM import passed on Node ${process.versions.node}`);
 
   writeFileSync(path.join(consumerDirectory, 'strict-consumer.ts'), [
-    "import { markdownChartPlugin, type MarkdownChartPluginOptions } from '@datafe/markdown-chart-markdown-it';",
-    "import { MarkdownChart } from '@datafe/markdown-chart-vue';",
+    "import { markdownChartPlugin, type MarkdownChartPluginOptions } from '@datafe-open/markdown-chart-markdown-it';",
+    "import { MarkdownChart } from '@datafe-open/markdown-chart-vue';",
     'const options: MarkdownChartPluginOptions = {};',
     'void markdownChartPlugin;',
     'void options;',

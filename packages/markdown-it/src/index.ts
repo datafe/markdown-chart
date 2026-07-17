@@ -2,7 +2,7 @@ import type MarkdownIt from 'markdown-it';
 import {
   MARKDOWN_CHART_LANGUAGE,
   type ChartRendererRegistry,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 
 export const MARKDOWN_CHART_ENV_KEY = 'markdownChart' as const;
 

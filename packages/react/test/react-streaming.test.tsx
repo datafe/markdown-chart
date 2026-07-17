@@ -3,8 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer, type EChartsRuntime } from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartComponents,
   MarkdownChart,
@@ -14,7 +14,7 @@ import {
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
-const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
 
 beforeEach(() => {

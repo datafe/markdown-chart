@@ -2,16 +2,16 @@
 import MarkdownIt from 'markdown-it';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue';
-import { ChartRendererRegistry, type ChartRenderer } from '@datafe/markdown-chart';
-import { createEChartsRenderer, type EChartsRuntime } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
+import { ChartRendererRegistry, type ChartRenderer } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer, type EChartsRuntime } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
 import {
   MarkdownChart,
   useMarkdownChart,
   type UseMarkdownChartResult,
 } from '../src/index';
 
-const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
 
 beforeEach(() => {

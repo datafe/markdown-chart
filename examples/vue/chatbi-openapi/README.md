@@ -7,10 +7,10 @@ ChatBI 返回的流式 Markdown。可复用的 `ChatBIChartMessage.vue` 只会�
 ```vue
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 import { createChatBIArtifactContentResolver } from './data';
 
@@ -71,7 +71,7 @@ const context = computed(() => {
 提供上述两个路由后，运行示例：
 
 ```sh
-pnpm --filter @datafe/markdown-chart-example-vue-chatbi-openapi dev
+pnpm --filter @datafe-open/markdown-chart-example-vue-chatbi-openapi dev
 ```
 
 `ArtifactContent` resolver 和临时渲染器适配器都是已弃用的迁移代码。它们被隔离

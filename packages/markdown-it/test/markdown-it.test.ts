@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import { describe, expect, it } from 'vitest';
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
 import {
   createMarkdownChartEnvironment,
   getMarkdownChartBlocks,

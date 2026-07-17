@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatBIChartMessage } from './App';
 
-vi.mock('@datafe/markdown-chart-react', async () => (
+vi.mock('@datafe-open/markdown-chart-react', async () => (
   import('../../../packages/react/src/index')
 ));
 
@@ -21,7 +21,7 @@ vi.mock('echarts', () => ({ init: echartsRuntime.init }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
-const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
 
 beforeEach(() => {

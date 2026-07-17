@@ -3,7 +3,7 @@
 [English](./README.md) | 简体中文
 
 > [!IMPORTANT]
-> **预发布状态：** `@datafe/markdown-chart*` 目前尚未发布到 npm。下文安装命令描述的是计划发布的公开接口；首次发布前请克隆本仓库并运行本地示例。维护者请参阅[发布流程](./RELEASING.md)。
+> **预发布状态：** `@datafe-open/markdown-chart*` 目前尚未发布到 npm。下文安装命令描述的是计划发布的公开接口；首次发布前请克隆本仓库并运行本地示例。维护者请参阅[发布流程](./RELEASING.md)。
 
 `markdown-chart` 为流式 Markdown 提供可移植的图表代码块，支持查看原始数据和接入不同的图表渲染器。核心包与框架无关，也不依赖任何聊天产品。
 
@@ -13,11 +13,11 @@
 
 | 包 | 用途 |
 | --- | --- |
-| `@datafe/markdown-chart` | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
-| `@datafe/markdown-chart-echarts` | 仅接受严格 JSON 的 ECharts 渲染器 |
-| `@datafe/markdown-chart-markdown-it` | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
-| `@datafe/markdown-chart-vue` | Vue 3 组件和 composable |
-| `@datafe/markdown-chart-react` | react-markdown 的 `code`/`pre` 适配器 |
+| `@datafe-open/markdown-chart` | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
+| `@datafe-open/markdown-chart-echarts` | 仅接受严格 JSON 的 ECharts 渲染器 |
+| `@datafe-open/markdown-chart-markdown-it` | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
+| `@datafe-open/markdown-chart-vue` | Vue 3 组件和 composable |
+| `@datafe-open/markdown-chart-react` | react-markdown 的 `code`/`pre` 适配器 |
 
 ## 标准 Markdown 格式
 
@@ -45,11 +45,11 @@
 宿主应用无需加载图表运行时，也可以读取标准格式中的数据：
 
 ```sh
-pnpm add @datafe/markdown-chart
+pnpm add @datafe-open/markdown-chart
 ```
 
 ```ts
-import { parseMarkdownChartEnvelope } from '@datafe/markdown-chart';
+import { parseMarkdownChartEnvelope } from '@datafe-open/markdown-chart';
 
 // chartFenceBody 是 markdown-chart 代码块内部的 JSON 文本。
 const { data } = parseMarkdownChartEnvelope(chartFenceBody);
@@ -63,11 +63,11 @@ if (data?.kind === 'inline') {
 假设前面的标准 Markdown 已保存在 `source` 中：
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-react
+pnpm add echarts @datafe-open/markdown-chart-react
 ```
 
 ```tsx
-import { MarkdownChart } from '@datafe/markdown-chart-react';
+import { MarkdownChart } from '@datafe-open/markdown-chart-react';
 
 export function App({ source }: { source: string }) {
   return <MarkdownChart source={source} />;
@@ -77,12 +77,12 @@ export function App({ source }: { source: string }) {
 ## Vue 3 + markdown-it
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-vue
+pnpm add echarts @datafe-open/markdown-chart-vue
 ```
 
 ```vue
 <script setup lang="ts">
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 
 defineProps<{ source: string }>();
 </script>
@@ -115,8 +115,8 @@ defineProps<{ source: string }>();
 只有在添加新渲染器或解析宿主数据时，才需要创建并传入注册表：
 
 ```ts
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
 
 const registry = new ChartRendererRegistry();
 registry.register(createEChartsRenderer({
@@ -137,7 +137,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   MarkdownChartProvider,
   createMarkdownChartComponents,
-} from '@datafe/markdown-chart-react';
+} from '@datafe-open/markdown-chart-react';
 
 const chartComponents = createMarkdownChartComponents({
   chartStyle: { minHeight: 360 },
@@ -154,9 +154,9 @@ Provider 会从直接子节点 `ReactMarkdown` 中推断 `source`，因此在这
 
 ```sh
 pnpm add echarts react-markdown \
-  @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts \
-  @datafe/markdown-chart-react
+  @datafe-open/markdown-chart \
+  @datafe-open/markdown-chart-echarts \
+  @datafe-open/markdown-chart-react
 ```
 
 ### 接入已有的 Vue + markdown-it 应用
@@ -165,10 +165,10 @@ Vue 应用可以保留已有的 markdown-it 实例，并把同一个注册表传
 
 ```vue
 <script setup lang="ts">
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 
 defineProps<{ source: string; isStreaming: boolean }>();
@@ -193,10 +193,10 @@ const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
 
 ```sh
 pnpm add echarts markdown-it \
-  @datafe/markdown-chart \
-  @datafe/markdown-chart-echarts \
-  @datafe/markdown-chart-markdown-it \
-  @datafe/markdown-chart-vue
+  @datafe-open/markdown-chart \
+  @datafe-open/markdown-chart-echarts \
+  @datafe-open/markdown-chart-markdown-it \
+  @datafe-open/markdown-chart-vue
 ```
 
 更多内容请参阅 [SPEC.md](./SPEC.md)、[SECURITY.md](./SECURITY.md) 以及 Vue 和 React [示例](./examples/)。简单模式和高级模式位于相互独立的可运行目录中，各自拥有独立的依赖清单。

@@ -29,13 +29,13 @@ importers:
 
   examples/react/advanced:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../../../packages/core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../../../packages/echarts
-      '@datafe/markdown-chart-react':
+      '@datafe-open/markdown-chart-react':
         specifier: workspace:*
         version: link:../../../packages/react
       echarts:
@@ -69,13 +69,13 @@ importers:
 
   examples/react/chatbi-openapi:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../../../packages/core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../../../packages/echarts
-      '@datafe/markdown-chart-react':
+      '@datafe-open/markdown-chart-react':
         specifier: workspace:*
         version: link:../../../packages/react
       echarts:
@@ -106,7 +106,7 @@ importers:
 
   examples/react/simple:
     dependencies:
-      '@datafe/markdown-chart-react':
+      '@datafe-open/markdown-chart-react':
         specifier: workspace:*
         version: link:../../../packages/react
       echarts:
@@ -137,16 +137,16 @@ importers:
 
   examples/vue/advanced:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../../../packages/core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../../../packages/echarts
-      '@datafe/markdown-chart-markdown-it':
+      '@datafe-open/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../../../packages/markdown-it
-      '@datafe/markdown-chart-vue':
+      '@datafe-open/markdown-chart-vue':
         specifier: workspace:*
         version: link:../../../packages/vue
       echarts:
@@ -177,16 +177,16 @@ importers:
 
   examples/vue/chatbi-openapi:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../../../packages/core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../../../packages/echarts
-      '@datafe/markdown-chart-markdown-it':
+      '@datafe-open/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../../../packages/markdown-it
-      '@datafe/markdown-chart-vue':
+      '@datafe-open/markdown-chart-vue':
         specifier: workspace:*
         version: link:../../../packages/vue
       echarts:
@@ -217,7 +217,7 @@ importers:
 
   examples/vue/simple:
     dependencies:
-      '@datafe/markdown-chart-vue':
+      '@datafe-open/markdown-chart-vue':
         specifier: workspace:*
         version: link:../../../packages/vue
       echarts:
@@ -244,7 +244,7 @@ importers:
 
   packages/echarts:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../core
       papaparse:
@@ -260,7 +260,7 @@ importers:
 
   packages/markdown-it:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../core
       '@types/markdown-it':
@@ -273,10 +273,10 @@ importers:
 
   packages/react:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../echarts
       echarts:
@@ -301,13 +301,13 @@ importers:
 
   packages/vue:
     dependencies:
-      '@datafe/markdown-chart':
+      '@datafe-open/markdown-chart':
         specifier: workspace:*
         version: link:../core
-      '@datafe/markdown-chart-echarts':
+      '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../echarts
-      '@datafe/markdown-chart-markdown-it':
+      '@datafe-open/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../markdown-it
       '@types/markdown-it':

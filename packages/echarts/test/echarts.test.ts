@@ -5,7 +5,7 @@ import {
   ChartRendererRegistry,
   MarkdownChartError,
   type JsonValue,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
   type EChartsRuntime,
@@ -13,7 +13,7 @@ import {
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
 
-const LEGACY_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
 
 beforeEach(() => {

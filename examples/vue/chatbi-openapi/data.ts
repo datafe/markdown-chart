@@ -1,8 +1,8 @@
 import {
   isJsonObject,
   type JsonValue,
-} from '@datafe/markdown-chart';
-import type { ResolveLegacyArtifactContent } from '@datafe/markdown-chart-echarts';
+} from '@datafe-open/markdown-chart';
+import type { ResolveLegacyArtifactContent } from '@datafe-open/markdown-chart-echarts';
 
 interface ArtifactSummary {
   readonly ArtifactName: string;

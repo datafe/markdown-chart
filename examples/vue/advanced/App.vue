@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 import MarkdownIt from 'markdown-it';
 
 const source = `# Sales

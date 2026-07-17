@@ -4,9 +4,9 @@ import {
   validateChartJsonValue,
   type ChartDataRow,
   type JsonValue,
-} from '@datafe/markdown-chart';
+} from '@datafe-open/markdown-chart';
 
-const SANDBOX_CHANNEL = '@datafe/markdown-chart/legacy-echart-query';
+const SANDBOX_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 
 export const LEGACY_SANDBOX_CSP = [
   "default-src 'none'",

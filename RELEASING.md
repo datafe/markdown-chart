@@ -8,8 +8,9 @@ the public npm registry. Feature branches never publish packages.
 The first release must create the npm package pages before Trusted Publishing
 can be configured.
 
-1. Join the npm `datafe` organization with a role that can publish public
-   packages, enable 2FA, and accept the organization invitation.
+1. Create the npm `datafe-open` organization, or join it with a role that can
+   publish public packages. Keep at least two owners, enable 2FA, and accept any
+   organization invitation.
 2. Merge the repository release configuration to `main`. The Release workflow
    creates a **Version Packages** pull request that changes all package versions
    from `0.0.0` to `0.1.0`.
@@ -39,11 +40,11 @@ can be configured.
 6. Confirm that all five packages are public:
 
    ```sh
-   npm view @datafe/markdown-chart version --registry=https://registry.npmjs.org/
-   npm view @datafe/markdown-chart-echarts version --registry=https://registry.npmjs.org/
-   npm view @datafe/markdown-chart-markdown-it version --registry=https://registry.npmjs.org/
-   npm view @datafe/markdown-chart-react version --registry=https://registry.npmjs.org/
-   npm view @datafe/markdown-chart-vue version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-echarts version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-markdown-it version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-react version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-vue version --registry=https://registry.npmjs.org/
    ```
 
 ## Enable Trusted Publishing
@@ -57,6 +58,10 @@ five npm package pages and configure:
 - Workflow filename: `release.yml`
 - Allowed action: `npm publish`
 - Environment: leave empty
+
+The trusted publisher uses `datafe` here because that is the GitHub
+organization that owns the repository. The npm package scope remains
+`@datafe-open`.
 
 The workflow uses GitHub OIDC and does not require an `NPM_TOKEN` secret. Run
 the Release workflow manually once after all five package settings are saved;

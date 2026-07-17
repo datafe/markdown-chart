@@ -1,4 +1,4 @@
-# @datafe/markdown-chart-vue
+# @datafe-open/markdown-chart-vue
 
 Vue 3 `<MarkdownChart>` component, `useMarkdownChart` composable, and lower-level
 placeholder mounting utility for markdown-it applications.
@@ -13,7 +13,7 @@ The switch uses chart and table icons while retaining accessible labels.
 Install the zero-config component with:
 
 ```sh
-pnpm add echarts @datafe/markdown-chart-vue
+pnpm add echarts @datafe-open/markdown-chart-vue
 ```
 
 `markdown-it` is included by this package. Applications importing it directly

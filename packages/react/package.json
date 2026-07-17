@@ -1,5 +1,5 @@
 {
-  "name": "@datafe/markdown-chart-react",
+  "name": "@datafe-open/markdown-chart-react",
   "version": "0.0.0",
   "description": "react-markdown adapter for Markdown Chart",
   "license": "MIT",
@@ -28,12 +28,12 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.tsx --format esm --dts --clean --external react --external react-markdown --external @datafe/markdown-chart --external @datafe/markdown-chart-echarts",
+    "build": "tsup src/index.tsx --format esm --dts --clean --external react --external react-markdown --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@datafe/markdown-chart": "workspace:*",
-    "@datafe/markdown-chart-echarts": "workspace:*",
+    "@datafe-open/markdown-chart": "workspace:*",
+    "@datafe-open/markdown-chart-echarts": "workspace:*",
     "react-markdown": "^10.1.0"
   },
   "peerDependencies": {

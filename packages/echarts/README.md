@@ -1,4 +1,4 @@
-# @datafe/markdown-chart-echarts
+# @datafe-open/markdown-chart-echarts
 
 Strict JSON-only ECharts renderer for the canonical `markdown-chart` protocol.
 The ECharts runtime and any referenced dataset resolver are supplied by the

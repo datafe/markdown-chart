@@ -5,11 +5,11 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@datafe/markdown-chart": ["packages/core/src/index.ts"],
-      "@datafe/markdown-chart-echarts": ["packages/echarts/src/index.ts"],
-      "@datafe/markdown-chart-markdown-it": ["packages/markdown-it/src/index.ts"],
-      "@datafe/markdown-chart-vue": ["packages/vue/src/index.ts"],
-      "@datafe/markdown-chart-react": ["packages/react/src/index.tsx"]
+      "@datafe-open/markdown-chart": ["packages/core/src/index.ts"],
+      "@datafe-open/markdown-chart-echarts": ["packages/echarts/src/index.ts"],
+      "@datafe-open/markdown-chart-markdown-it": ["packages/markdown-it/src/index.ts"],
+      "@datafe-open/markdown-chart-vue": ["packages/vue/src/index.ts"],
+      "@datafe-open/markdown-chart-react": ["packages/react/src/index.tsx"]
     },
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,

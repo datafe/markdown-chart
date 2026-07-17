@@ -1,9 +1,9 @@
-import { ChartRendererRegistry } from '@datafe/markdown-chart';
-import { createEChartsRenderer } from '@datafe/markdown-chart-echarts';
+import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
+import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartComponents,
   MarkdownChartProvider,
-} from '@datafe/markdown-chart-react';
+} from '@datafe-open/markdown-chart-react';
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 

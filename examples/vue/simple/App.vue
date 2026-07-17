@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MarkdownChart } from '@datafe/markdown-chart-vue';
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
 
 const source = `# Sales
 
