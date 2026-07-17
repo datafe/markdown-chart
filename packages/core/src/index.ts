@@ -303,6 +303,8 @@ export interface ChartRenderer<Parsed = unknown> {
   readonly matchLanguage?: (language: string) => boolean;
   parse(spec: JsonValue, context: ChartParseContext): Parsed | Promise<Parsed>;
   parseSource?(source: string, context: ChartParseContext): Parsed | Promise<Parsed>;
+  /** Return a concise title for host-provided chart chrome. */
+  getTitle?(parsed: Parsed): string | undefined;
   materialize?(
     parsed: Parsed,
     context: ChartMaterializeContext,
@@ -750,6 +752,7 @@ interface ChartView {
 function createChartView(
   container: HTMLElement,
   data: InlineChartData,
+  chartTitle: string | undefined,
   onShowChart: () => void,
   theme: unknown,
 ): ChartView {
@@ -789,18 +792,23 @@ function createChartView(
     borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
     background: colors.subtleBackground,
   });
-  const title = document.createElement('div');
-  title.className = 'markdown-chart-title';
-  title.textContent = 'Chart';
-  setStyles(title, {
-    minWidth: '0',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    fontSize: '13px',
-    fontWeight: '600',
-    lineHeight: '1.3',
-  });
+  const normalizedTitle = chartTitle?.trim();
+  let title: HTMLDivElement | undefined;
+  if (normalizedTitle) {
+    const titleElement = document.createElement('div');
+    titleElement.className = 'markdown-chart-title';
+    titleElement.textContent = normalizedTitle;
+    setStyles(titleElement, {
+      minWidth: '0',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      fontSize: '13px',
+      fontWeight: '600',
+      lineHeight: '1.3',
+    });
+    title = titleElement;
+  }
   const toggle = document.createElement('div');
   toggle.className = 'markdown-chart-toggle';
   toggle.setAttribute('role', 'group');
@@ -808,6 +816,7 @@ function createChartView(
   setStyles(toggle, {
     display: 'inline-grid',
     flex: '0 0 auto',
+    marginLeft: 'auto',
     gridTemplateColumns: 'repeat(2, 30px)',
     gap: '2px',
     padding: '2px',
@@ -826,7 +835,7 @@ function createChartView(
   setStyles(chartContainer, {
     width: 'calc(100% - 20px)',
     minHeight: 'inherit',
-    margin: '0 10px 8px',
+    margin: '8px 10px',
     background: colors.background,
   });
   const dataContainer = createInlineDataTable(data, colors);
@@ -855,7 +864,10 @@ function createChartView(
   chartButton.addEventListener('click', showChart);
   dataButton.addEventListener('click', showData);
   toggle.append(chartButton, dataButton);
-  toolbar.append(title, toggle);
+  if (title) {
+    toolbar.append(title);
+  }
+  toolbar.append(toggle);
   container.replaceChildren(toolbar, chartContainer, dataContainer);
   select('chart');
 
@@ -933,8 +945,15 @@ export class ChartController {
       }
 
       const inlineData = materialized.data?.kind === 'inline' ? materialized.data : undefined;
+      const chartTitle = prepared.renderer.getTitle?.(materialized.parsed)?.trim() || undefined;
       const view = inlineData
-        ? createChartView(container, inlineData, () => this.#handle?.resize?.(), request.theme)
+        ? createChartView(
+            container,
+            inlineData,
+            chartTitle,
+            () => this.#handle?.resize?.(),
+            request.theme,
+          )
         : undefined;
       this.#view = view;
       const handle = await prepared.renderer.mount(view?.chartContainer ?? container, materialized.parsed, {

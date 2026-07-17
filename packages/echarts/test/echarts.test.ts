@@ -76,6 +76,21 @@ async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<v
 }
 
 describe('createEChartsRenderer', () => {
+  it('uses the first non-empty ECharts title as the shared card title', async () => {
+    const renderer = createEChartsRenderer();
+    const parsed = await renderer.parse({
+      title: [{ text: '   ' }, { text: 'Olympic participation by gender' }],
+      series: [],
+    }, {
+      language: 'markdown-chart',
+      rendererId: 'echarts',
+      data: undefined,
+    });
+
+    expect(renderer.getTitle?.(parsed)).toBe('Olympic participation by gender');
+    expect(renderer.getTitle?.({ ...parsed, option: { series: [] } })).toBeUndefined();
+  });
+
   it('uses only the canonical fence while retaining the ECharts renderer id', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer());
     expect(registry.has('echarts')).toBe(false);
