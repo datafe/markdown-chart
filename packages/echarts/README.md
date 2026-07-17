@@ -22,6 +22,11 @@ Validation, canonical data injection, and data-ref resolution still apply.
 See the package [Third-party notices](./THIRD_PARTY_NOTICES.md) for
 attribution and license details.
 
+When the shared Chart/Data card is available, its title comes from the first
+non-empty ECharts `option.title.text` value. If `title.text` is absent or blank,
+the card omits the title instead of showing a fallback. The same rule is
+applied after a temporary legacy chart has been materialized.
+
 In a canonical `markdown-chart` envelope, renderer-neutral `data` is a sibling
 of `spec`, and `spec` is the ECharts option directly. This lets hosts inspect
 inline data without understanding ECharts.

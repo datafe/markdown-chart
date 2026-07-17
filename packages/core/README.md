@@ -10,6 +10,11 @@ card styling. Hosts can override `--markdown-chart-background`,
 See [Third-party notices](./THIRD_PARTY_NOTICES.md) for source attribution and
 license details.
 
+Renderers may expose a title through `getTitle(parsed)`. The core trims that
+value and creates a title element only when it is non-empty; it never supplies
+a fallback title. The Chart/Data controls remain right-aligned when no title is
+present, and the chart keeps 8px of vertical spacing from the toolbar.
+
 Canonical envelopes keep `data` separate from renderer-owned `spec`.
 `parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a
 host can inspect the same rows without loading the renderer.

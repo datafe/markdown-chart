@@ -2,8 +2,8 @@
 
 [English](./README.md) | 简体中文
 
-> [!IMPORTANT]
-> **预发布状态：** `@datafe-open/markdown-chart*` 目前尚未发布到 npm。下文安装命令描述的是计划发布的公开接口；首次发布前请克隆本仓库并运行本地示例。维护者请参阅[发布流程](./RELEASING.md)。
+> [!NOTE]
+> 5 个 `@datafe-open/markdown-chart*` 包均已公开发布到 npm，下文安装命令会直接使用公开包。后续版本发布请参阅[发布流程](./RELEASING.md)。
 
 `markdown-chart` 为流式 Markdown 提供可移植的图表代码块，支持查看原始数据和接入不同的图表渲染器。核心包与框架无关，也不依赖任何聊天产品。
 
@@ -13,11 +13,11 @@
 
 | 包 | 用途 |
 | --- | --- |
-| `@datafe-open/markdown-chart` | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
-| `@datafe-open/markdown-chart-echarts` | 仅接受严格 JSON 的 ECharts 渲染器 |
-| `@datafe-open/markdown-chart-markdown-it` | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
-| `@datafe-open/markdown-chart-vue` | Vue 3 组件和 composable |
-| `@datafe-open/markdown-chart-react` | react-markdown 的 `code`/`pre` 适配器 |
+| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
+| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | 仅接受严格 JSON 的标准 ECharts 渲染器，以及已弃用的 ChatBI legacy 适配器 |
+| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
+| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 组件和 composable |
+| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown 的 `code`/`pre` 适配器 |
 
 ## 标准 Markdown 格式
 
@@ -32,6 +32,7 @@
     "source": [["Jan", 100], ["Feb", 180]]
   },
   "spec": {
+    "title": { "text": "月度销售额" },
     "xAxis": { "type": "category" },
     "yAxis": {},
     "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
@@ -41,6 +42,8 @@
 ````
 
 协议只有一个 `version`，位于最外层的 `markdown-chart` 协议对象中。`data` 与渲染器无关，因此宿主应用可以独立展示 inline 数据，例如提供“查看数据”操作。`spec` 属于选定的渲染器，不再重复保存数据或版本号。
+
+对于 ECharts，公共卡片标题只取 `spec.title.text`，也就是 ECharts option 的 `title.text`。该值缺失或为空时不会展示标题元素，也不会使用兜底文本。`Chart / Data` 按钮仍保持右对齐，图表与工具栏之间保留 8px 的垂直间距。
 
 宿主应用无需加载图表运行时，也可以读取标准格式中的数据：
 
