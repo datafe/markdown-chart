@@ -167,6 +167,7 @@ describe('MarkdownChart streaming lifecycle', () => {
       await vi.waitFor(() => {
         expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
       });
+      expect(container.querySelector('.markdown-chart-title')).toBeNull();
       container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
       const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
       expect(dataView?.hidden).toBe(false);

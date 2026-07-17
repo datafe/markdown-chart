@@ -361,6 +361,7 @@ describe('ChartController', () => {
       id: 'test',
       aliases: ['test'],
       parse: (spec) => spec,
+      getTitle: () => 'Monthly sales',
       mount(container) {
         container.dataset.mounted = 'true';
         return { resize, dispose };
@@ -389,6 +390,8 @@ describe('ChartController', () => {
     const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     const showChart = element.querySelector<HTMLButtonElement>('button[aria-label="Show chart"]');
     const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    expect(element.querySelector('.markdown-chart-title')?.textContent).toBe('Monthly sales');
+    expect(chartView?.style.margin).toBe('8px 10px');
     expect(chartView?.dataset.mounted).toBe('true');
     expect(dataView?.hidden).toBe(true);
     expect(showChart?.title).toBe('Chart');
@@ -416,6 +419,44 @@ describe('ChartController', () => {
     expect(resize).toHaveBeenCalledOnce();
     controller.dispose();
     expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('reads the card title after materialization and omits empty titles', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse: () => ({ title: 'before materialization' }),
+      materialize() {
+        return {
+          parsed: { title: 'after materialization' },
+          data: { kind: 'inline', source: [] },
+        };
+      },
+      getTitle: (parsed) => parsed.title,
+      mount() {},
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+
+    await controller.render(element, { language: 'test', source: '{}' });
+    expect(element.querySelector('.markdown-chart-title')?.textContent)
+      .toBe('after materialization');
+
+    registry.register({
+      id: 'empty-title',
+      aliases: ['empty-title'],
+      parse: () => ({}),
+      getTitle: () => '   ',
+      materialize: (parsed) => ({
+        parsed,
+        data: { kind: 'inline', source: [] },
+      }),
+      mount() {},
+    });
+    await controller.render(element, { language: 'empty-title', source: '{}' });
+    expect(element.querySelector('.markdown-chart-title')).toBeNull();
+    expect(element.querySelector<HTMLElement>('.markdown-chart-toggle')?.style.marginLeft)
+      .toBe('auto');
   });
 
   it('restores host classes and inline styles before a render without inline data', async () => {
@@ -466,6 +507,7 @@ describe('isMarkdownFenceClosed', () => {
     expect(isMarkdownFenceClosed('````markdown-chart\n{}\n```')).toBe(false);
   });
 });
+
 
 describe('parseChartJson', () => {
   it('rejects prototype-related keys', () => {

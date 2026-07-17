@@ -179,6 +179,20 @@ function schemaError(message: string): never {
   throw new MarkdownChartError('SCHEMA_INVALID', message);
 }
 
+function getEChartsTitle(option: Record<string, JsonValue>): string | undefined {
+  const titles = Array.isArray(option.title) ? option.title : [option.title];
+  for (const title of titles) {
+    if (!isJsonObject(title) || typeof title.text !== 'string') {
+      continue;
+    }
+    const text = title.text.trim();
+    if (text) {
+      return text;
+    }
+  }
+  return undefined;
+}
+
 function cloneJson<T extends JsonValue>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((item) => cloneJson(item)) as T;
@@ -674,6 +688,9 @@ export function createEChartsRenderer(
         data: undefined,
         legacyEChartQuery: parseLegacyEChartQueryBlock(context.language, source),
       };
+    },
+    getTitle(parsed) {
+      return getEChartsTitle(parsed.option);
     },
     async materialize(parsed, context) {
       if (!parsed.legacyEChartQuery) {
