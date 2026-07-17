@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Framework-neutral registry and lifecycle controller for JSON charts in Markdown",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,13 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md", "LICENSE", "LICENSES", "THIRD_PARTY_NOTICES.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "LICENSES",
+    "THIRD_PARTY_NOTICES.md"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
