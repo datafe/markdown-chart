@@ -147,9 +147,12 @@ while explicit ECharts option values still win. The React package includes
 sufficient. See [Third-party notices](./THIRD_PARTY_NOTICES.md) for attribution.
 
 Card colors can be aligned with the host through `--markdown-chart-background`,
-`--markdown-chart-subtle-background`, and `--markdown-chart-accent`. Advanced
-registries can set `createEChartsRenderer({ defaultStyle: false })` to disable
-the presentation defaults. Validation, canonical data injection, and data-ref
+`--markdown-chart-subtle-background`, `--markdown-chart-accent`, and
+`--markdown-chart-accent-foreground`. The selected Chart/Data icon foreground
+falls back to the chart background and then `#ffffff`; hosts with a custom
+accent can override the accent and its foreground as a pair. Advanced registries
+can set `createEChartsRenderer({ defaultStyle: false })` to disable the
+presentation defaults. Validation, canonical data injection, and data-ref
 resolution still apply.
 
 ## Streaming

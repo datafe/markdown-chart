@@ -6,7 +6,10 @@ inline datasets and renderer-materialized referenced datasets receive a
 built-in Chart/Data switch and bounded data table.
 The switch uses accessible chart/table icons and Qwen Code WebShell-inspired
 card styling. Hosts can override `--markdown-chart-background`,
-`--markdown-chart-subtle-background`, and `--markdown-chart-accent`.
+`--markdown-chart-subtle-background`, `--markdown-chart-accent`, and
+`--markdown-chart-accent-foreground`. The selected Chart/Data icon foreground
+falls back to `--markdown-chart-background`, then `#ffffff`, so hosts can pair
+a custom accent background with a contrasting foreground.
 See [Third-party notices](./THIRD_PARTY_NOTICES.md) for source attribution and
 license details.
 
