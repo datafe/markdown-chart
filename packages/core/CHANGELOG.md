@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.1.2
+
+### Patch Changes
+
+- 5d6949b: Support the strict `dataworks-chart` `echarts-fulldata` JSON envelope and the deprecated ChatBI sandbox-file fence through the shared ECharts lifecycle. Preserve raw dynamic fence tokens across core, markdown-it, React, and Vue; expose host-owned sandbox CSV resolvers; and allow validated string formatter templates.
+
 ## 0.1.1
 
 ### Patch Changes
