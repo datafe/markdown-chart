@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-echarts",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Secure canonical ECharts renderer for Markdown Chart",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.1.4
+
+### Patch Changes
+
+- 109b61f: Align the default light and dark ECharts theme with the shared chart design system and add a configurable selected Chart/Data foreground for accessible host accents.
+
 ## 0.1.3
 
 ### Patch Changes
