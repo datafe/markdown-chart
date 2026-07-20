@@ -851,19 +851,22 @@ function createChartView(
   });
   const dataContainer = createInlineDataTable(data, colors);
   dataContainer.hidden = true;
+  const selectedBackground = 'var(--markdown-chart-accent, #0033ff)';
+  const selectedForeground = 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
+  const unselectedForeground = 'color-mix(in srgb, currentColor 68%, transparent)';
 
   const select = (mode: 'chart' | 'data'): void => {
     const chartSelected = mode === 'chart';
     chartButton.setAttribute('aria-pressed', String(chartSelected));
     dataButton.setAttribute('aria-pressed', String(!chartSelected));
     chartButton.style.background = chartSelected
-      ? 'var(--markdown-chart-accent, #0033ff)'
+      ? selectedBackground
       : 'transparent';
-    chartButton.style.color = chartSelected ? '#ffffff' : 'color-mix(in srgb, currentColor 68%, transparent)';
+    chartButton.style.color = chartSelected ? selectedForeground : unselectedForeground;
     dataButton.style.background = chartSelected
       ? 'transparent'
-      : 'var(--markdown-chart-accent, #0033ff)';
-    dataButton.style.color = chartSelected ? 'color-mix(in srgb, currentColor 68%, transparent)' : '#ffffff';
+      : selectedBackground;
+    dataButton.style.color = chartSelected ? unselectedForeground : selectedForeground;
     chartContainer.hidden = !chartSelected;
     dataContainer.hidden = chartSelected;
   };

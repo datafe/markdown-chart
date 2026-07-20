@@ -421,10 +421,26 @@ describe('ChartController', () => {
     expect(showChart?.querySelector('svg')).not.toBeNull();
     expect(showData?.querySelector('svg')).not.toBeNull();
     expect(element.querySelector('.markdown-chart-toggle')?.getAttribute('role')).toBe('group');
+    expect(showChart?.getAttribute('aria-pressed')).toBe('true');
+    expect(showChart?.style.background).toBe('var(--markdown-chart-accent, #0033ff)');
+    expect(showChart?.style.color).toBe(
+      'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))',
+    );
+    expect(showData?.getAttribute('aria-pressed')).toBe('false');
+    expect(showData?.style.background).toBe('transparent');
+    expect(showData?.style.color).toBe('color-mix(in srgb, currentcolor 68%, transparent)');
 
     showData?.click();
     expect(chartView?.hidden).toBe(true);
     expect(dataView?.hidden).toBe(false);
+    expect(showChart?.getAttribute('aria-pressed')).toBe('false');
+    expect(showChart?.style.background).toBe('transparent');
+    expect(showChart?.style.color).toBe('color-mix(in srgb, currentcolor 68%, transparent)');
+    expect(showData?.getAttribute('aria-pressed')).toBe('true');
+    expect(showData?.style.background).toBe('var(--markdown-chart-accent, #0033ff)');
+    expect(showData?.style.color).toBe(
+      'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))',
+    );
     expect(dataView?.textContent).toContain('Jan');
     expect(dataView?.textContent).toContain('<script>');
     expect(dataView?.querySelector('script')).toBeNull();
@@ -436,6 +452,14 @@ describe('ChartController', () => {
 
     showChart?.click();
     expect(chartView?.hidden).toBe(false);
+    expect(showChart?.getAttribute('aria-pressed')).toBe('true');
+    expect(showChart?.style.background).toBe('var(--markdown-chart-accent, #0033ff)');
+    expect(showChart?.style.color).toBe(
+      'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))',
+    );
+    expect(showData?.getAttribute('aria-pressed')).toBe('false');
+    expect(showData?.style.background).toBe('transparent');
+    expect(showData?.style.color).toBe('color-mix(in srgb, currentcolor 68%, transparent)');
     expect(resize).toHaveBeenCalledOnce();
     controller.dispose();
     expect(dispose).toHaveBeenCalledOnce();
