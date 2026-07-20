@@ -25,7 +25,12 @@ attribution and license details.
 When the shared Chart/Data card is available, its title comes from the first
 non-empty ECharts `option.title.text` value. If `title.text` is absent or blank,
 the card omits the title instead of showing a fallback. The same rule is
-applied after a temporary legacy chart has been materialized.
+applied after a temporary legacy chart has been materialized. When the card
+displays that title, the renderer removes the matching main title from its
+cloned render option so the title appears only once. Other title-array entries
+are preserved, and a matching entry with `subtext` keeps the subtitle. Mounting
+the renderer directly, or rendering without an inline-data card, leaves the
+native ECharts title unchanged.
 
 In a canonical `markdown-chart` envelope, renderer-neutral `data` is a sibling
 of `spec`, and `spec` is the ECharts option directly. This lets hosts inspect

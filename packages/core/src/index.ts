@@ -281,6 +281,8 @@ export interface ChartParseContext {
 export interface ChartMountContext {
   readonly signal: AbortSignal;
   readonly theme: unknown;
+  /** Non-empty title already rendered by host-provided chart chrome. */
+  readonly externalizedTitle?: string;
 }
 
 export interface ChartMaterializeContext extends ChartMountContext {
@@ -969,6 +971,7 @@ export class ChartController {
       const handle = await prepared.renderer.mount(view?.chartContainer ?? container, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
+        ...(view && chartTitle ? { externalizedTitle: chartTitle } : {}),
       });
       if (generation !== this.#generation || abortController.signal.aborted) {
         handle?.dispose();

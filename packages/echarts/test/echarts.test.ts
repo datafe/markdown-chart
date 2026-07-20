@@ -9,6 +9,7 @@ import {
 import {
   createEChartsRenderer,
   type EChartsRuntime,
+  type ParsedEChartsSpec,
   type ResolvedDataset,
   type ResolvedLegacyEChartQuery,
 } from '../src/index';
@@ -132,6 +133,8 @@ describe('createEChartsRenderer', () => {
     });
 
     expect(container.querySelector('.markdown-chart-title')?.textContent).toBe('Compact chart');
+    expect(container.querySelectorAll('.markdown-chart-title')).toHaveLength(1);
+    expect(rendered).not.toHaveProperty('title');
     expect(rendered?.dataset).toEqual({
       dimensions: ['name', 'value'],
       source: [['A', 1], ['B', 2]],
@@ -142,6 +145,135 @@ describe('createEChartsRenderer', () => {
     expect(container.querySelector('thead')?.textContent).toContain('namevalue');
     expect(container.querySelector('tbody')?.textContent).toContain('A1');
     controller.dispose();
+  });
+
+  it('keeps native ECharts titles without an inline card and on direct mounts', async () => {
+    const rendered: Array<Record<string, JsonValue>> = [];
+    const fake = fakeRuntime((option) => { rendered.push(option); });
+    const renderer = createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    });
+    const registry = new ChartRendererRegistry().register(renderer);
+    const controller = new ChartController(registry);
+    const container = document.createElement('div');
+
+    await controller.render(container, {
+      language: 'markdown-chart',
+      source: canonical({ title: { text: 'No card title' }, series: [] }),
+    });
+
+    const parsed = await renderer.parse({ title: { text: 'Direct title' }, series: [] }, {
+      language: 'markdown-chart',
+      rendererId: 'echarts',
+      data: undefined,
+    });
+    const directHandle = await renderer.mount(document.createElement('div'), parsed, {
+      signal: new AbortController().signal,
+      theme: undefined,
+    });
+
+    expect(container.querySelector('.markdown-chart-title')).toBeNull();
+    expect(rendered[0]?.title).toEqual({ text: 'No card title' });
+    expect(rendered[1]?.title).toEqual({ text: 'Direct title' });
+    directHandle?.dispose();
+    controller.dispose();
+  });
+
+  it('omits a placeholder when an inline chart has no title', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    }));
+    const container = document.createElement('div');
+    const controller = new ChartController(registry);
+
+    await controller.render(container, {
+      language: 'markdown-chart',
+      source: canonical(
+        { series: [] },
+        { kind: 'inline', dimensions: ['name'], source: [['A']] },
+      ),
+    });
+
+    expect(container.classList.contains('markdown-chart-card')).toBe(true);
+    expect(container.querySelector('.markdown-chart-title')).toBeNull();
+    expect(rendered).not.toHaveProperty('title');
+    controller.dispose();
+  });
+
+  it('removes only the first non-empty externalized title array entry', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const renderer = createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    });
+    const mount = vi.spyOn(renderer, 'mount');
+    const registry = new ChartRendererRegistry().register(renderer);
+    const controller = new ChartController(registry);
+    const container = document.createElement('div');
+    const option = {
+      title: [
+        { text: '   ', left: 'left' },
+        { text: 'Primary title', top: 8 },
+        { text: 'Secondary title', right: 0 },
+      ],
+      series: [],
+    };
+
+    await controller.render(container, {
+      language: 'markdown-chart',
+      source: canonical(
+        option,
+        { kind: 'inline', dimensions: ['name'], source: [['A']] },
+      ),
+    });
+
+    const mountedParsed = mount.mock.calls[0]?.[1] as ParsedEChartsSpec | undefined;
+    expect(container.querySelector('.markdown-chart-title')?.textContent).toBe('Primary title');
+    expect(rendered?.title).toEqual([
+      { text: '   ', left: 'left' },
+      { text: 'Secondary title', right: 0 },
+    ]);
+    expect(mountedParsed?.option).toEqual(option);
+    controller.dispose();
+  });
+
+  it('keeps subtext while removing an externalized main title from the cloned option', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const renderer = createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    });
+    const option = {
+      title: [
+        { text: 'Primary title', subtext: 'Subtitle', top: 8 },
+        { text: 'Secondary title', right: 0 },
+      ],
+      series: [],
+    };
+    const parsed = await renderer.parse(option, {
+      language: 'markdown-chart',
+      rendererId: 'echarts',
+      data: undefined,
+    });
+
+    const handle = await renderer.mount(document.createElement('div'), parsed, {
+      signal: new AbortController().signal,
+      theme: undefined,
+      externalizedTitle: 'Primary title',
+    });
+
+    expect(rendered?.title).toEqual([
+      { subtext: 'Subtitle', top: 8 },
+      { text: 'Secondary title', right: 0 },
+    ]);
+    expect(parsed.option).toEqual(option);
+    handle?.dispose();
   });
 
   it.each([
