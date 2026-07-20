@@ -479,6 +479,62 @@ describe('ChartController', () => {
       .toBe('auto');
   });
 
+  it('only externalizes a title when the inline card displays it', async () => {
+    const mountContexts: Array<{ readonly externalizedTitle?: string }> = [];
+    const registry = new ChartRendererRegistry();
+    registry.register({
+      id: 'visible-title',
+      aliases: ['visible-title'],
+      parse: (spec) => spec,
+      getTitle: () => '  Visible title  ',
+      materialize: (parsed) => ({
+        parsed,
+        data: { kind: 'inline', source: [] },
+      }),
+      mount(_container, _parsed, context) {
+        mountContexts.push(context);
+      },
+    });
+    registry.register({
+      id: 'empty-title',
+      aliases: ['empty-title'],
+      parse: (spec) => spec,
+      getTitle: () => '   ',
+      materialize: (parsed) => ({
+        parsed,
+        data: { kind: 'inline', source: [] },
+      }),
+      mount(_container, _parsed, context) {
+        mountContexts.push(context);
+      },
+    });
+    registry.register({
+      id: 'no-card',
+      aliases: ['no-card'],
+      parse: (spec) => spec,
+      getTitle: () => 'Renderer-owned title',
+      mount(_container, _parsed, context) {
+        mountContexts.push(context);
+      },
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+
+    await controller.render(element, { language: 'visible-title', source: '{}' });
+    expect(element.querySelector('.markdown-chart-title')?.textContent).toBe('Visible title');
+
+    await controller.render(element, { language: 'empty-title', source: '{}' });
+    expect(element.querySelector('.markdown-chart-title')).toBeNull();
+
+    await controller.render(element, { language: 'no-card', source: '{}' });
+    expect(element.querySelector('.markdown-chart-title')).toBeNull();
+
+    expect(mountContexts[0]?.externalizedTitle).toBe('Visible title');
+    expect(Object.prototype.hasOwnProperty.call(mountContexts[1], 'externalizedTitle')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(mountContexts[2], 'externalizedTitle')).toBe(false);
+    controller.dispose();
+  });
+
   it('restores host classes and inline styles before a render without inline data', async () => {
     const registry = new ChartRendererRegistry().register({
       id: 'test',

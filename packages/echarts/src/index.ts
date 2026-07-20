@@ -270,18 +270,49 @@ function parseCompactData(value: JsonValue, limits: EChartsLimits): EChartsDatas
   return schemaError(`Unsupported echarts-fulldata.data.kind: ${value.kind}`);
 }
 
-function getEChartsTitle(option: Record<string, JsonValue>): string | undefined {
-  const titles = Array.isArray(option.title) ? option.title : [option.title];
-  for (const title of titles) {
+interface EChartsTitleEntry {
+  readonly index: number;
+  readonly isArray: boolean;
+  readonly title: Record<string, JsonValue>;
+  readonly text: string;
+}
+
+function findEChartsTitleEntry(option: Record<string, JsonValue>): EChartsTitleEntry | undefined {
+  const isArray = Array.isArray(option.title);
+  const titles = isArray ? option.title as JsonValue[] : [option.title];
+  for (const [index, title] of titles.entries()) {
     if (!isJsonObject(title) || typeof title.text !== 'string') {
       continue;
     }
     const text = title.text.trim();
     if (text) {
-      return text;
+      return { index, isArray, title, text };
     }
   }
   return undefined;
+}
+
+function getEChartsTitle(option: Record<string, JsonValue>): string | undefined {
+  return findEChartsTitleEntry(option)?.text;
+}
+
+function removeExternalizedEChartsTitle(
+  option: Record<string, JsonValue>,
+  externalizedTitle: string,
+): void {
+  const match = findEChartsTitleEntry(option);
+  if (!match || match.text !== externalizedTitle.trim()) {
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(match.title, 'subtext')) {
+    delete match.title.text;
+    return;
+  }
+  if (match.isArray) {
+    (option.title as JsonValue[]).splice(match.index, 1);
+    return;
+  }
+  delete option.title;
 }
 
 function cloneJson<T extends JsonValue>(value: T): T {
@@ -947,6 +978,9 @@ export function createEChartsRenderer(
       }
 
       const option = cloneJson(parsed.option);
+      if (context.externalizedTitle) {
+        removeExternalizedEChartsTitle(option, context.externalizedTitle);
+      }
       if (parsed.data) {
         let dataset: InlineDataset;
         if (parsed.data.kind === 'inline') {
