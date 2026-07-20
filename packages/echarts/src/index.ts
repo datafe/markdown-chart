@@ -576,11 +576,18 @@ const DEFAULT_STYLE_THEME = {
   light: {
     background: '#ffffff',
     foreground: '#343434',
-    muted: '#838d95',
-    border: '#e0e6f1',
+    legendText: '#555555',
+    titleText: '#343434',
+    subtext: '#aaaaaa',
     axisLine: '#5d666f',
-    axisPointer: '#7c8a96',
-    tooltipBackground: '#ffffff',
+    valueAxisLine: '#6E7079',
+    axisLabel: '#838d95',
+    splitLine: '#e0e6f1',
+    splitAreaA: 'rgba(250,250,250,0.2)',
+    splitAreaB: 'rgba(210,219,238,0.2)',
+    seriesBorder: '#ffffff',
+    pointer: '#7c8a96',
+    tooltipBg: '#ffffff',
     primary: '#6250f9',
     palette: [
       '#6250F9', '#33AFA9', '#AB7BFF', '#5F99F9',
@@ -591,26 +598,40 @@ const DEFAULT_STYLE_THEME = {
   dark: {
     background: '#0d0d0d',
     foreground: '#f4f7ff',
-    muted: '#9aa3b7',
-    border: 'rgba(129,145,209,0.24)',
-    axisLine: '#657086',
-    axisPointer: '#8a98b3',
-    tooltipBackground: '#161616',
+    legendText: '#c8cad0',
+    titleText: '#e0e2e8',
+    subtext: '#8a8d93',
+    axisLine: '#555a63',
+    valueAxisLine: '#555a63',
+    axisLabel: '#9da1a8',
+    splitLine: '#3a3e47',
+    splitAreaA: 'rgba(60,60,70,0.2)',
+    splitAreaB: 'rgba(80,80,90,0.2)',
+    seriesBorder: '#2a2d35',
+    pointer: '#6a707a',
+    tooltipBg: 'rgba(30, 32, 40, 0.95)',
     primary: '#8aa0ff',
     palette: [
-      '#8AA0FF', '#60CCC5', '#C2A5FF', '#5F99F9',
-      '#A9AFFF', '#33AFA9', '#AB7BFF', '#8EB8FE',
-      '#E0E3FE', '#98E3DD', '#E8E1FA', '#D7E6FF',
+      '#8EA0FF', '#61D6D1', '#C8A7FF', '#8EB8FE',
+      '#C7CCFF', '#8DE7E2', '#D8C5FF', '#B8D2FF',
+      '#EEF0FF', '#C2F0ED', '#F0EAFE', '#E8F1FF',
     ],
   },
 } satisfies Record<DefaultStyleTheme, {
   background: string;
   foreground: string;
-  muted: string;
-  border: string;
+  legendText: string;
+  titleText: string;
+  subtext: string;
   axisLine: string;
-  axisPointer: string;
-  tooltipBackground: string;
+  valueAxisLine: string;
+  axisLabel: string;
+  splitLine: string;
+  splitAreaA: string;
+  splitAreaB: string;
+  seriesBorder: string;
+  pointer: string;
+  tooltipBg: string;
   primary: string;
   palette: string[];
 }>;
@@ -664,7 +685,7 @@ function styleSeriesEntry(
   let defaults: Record<string, JsonValue> = {
     emphasis: {
       focus: 'series',
-      itemStyle: { borderColor: tokens.background, borderWidth: 2 },
+      itemStyle: { borderColor: tokens.seriesBorder, borderWidth: 2 },
     },
     labelLayout: { hideOverlap: true },
   };
@@ -683,7 +704,7 @@ function styleSeriesEntry(
     });
   } else if (type === 'pie') {
     defaults = mergeObjectDefaults(defaults, {
-      itemStyle: { borderColor: tokens.background, borderWidth: 2 },
+      itemStyle: { borderColor: tokens.seriesBorder, borderWidth: 2 },
     });
   }
   return mergeObjectDefaults(defaults, series);
@@ -723,6 +744,12 @@ export function applyEChartsDefaultStyle(
     color: tokens.foreground,
     fontFamily: "'pingfang SC', 'helvetica neue', arial, 'hiragino sans gb', 'microsoft yahei ui', 'microsoft yahei', sans-serif",
   });
+  if (styled.title !== undefined) {
+    styled.title = styleComponent(styled.title, {
+      textStyle: { color: tokens.titleText },
+      subtextStyle: { color: tokens.subtext },
+    });
+  }
   styled.grid = styleComponent(styled.grid, {
     top: 24,
     right: 36,
@@ -735,43 +762,51 @@ export function applyEChartsDefaultStyle(
     confine: true,
     enterable: false,
     renderMode: 'richText',
-    backgroundColor: tokens.tooltipBackground,
-    borderColor: tokens.border,
+    backgroundColor: tokens.tooltipBg,
+    borderColor: tokens.splitLine,
     borderWidth: 1,
     padding: [8, 10],
-    textStyle: { color: tokens.foreground, fontSize: 12 },
+    textStyle: { color: tokens.titleText, fontSize: 12 },
     axisPointer: {
-      lineStyle: { color: tokens.axisPointer, width: 1 },
-      crossStyle: { color: tokens.axisPointer, width: 1 },
+      lineStyle: { color: tokens.pointer, width: 1 },
+      crossStyle: { color: tokens.pointer, width: 1 },
     },
   });
   styled.legend = styleComponent(styled.legend, {
     type: 'scroll',
     bottom: 8,
     padding: [4, 16],
-    textStyle: { color: tokens.muted, fontSize: 12 },
+    textStyle: { color: tokens.legendText, fontSize: 12 },
     pageIconColor: tokens.primary,
-    pageIconInactiveColor: tokens.border,
-    pageTextStyle: { color: tokens.muted },
+    pageIconInactiveColor: tokens.splitLine,
+    pageTextStyle: { color: tokens.legendText },
   });
   if (styled.xAxis !== undefined) {
     styled.xAxis = styleAxis(styled.xAxis, () => ({
       axisLine: { show: true, lineStyle: { color: tokens.axisLine } },
       axisTick: { show: true, lineStyle: { color: tokens.axisLine } },
-      axisLabel: { color: tokens.muted, fontSize: 12, hideOverlap: true },
-      splitLine: { show: false, lineStyle: { color: tokens.border } },
-      nameTextStyle: { color: tokens.muted },
+      axisLabel: { color: tokens.axisLabel, fontSize: 12, hideOverlap: true },
+      splitLine: { show: false, lineStyle: { color: tokens.splitLine } },
+      splitArea: {
+        show: false,
+        areaStyle: { color: [tokens.splitAreaA, tokens.splitAreaB] },
+      },
+      nameTextStyle: { color: tokens.axisLabel },
     }));
   }
   if (styled.yAxis !== undefined) {
     styled.yAxis = styleAxis(styled.yAxis, (index) => ({
       alignTicks: true,
-      axisLine: { show: false, lineStyle: { color: tokens.axisLine } },
-      axisTick: { show: false, lineStyle: { color: tokens.axisLine } },
-      axisLabel: { color: tokens.muted, fontSize: 12, hideOverlap: true },
-      splitLine: { show: index === 0, lineStyle: { color: tokens.border } },
+      axisLine: { show: false, lineStyle: { color: tokens.valueAxisLine } },
+      axisTick: { show: false, lineStyle: { color: tokens.valueAxisLine } },
+      axisLabel: { color: tokens.axisLabel, fontSize: 12, hideOverlap: true },
+      splitLine: { show: index === 0, lineStyle: { color: tokens.splitLine } },
+      splitArea: {
+        show: false,
+        areaStyle: { color: [tokens.splitAreaA, tokens.splitAreaB] },
+      },
       nameGap: 12,
-      nameTextStyle: { color: tokens.muted, align: index === 0 ? 'left' : 'right' },
+      nameTextStyle: { color: tokens.axisLabel, align: index === 0 ? 'left' : 'right' },
     }));
   }
   if (Array.isArray(styled.series)) {

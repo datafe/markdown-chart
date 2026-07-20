@@ -7,6 +7,7 @@ import {
   type JsonValue,
 } from '@datafe-open/markdown-chart';
 import {
+  applyEChartsDefaultStyle,
   createEChartsRenderer,
   type EChartsRuntime,
   type ParsedEChartsSpec,
@@ -16,6 +17,16 @@ import {
 
 const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
 const LEGACY_REQUEST_ID = '00000001000000020000000300000004';
+const LIGHT_SERIES_PALETTE = [
+  '#6250F9', '#33AFA9', '#AB7BFF', '#5F99F9',
+  '#A9AFFF', '#60CCC5', '#C2A5FF', '#8EB8FE',
+  '#E0E3FE', '#98E3DD', '#E8E1FA', '#D7E6FF',
+];
+const DARK_SERIES_PALETTE = [
+  '#8EA0FF', '#61D6D1', '#C8A7FF', '#8EB8FE',
+  '#C7CCFF', '#8DE7E2', '#D8C5FF', '#B8D2FF',
+  '#EEF0FF', '#C2F0ED', '#F0EAFE', '#E8F1FF',
+];
 
 beforeEach(() => {
   vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: ArrayBufferView) => {
@@ -174,8 +185,8 @@ describe('createEChartsRenderer', () => {
     });
 
     expect(container.querySelector('.markdown-chart-title')).toBeNull();
-    expect(rendered[0]?.title).toEqual({ text: 'No card title' });
-    expect(rendered[1]?.title).toEqual({ text: 'Direct title' });
+    expect(rendered[0]?.title).toMatchObject({ text: 'No card title' });
+    expect(rendered[1]?.title).toMatchObject({ text: 'Direct title' });
     directHandle?.dispose();
     controller.dispose();
   });
@@ -234,7 +245,7 @@ describe('createEChartsRenderer', () => {
 
     const mountedParsed = mount.mock.calls[0]?.[1] as ParsedEChartsSpec | undefined;
     expect(container.querySelector('.markdown-chart-title')?.textContent).toBe('Primary title');
-    expect(rendered?.title).toEqual([
+    expect(rendered?.title).toMatchObject([
       { text: '   ', left: 'left' },
       { text: 'Secondary title', right: 0 },
     ]);
@@ -268,7 +279,7 @@ describe('createEChartsRenderer', () => {
       externalizedTitle: 'Primary title',
     });
 
-    expect(rendered?.title).toEqual([
+    expect(rendered?.title).toMatchObject([
       { subtext: 'Subtitle', top: 8 },
       { text: 'Secondary title', right: 0 },
     ]);
@@ -340,7 +351,128 @@ describe('createEChartsRenderer', () => {
     expect(fake.dispose).toHaveBeenCalledOnce();
   });
 
-  it('applies WebShell-inspired light defaults while preserving explicit values', async () => {
+  it.each([
+    ['light', {
+      palette: LIGHT_SERIES_PALETTE,
+      titleText: '#343434',
+      subtext: '#aaaaaa',
+      legendText: '#555555',
+      axisLine: '#5d666f',
+      valueAxisLine: '#6E7079',
+      axisLabel: '#838d95',
+      splitLine: '#e0e6f1',
+      splitArea: ['rgba(250,250,250,0.2)', 'rgba(210,219,238,0.2)'],
+      seriesBorder: '#ffffff',
+      pointer: '#7c8a96',
+      tooltipBg: '#ffffff',
+    }],
+    ['dark', {
+      palette: DARK_SERIES_PALETTE,
+      titleText: '#e0e2e8',
+      subtext: '#8a8d93',
+      legendText: '#c8cad0',
+      axisLine: '#555a63',
+      valueAxisLine: '#555a63',
+      axisLabel: '#9da1a8',
+      splitLine: '#3a3e47',
+      splitArea: ['rgba(60,60,70,0.2)', 'rgba(80,80,90,0.2)'],
+      seriesBorder: '#2a2d35',
+      pointer: '#6a707a',
+      tooltipBg: 'rgba(30, 32, 40, 0.95)',
+    }],
+  ] as const)('maps the %s ADA design-system theme without mutating input', (theme, tokens) => {
+    const input: Record<string, JsonValue> = {
+      title: { text: 'Title', subtext: 'Subtitle' },
+      legend: {},
+      tooltip: {},
+      xAxis: {},
+      yAxis: {},
+      series: [{ type: 'line' }, { type: 'pie' }],
+    };
+    const original = JSON.parse(JSON.stringify(input)) as Record<string, JsonValue>;
+
+    const styled = applyEChartsDefaultStyle(input, theme);
+
+    expect(styled.color).toEqual(tokens.palette);
+    expect(styled).toMatchObject({
+      title: {
+        textStyle: { color: tokens.titleText },
+        subtextStyle: { color: tokens.subtext },
+      },
+      legend: {
+        textStyle: { color: tokens.legendText },
+        pageTextStyle: { color: tokens.legendText },
+      },
+      tooltip: {
+        backgroundColor: tokens.tooltipBg,
+        borderColor: tokens.splitLine,
+        textStyle: { color: tokens.titleText },
+        axisPointer: {
+          lineStyle: { color: tokens.pointer },
+          crossStyle: { color: tokens.pointer },
+        },
+      },
+      xAxis: {
+        axisLine: { lineStyle: { color: tokens.axisLine } },
+        axisTick: { lineStyle: { color: tokens.axisLine } },
+        axisLabel: { color: tokens.axisLabel },
+        splitLine: { lineStyle: { color: tokens.splitLine } },
+        splitArea: { areaStyle: { color: tokens.splitArea } },
+      },
+      yAxis: {
+        axisLine: { lineStyle: { color: tokens.valueAxisLine } },
+        axisTick: { lineStyle: { color: tokens.valueAxisLine } },
+        axisLabel: { color: tokens.axisLabel },
+        splitLine: { lineStyle: { color: tokens.splitLine } },
+        splitArea: { areaStyle: { color: tokens.splitArea } },
+      },
+      series: [
+        { emphasis: { itemStyle: { borderColor: tokens.seriesBorder } } },
+        {
+          itemStyle: { borderColor: tokens.seriesBorder },
+          emphasis: { itemStyle: { borderColor: tokens.seriesBorder } },
+        },
+      ],
+    });
+    expect(input).toEqual(original);
+  });
+
+  it('preserves explicit design-system style overrides', () => {
+    const input: Record<string, JsonValue> = {
+      title: {
+        text: 'Title',
+        subtext: 'Subtitle',
+        textStyle: { color: '#111111' },
+        subtextStyle: { color: '#222222' },
+      },
+      legend: { textStyle: { color: '#333333' } },
+      tooltip: {
+        backgroundColor: '#444444',
+        borderColor: '#555555',
+        textStyle: { color: '#666666' },
+        axisPointer: {
+          lineStyle: { color: '#777777' },
+          crossStyle: { color: '#888888' },
+        },
+      },
+      xAxis: {
+        axisLine: { lineStyle: { color: '#999999' } },
+        axisLabel: { color: '#aaaaaa' },
+        splitLine: { lineStyle: { color: '#bbbbbb' } },
+        splitArea: { areaStyle: { color: ['#cccccc', '#dddddd'] } },
+      },
+      yAxis: { axisLine: { lineStyle: { color: '#eeeeee' } } },
+      series: [{
+        type: 'pie',
+        itemStyle: { borderColor: '#121212' },
+        emphasis: { itemStyle: { borderColor: '#232323' } },
+      }],
+    };
+
+    expect(applyEChartsDefaultStyle(input, 'dark')).toMatchObject(input);
+  });
+
+  it('applies shared design-system light defaults while preserving explicit values', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
@@ -374,7 +506,7 @@ describe('createEChartsRenderer', () => {
         itemStyle: { borderRadius: [3, 3, 0, 0] },
       }],
     });
-    expect(rendered?.color).toEqual(expect.arrayContaining(['#6250F9', '#33AFA9']));
+    expect(rendered?.color).toEqual(LIGHT_SERIES_PALETTE);
   });
 
   it('supports dark defaults and an explicit default-style opt-out', async () => {
@@ -405,7 +537,7 @@ describe('createEChartsRenderer', () => {
       textStyle: { color: '#f4f7ff' },
       series: [{ type: 'line', symbol: 'circle', symbolSize: 4 }],
     });
-    expect(rendered[0]?.color).toEqual(expect.arrayContaining(['#8AA0FF', '#60CCC5']));
+    expect(rendered[0]?.color).toEqual(DARK_SERIES_PALETTE);
     expect(rendered[1]).toEqual({ series: [{ type: 'line' }] });
   });
 
