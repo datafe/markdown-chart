@@ -35,6 +35,14 @@ The renderer is selected by `"renderer": "echarts"` in the canonical
 `markdown-chart` envelope. A renderer spec never defines its own `version`;
 protocol versioning belongs to `markdown-chart`.
 
+The exact `echarts-fulldata` alias accepts the `dataworks-chart` compact JSON
+envelope `{ version: 1, data, option }`. It normalizes to the same ECharts
+parsed data and option as canonical `{ renderer: "echarts", data, spec }`, so
+title, safe string formatter templates, data refs, and Chart/Data behavior are
+shared. The compact envelope rejects unknown fields, requires stable ASCII
+dimensions and equal-width array rows, and never evaluates JavaScript. The
+singular `echart-fulldata` alias is intentionally not registered.
+
 When `resolveDataRef` materializes a referenced dataset, the renderer injects
 the validated rows into `option.dataset` and returns the same rows through the
 core materialization flow for the Chart/Data view.
@@ -47,6 +55,11 @@ this package applies byte/row/column/cell limits, parses it, sanitizes the
 temporary source, and evaluates that source in a dedicated Worker owned by a
 unique-origin bootstrap iframe with a deny-by-default CSP. The JSON-only result
 then passes through the same ECharts option validation as canonical content.
+
+`resolveLegacySandboxFileContent` is the matching deprecated hook for
+`echarts-chatbi_sandbox_filepath_<filePath>`. The package preserves the
+case-sensitive `filePath`; the host owns session/request lookup and returns raw
+CSV. Both legacy paths share the same CSV, sandbox, limits, and option pipeline.
 
 All migration code lives under `src/legacy`; its exported types and options are
 marked `@deprecated`. Removing that directory and the thin renderer hook does

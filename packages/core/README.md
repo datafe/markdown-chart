@@ -19,6 +19,10 @@ Canonical envelopes keep `data` separate from renderer-owned `spec`.
 `parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a
 host can inspect the same rows without loading the renderer.
 
+Dynamic renderer parse contexts expose normalized `language` and the optional
+original `rawLanguage` first token. Adapters should preserve `rawLanguage` when
+a dynamic fence embeds a case-sensitive payload such as a file path.
+
 `ChartRenderRequest.streaming` is block-level pending state. Markdown adapters
 defer only an unterminated tail fence; completed blocks remain mounted while
 the surrounding document continues streaming.

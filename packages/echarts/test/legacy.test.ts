@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { parseLegacyArtifactCsv } from '../src/legacy/csv';
 import {
   isLegacyEChartQueryLanguage,
+  isLegacyEChartSandboxFileLanguage,
   parseLegacyEChartQueryBlock,
+  parseLegacyEChartSandboxFileBlock,
 } from '../src/legacy/matcher';
 import { sanitizeLegacyEChartSource } from '../src/legacy/sanitize';
 import {
@@ -28,6 +30,24 @@ describe('temporary legacy matcher', () => {
       index: 3,
       source: 'var option = {};',
     });
+  });
+
+  it('preserves the case-sensitive sandbox file path from the raw language', () => {
+    expect(isLegacyEChartSandboxFileLanguage(
+      'echarts-chatbi_sandbox_filepath_app/csv/foo.csv',
+    )).toBe(true);
+    expect(parseLegacyEChartSandboxFileBlock(
+      'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      ' var option = {}; ',
+    )).toEqual({
+      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      filePath: 'App/CSV/Foo.csv',
+      source: 'var option = {};',
+    });
+    expect(() => parseLegacyEChartSandboxFileBlock(
+      'echarts-chatbi_sandbox_filepath_',
+      'option = {};',
+    )).toThrow(/Invalid temporary EChart sandbox file language/);
   });
 });
 

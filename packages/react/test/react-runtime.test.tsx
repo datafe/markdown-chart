@@ -18,11 +18,19 @@ describe('react-markdown runtime adapter', () => {
     expect(html).not.toContain('<pre>');
   });
 
-  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand as code', (language) => {
+  it('leaves the removed echarts shorthand as code', () => {
+    const language = 'echarts';
     const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
     const html = renderToStaticMarkup(<MarkdownChart source={source} />);
     expect(html).toContain(`<code class="language-${language}">`);
     expect(html).not.toContain('markdown-chart-placeholder');
+  });
+
+  it('routes the dataworks-chart compact ECharts fence', () => {
+    const source = '```echarts-fulldata\n{"version":1,"data":{"kind":"inline","dimensions":["name","value"],"source":[["A",1]]},"option":{"series":[]}}\n```';
+    const html = renderToStaticMarkup(<MarkdownChart source={source} />);
+    expect(html).toContain('markdown-chart-placeholder');
+    expect(html).not.toContain('<pre>');
   });
 
   it('routes a newly registered alias through the provider registry', () => {

@@ -5,7 +5,9 @@ import { executeLegacyChartSource } from './sandbox';
 import type {
   LegacyArtifactLimits,
   LegacyEChartQueryBlock,
+  LegacyEChartSandboxFileBlock,
   ResolveLegacyArtifactContent,
+  ResolveLegacySandboxFileContent,
   ResolvedLegacyEChartQuery,
 } from './types';
 
@@ -16,40 +18,36 @@ export interface ResolveLegacyArtifactQueryOptions {
   readonly limits: LegacyArtifactLimits;
 }
 
-/** @deprecated Orchestrator for the temporary ChatBI migration adapter. */
-export async function resolveLegacyArtifactQuery(
-  options: ResolveLegacyArtifactQueryOptions,
+interface ResolveLegacyChartOptions {
+  readonly source: string;
+  readonly signal: AbortSignal;
+  readonly limits: LegacyArtifactLimits;
+  readonly resolveContent: () => string | Promise<string>;
+  readonly resolutionError: string;
+  readonly returnTypeError: string;
+}
+
+async function resolveLegacyChart(
+  options: ResolveLegacyChartOptions,
 ): Promise<ResolvedLegacyEChartQuery> {
   let content: unknown;
   try {
-    content = await options.resolveArtifactContent({
-      language: options.block.language,
-      jobId: options.block.jobId,
-      index: options.block.index,
-      signal: options.signal,
-    });
+    content = await options.resolveContent();
   } catch (cause) {
     if (options.signal.aborted) {
       throw cause;
     }
-    throw new MarkdownChartError(
-      'REF_RESOLUTION_FAILED',
-      'The temporary ChatBI ArtifactContent could not be resolved',
-      { cause },
-    );
+    throw new MarkdownChartError('REF_RESOLUTION_FAILED', options.resolutionError, { cause });
   }
   if (typeof content !== 'string') {
-    throw new MarkdownChartError(
-      'SCHEMA_INVALID',
-      'resolveLegacyArtifactContent must return the raw CSV ArtifactContent string',
-    );
+    throw new MarkdownChartError('SCHEMA_INVALID', options.returnTypeError);
   }
   if (options.signal.aborted) {
     throw new DOMException('The temporary legacy chart operation was aborted', 'AbortError');
   }
 
   const data = parseLegacyArtifactCsv(content, options.limits);
-  const source = sanitizeLegacyEChartSource(options.block.source);
+  const source = sanitizeLegacyEChartSource(options.source);
   if (!source) {
     throw new MarkdownChartError(
       'SCHEMA_INVALID',
@@ -63,4 +61,48 @@ export async function resolveLegacyArtifactQuery(
     timeoutMs: options.limits.executionTimeoutMs,
   });
   return { data, spec };
+}
+
+/** @deprecated Orchestrator for the temporary ChatBI migration adapter. */
+export async function resolveLegacyArtifactQuery(
+  options: ResolveLegacyArtifactQueryOptions,
+): Promise<ResolvedLegacyEChartQuery> {
+  return resolveLegacyChart({
+    source: options.block.source,
+    signal: options.signal,
+    limits: options.limits,
+    resolveContent: () => options.resolveArtifactContent({
+      language: options.block.language,
+      jobId: options.block.jobId,
+      index: options.block.index,
+      signal: options.signal,
+    }),
+    resolutionError: 'The temporary ChatBI ArtifactContent could not be resolved',
+    returnTypeError: 'resolveLegacyArtifactContent must return the raw CSV ArtifactContent string',
+  });
+}
+
+export interface ResolveLegacySandboxFileOptions {
+  readonly block: LegacyEChartSandboxFileBlock;
+  readonly signal: AbortSignal;
+  readonly resolveSandboxFileContent: ResolveLegacySandboxFileContent;
+  readonly limits: LegacyArtifactLimits;
+}
+
+/** @deprecated Orchestrator for the temporary ChatBI sandbox-file adapter. */
+export async function resolveLegacySandboxFile(
+  options: ResolveLegacySandboxFileOptions,
+): Promise<ResolvedLegacyEChartQuery> {
+  return resolveLegacyChart({
+    source: options.block.source,
+    signal: options.signal,
+    limits: options.limits,
+    resolveContent: () => options.resolveSandboxFileContent({
+      language: options.block.language,
+      filePath: options.block.filePath,
+      signal: options.signal,
+    }),
+    resolutionError: 'The temporary ChatBI sandbox file could not be resolved',
+    returnTypeError: 'resolveLegacySandboxFileContent must return a raw CSV string',
+  });
 }

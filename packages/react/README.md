@@ -32,3 +32,9 @@ callback that returns raw CSV content. `legacyArtifactContextKey` can keep an
 equivalent inline callback stable across rerenders; change the key when its
 session or authorization context changes. If the key is omitted, callback
 identity is used as the safe cache boundary.
+
+For deprecated `echarts-chatbi_sandbox_filepath_<filePath>` content, use
+`resolveLegacySandboxFileContent`. Its request preserves the original
+case-sensitive `filePath`; `legacySandboxFileContextKey` provides the same
+stable session/authorization cache boundary. Configure each resolver either as
+a top-level prop or in `echarts` options, never both.

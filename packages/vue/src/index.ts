@@ -7,6 +7,7 @@ import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
   type ResolveLegacyArtifactContent,
+  type ResolveLegacySandboxFileContent,
 } from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartEnvironment,
@@ -116,6 +117,7 @@ class MarkdownChartMountManager {
         && existing.registry === registry
         && Object.is(existing.theme, options.theme)
         && existing.block.language === block.language
+        && existing.block.rawLanguage === block.rawLanguage
         && existing.block.source === block.source;
       if (reusable) {
         applyMinHeight(existing.element, options.minHeight);
@@ -141,7 +143,7 @@ class MarkdownChartMountManager {
       };
       this.#entries.set(block.id, entry);
       entry.ready = controller.render(placeholder, {
-        language: block.language,
+        language: block.rawLanguage ?? block.language,
         source: block.source,
         theme: options.theme,
         streaming: false,
@@ -286,6 +288,16 @@ export const MarkdownChart = defineComponent({
       type: [String, Number] as PropType<string | number>,
       required: false,
     },
+    /** @deprecated Temporary ChatBI migration hook. Return raw sandbox CSV. */
+    resolveLegacySandboxFileContent: {
+      type: Function as PropType<ResolveLegacySandboxFileContent>,
+      required: false,
+    },
+    /** @deprecated Cache context for the temporary ChatBI sandbox-file hook. */
+    legacySandboxFileContextKey: {
+      type: [String, Number] as PropType<string | number>,
+      required: false,
+    },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
     minHeight: {
@@ -326,9 +338,39 @@ export const MarkdownChart = defineComponent({
       }
       return resolver(request);
     };
+    const latestLegacySandboxFileResolver = shallowRef(props.resolveLegacySandboxFileContent);
+    const hasLegacySandboxFileResolver = ref(
+      props.resolveLegacySandboxFileContent !== undefined,
+    );
+    const legacySandboxFileContextVersion = shallowRef<object>({});
+    watch(
+      [
+        () => props.resolveLegacySandboxFileContent,
+        () => props.legacySandboxFileContextKey,
+      ],
+      ([resolver, contextKey], [previousResolver, previousContextKey]) => {
+        latestLegacySandboxFileResolver.value = resolver;
+        hasLegacySandboxFileResolver.value = resolver !== undefined;
+        const context = contextKey ?? resolver;
+        const previousContext = previousContextKey ?? previousResolver;
+        if (!Object.is(context, previousContext)) {
+          legacySandboxFileContextVersion.value = {};
+        }
+      },
+      { flush: 'sync' },
+    );
+    const stableResolveLegacySandboxFileContent: ResolveLegacySandboxFileContent = (request) => {
+      const resolver = latestLegacySandboxFileResolver.value;
+      if (!resolver) {
+        throw new Error('resolveLegacySandboxFileContent is no longer configured');
+      }
+      return resolver(request);
+    };
     const automaticRegistry = computed(() => {
       const hasResolver = hasLegacyArtifactContentResolver.value;
+      const hasSandboxResolver = hasLegacySandboxFileResolver.value;
       void legacyArtifactContextVersion.value;
+      void legacySandboxFileContextVersion.value;
       if (
         hasResolver
         && props.echarts?.resolveLegacyArtifactContent
@@ -337,10 +379,21 @@ export const MarkdownChart = defineComponent({
           'Configure resolveLegacyArtifactContent either as a MarkdownChart prop or in echarts options, not both',
         );
       }
+      if (
+        hasSandboxResolver
+        && props.echarts?.resolveLegacySandboxFileContent
+      ) {
+        throw new Error(
+          'Configure resolveLegacySandboxFileContent either as a MarkdownChart prop or in echarts options, not both',
+        );
+      }
       return new ChartRendererRegistry().register(createEChartsRenderer({
         ...props.echarts,
         ...(hasResolver
           ? { resolveLegacyArtifactContent: stableResolveLegacyArtifactContent }
+          : {}),
+        ...(hasSandboxResolver
+          ? { resolveLegacySandboxFileContent: stableResolveLegacySandboxFileContent }
           : {}),
       }));
     });

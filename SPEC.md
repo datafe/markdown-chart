@@ -33,9 +33,11 @@ The canonical language is `markdown-chart`. Its body is a strict JSON object:
 
 Renderer packages MAY explicitly define shorthand fence aliases. A renderer
 identifier alone is not a fence language. A shorthand fence sends the entire
-JSON body to that renderer and does not create renderer-neutral canonical
-data. Aliases are resolved by the registry; the core has no hard-coded
-ECharts, Plotly, or Vega branches.
+JSON body to that renderer. A renderer-owned shorthand MAY define a versioned
+envelope and MAY normalize its data into renderer-neutral `ChartData` for the
+shared Data view. That shorthand version belongs to the renderer schema and
+does not change the canonical protocol version. Aliases are resolved by the
+registry; the core has no hard-coded ECharts, Plotly, or Vega branches.
 
 Markdown adapters MUST route shorthand fences through the live registry rather
 than maintain renderer-specific language defaults. The canonical
@@ -99,9 +101,11 @@ document is still streaming.
 
 ## Evolution
 
-`version` belongs only to the canonical `markdown-chart` envelope. Renderer
-specifications do not introduce a second version field. New incompatible
-canonical envelopes or data schemas require a new numeric `version`;
-incompatible renderer schemas should use a new renderer identifier. New
-renderer implementations are published as independent packages and registered
-at runtime.
+The outer `markdown-chart.version` belongs only to the canonical envelope.
+Renderer specifications inside canonical `spec` do not introduce a second
+protocol version. A renderer-owned shorthand MAY independently version its own
+envelope; that version is interpreted only under the exact shorthand fence.
+New incompatible canonical envelopes or data schemas require a new numeric
+canonical `version`; incompatible renderer schemas should use a new renderer
+identifier or shorthand version. New renderer implementations are published as
+independent packages and registered at runtime.

@@ -12,6 +12,13 @@ export interface LegacyEChartQueryBlock {
   readonly source: string;
 }
 
+/** @deprecated Temporary ChatBI sandbox-file migration format. */
+export interface LegacyEChartSandboxFileBlock {
+  readonly language: string;
+  readonly filePath: string;
+  readonly source: string;
+}
+
 /** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
 export interface LegacyEChartQueryRequest extends LegacyEChartQueryBlock {
   readonly signal: AbortSignal;
@@ -45,6 +52,21 @@ export interface LegacyArtifactContentRequest {
  */
 export type ResolveLegacyArtifactContent = (
   request: LegacyArtifactContentRequest,
+) => string | Promise<string>;
+
+/** @deprecated Request for a temporary ChatBI sandbox file. */
+export interface LegacySandboxFileContentRequest {
+  readonly language: string;
+  readonly filePath: string;
+  readonly signal: AbortSignal;
+}
+
+/**
+ * @deprecated Temporary ChatBI migration hook. Return the raw CSV content for
+ * the requested sandbox file. The host owns session, request, and HTTP state.
+ */
+export type ResolveLegacySandboxFileContent = (
+  request: LegacySandboxFileContentRequest,
 ) => string | Promise<string>;
 
 /** @deprecated Resource limits for the temporary ChatBI adapter. */

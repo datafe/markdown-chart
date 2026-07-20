@@ -72,10 +72,30 @@ describe('ChartRendererRegistry', () => {
     const prepared = await registry.prepare('temporary-42', 'not json');
     expect(parseSource).toHaveBeenCalledWith('not json', {
       language: 'temporary-42',
+      rawLanguage: 'temporary-42',
       rendererId: 'temporary',
       data: undefined,
     });
     expect(prepared.parsed).toEqual({ source: 'not json' });
+  });
+
+  it('preserves the original fence token while routing with its normalized language', async () => {
+    const parseSource = vi.fn((source: string) => source);
+    const registry = new ChartRendererRegistry().register({
+      id: 'temporary',
+      matchLanguage: (language) => language.startsWith('temporary-path_'),
+      parse: (spec) => spec,
+      parseSource,
+      mount() {},
+    });
+
+    const prepared = await registry.prepare('Temporary-Path_App/CSV/Foo.csv', 'source');
+    expect(prepared.language).toBe('temporary-path_app/csv/foo.csv');
+    expect(prepared.rawLanguage).toBe('Temporary-Path_App/CSV/Foo.csv');
+    expect(parseSource).toHaveBeenCalledWith('source', expect.objectContaining({
+      language: 'temporary-path_app/csv/foo.csv',
+      rawLanguage: 'Temporary-Path_App/CSV/Foo.csv',
+    }));
   });
 
   it('rejects ambiguous dynamic language matches', async () => {

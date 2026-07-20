@@ -61,6 +61,33 @@ if (data?.kind === 'inline') {
 }
 ```
 
+## 紧凑 ECharts 围栏
+
+ECharts 包还会注册 `dataworks-chart` skill 使用的精确
+`echarts-fulldata` 围栏。它只接受严格 JSON、绝不执行 JavaScript，是等价
+canonical envelope 的 renderer-owned shorthand：
+
+````markdown
+```echarts-fulldata
+{
+  "version": 1,
+  "data": {
+    "kind": "inline",
+    "dimensions": ["month", "sales"],
+    "source": [["Jan", 100], ["Feb", 180]]
+  },
+  "option": {
+    "title": { "text": "月度销售额" },
+    "series": [{ "type": "bar" }]
+  }
+}
+```
+````
+
+紧凑格式省去固定的 `renderer` / `spec` 包装，但仍与 canonical ECharts
+共用 option 校验、标题、data-ref 解析和 Chart/Data 视图。单数
+`echart-fulldata` 不会注册。
+
 ## React + react-markdown
 
 假设前面的标准 Markdown 已保存在 `source` 中：

@@ -73,6 +73,33 @@ if (data?.kind === 'inline') {
 }
 ```
 
+## Compact ECharts fence
+
+The ECharts package also registers the exact `echarts-fulldata` fence used by
+the `dataworks-chart` skill. It is strict JSON, never JavaScript, and is a
+renderer-owned shorthand for the equivalent canonical envelope:
+
+````markdown
+```echarts-fulldata
+{
+  "version": 1,
+  "data": {
+    "kind": "inline",
+    "dimensions": ["month", "sales"],
+    "source": [["Jan", 100], ["Feb", 180]]
+  },
+  "option": {
+    "title": { "text": "Monthly sales" },
+    "series": [{ "type": "bar" }]
+  }
+}
+```
+````
+
+The compact envelope saves the fixed `renderer` / `spec` wrapper while using
+the same option validation, title, data-ref resolution, and Chart/Data view as
+canonical ECharts. The singular `echart-fulldata` fence is not registered.
+
 ## React + react-markdown
 
 With the canonical Markdown above stored in `source`:

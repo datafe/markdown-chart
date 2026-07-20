@@ -212,6 +212,33 @@ describe('MarkdownChart streaming lifecycle', () => {
     await act(async () => advancedRoot.unmount());
   });
 
+  it('passes the original sandbox file path through the top-level resolver prop', async () => {
+    const source = '```echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv\nvar option = { series: [] };\n//#end\n```';
+    const resolver = vi.fn(async () => 'name,value\nA,10\n');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <MarkdownChart
+          source={source}
+          resolveLegacySandboxFileContent={resolver}
+          legacySandboxFileContextKey="session-a"
+          echarts={{ loadECharts: fakeEChartsRuntime, resizeObserver: false }}
+        />,
+      );
+    });
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+    await vi.waitFor(() => {
+      expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+    });
+    expect(resolver).toHaveBeenCalledWith(expect.objectContaining({
+      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      filePath: 'App/CSV/Foo.csv',
+    }));
+    await act(async () => root.unmount());
+  });
+
   it('keeps a completed legacy artifact stable when callback identity changes under one context key', async () => {
     const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
     const resolver = vi.fn(async (_request: unknown) => 'name,value\nA,10\nB,20\n');
