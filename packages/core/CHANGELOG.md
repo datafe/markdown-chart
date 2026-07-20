@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.1.3
+
+### Patch Changes
+
+- 4ed428c: Avoid drawing an ECharts title twice when the shared Chart/Data card displays it, while preserving native titles for direct renderer mounts.
+
 ## 0.1.2
 
 ### Patch Changes
