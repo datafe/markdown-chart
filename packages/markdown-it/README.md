@@ -16,6 +16,10 @@ The canonical `markdown-chart` fence is always recognized. Advanced hosts may
 supply an `isChartLanguage` predicate instead of, or in addition to, a
 registry.
 
+Collected blocks expose normalized `language` plus optional `rawLanguage`.
+Mount hosts should pass `rawLanguage ?? language` back to the core so dynamic
+legacy fence payloads such as case-sensitive sandbox file paths are preserved.
+
 Streaming hosts can create the render environment with
 `createMarkdownChartEnvironment({ streaming: true })`. Each collected
 block then reports `complete`; closed blocks can mount immediately while an

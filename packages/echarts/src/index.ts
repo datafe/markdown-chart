@@ -11,14 +11,19 @@ import {
   type RefChartData,
 } from '@datafe-open/markdown-chart';
 import {
-  isLegacyEChartQueryLanguage,
+  isLegacyEChartLanguage,
+  isLegacyEChartSandboxFileLanguage,
   parseLegacyEChartQueryBlock,
+  parseLegacyEChartSandboxFileBlock,
   resolveLegacyArtifactLimits,
   resolveLegacyArtifactQuery,
+  resolveLegacySandboxFile,
   type LegacyArtifactLimits,
   type LegacyEChartQueryBlock,
+  type LegacyEChartSandboxFileBlock,
   type ResolveLegacyArtifactContent,
   type ResolveLegacyEChartQuery,
+  type ResolveLegacySandboxFileContent,
 } from './legacy';
 
 export type {
@@ -26,7 +31,10 @@ export type {
   LegacyArtifactLimits,
   LegacyEChartQueryBlock,
   LegacyEChartQueryRequest,
+  LegacyEChartSandboxFileBlock,
+  LegacySandboxFileContentRequest,
   ResolveLegacyArtifactContent,
+  ResolveLegacySandboxFileContent,
   ResolvedLegacyEChartQuery,
   ResolveLegacyEChartQuery,
 } from './legacy';
@@ -37,6 +45,25 @@ export type InlineDataset = InlineChartData;
 export type RefDataset = RefChartData;
 
 export type EChartsDataset = InlineDataset | RefDataset;
+
+export interface CompactInlineData {
+  readonly kind: 'inline';
+  readonly dimensions: readonly string[];
+  readonly source: readonly (readonly JsonPrimitive[])[];
+}
+
+export interface CompactRefData {
+  readonly kind: 'ref';
+  readonly ref: string;
+  readonly format: 'csv' | 'json';
+  readonly dimensions: readonly string[];
+}
+
+export interface DataWorksChartEChartsEnvelope {
+  readonly version: 1;
+  readonly data: CompactInlineData | CompactRefData;
+  readonly option: Record<string, JsonValue>;
+}
 
 export interface ResolvedDataset {
   readonly dimensions?: readonly string[];
@@ -95,6 +122,8 @@ export interface CreateEChartsRendererOptions {
    * The renderer parses the CSV and converts the legacy source in an isolated iframe.
    */
   readonly resolveLegacyArtifactContent?: ResolveLegacyArtifactContent;
+  /** @deprecated Temporary ChatBI sandbox-file migration hook. Return raw CSV. */
+  readonly resolveLegacySandboxFileContent?: ResolveLegacySandboxFileContent;
   /** @deprecated Limits for the temporary ChatBI migration adapter. */
   readonly legacyArtifactLimits?: Partial<LegacyArtifactLimits>;
   /** @deprecated Temporary ChatBI migration hook. Do not use for new content. */
@@ -106,6 +135,8 @@ export interface ParsedEChartsSpec {
   readonly data: EChartsDataset | undefined;
   /** @deprecated Temporary ChatBI migration state. */
   readonly legacyEChartQuery?: LegacyEChartQueryBlock;
+  /** @deprecated Temporary ChatBI migration state. */
+  readonly legacyEChartSandboxFile?: LegacyEChartSandboxFileBlock;
 }
 
 const ALLOWED_TOP_LEVEL_OPTION_KEYS = new Set([
@@ -155,7 +186,6 @@ const FORBIDDEN_OPTION_KEYS = new Set([
   '__proto__',
   'prototype',
   'constructor',
-  'formatter',
   'extracsstext',
   'renderitem',
   'graphic',
@@ -170,13 +200,74 @@ const FORBIDDEN_OPTION_KEYS = new Set([
   'url',
 ]);
 const URL_BEARING_OPTION_KEY = /(?:url|uri|href|src|link)$/i;
-const ASCII_CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+const UNSAFE_ASCII_CONTROL_CHARACTER = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const URL_LIKE = /(?:^|[\s("'=])(?:https?:|file:|ftp:|blob:|data:|javascript:|vbscript:|\/\/|image:\/\/)/i;
 const CSS_URL_LIKE = /\burl\s*\(/i;
 const HTML_LIKE_MARKUP = /<\s*\/?\s*[a-z][^>]*>/i;
+const HTML_ENTITY = /&(?:#\d+|#x[\da-f]+|[a-z][\da-z]+);/i;
+const COMPACT_DIMENSION = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function schemaError(message: string): never {
   throw new MarkdownChartError('SCHEMA_INVALID', message);
+}
+
+function assertOwnKeys(value: Record<string, JsonValue>, allowed: ReadonlySet<string>, path: string): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      schemaError(`${path}.${key} is not allowed`);
+    }
+  }
+}
+
+function readCompactDimensions(value: JsonValue | undefined, path: string): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return schemaError(`${path} must be a non-empty array`);
+  }
+  const dimensions = value.map((item, index) => {
+    if (typeof item !== 'string' || !COMPACT_DIMENSION.test(item)) {
+      return schemaError(`${path}[${index}] must be a stable ASCII identifier`);
+    }
+    return item;
+  });
+  if (new Set(dimensions).size !== dimensions.length) {
+    return schemaError(`${path} must not contain duplicate dimensions`);
+  }
+  return dimensions;
+}
+
+function parseCompactData(value: JsonValue, limits: EChartsLimits): EChartsDataset {
+  if (!isJsonObject(value) || typeof value.kind !== 'string') {
+    return schemaError('echarts-fulldata.data must be an inline or ref dataset object');
+  }
+  if (value.kind === 'inline') {
+    assertOwnKeys(value, new Set(['kind', 'dimensions', 'source']), 'echarts-fulldata.data');
+    const dimensions = readCompactDimensions(value.dimensions, 'echarts-fulldata.data.dimensions');
+    if (!Array.isArray(value.source)) {
+      return schemaError('echarts-fulldata.data.source must be an array');
+    }
+    value.source.forEach((row, rowIndex) => {
+      if (!Array.isArray(row)) {
+        schemaError(`echarts-fulldata.data.source[${rowIndex}] must be an array`);
+      }
+      if (row.length !== dimensions.length) {
+        schemaError(`echarts-fulldata.data.source[${rowIndex}] must contain ${dimensions.length} cells`);
+      }
+    });
+    const source = validateRows(value.source, limits, 'echarts-fulldata.data.source');
+    return { kind: 'inline', dimensions, source };
+  }
+  if (value.kind === 'ref') {
+    assertOwnKeys(value, new Set(['kind', 'ref', 'format', 'dimensions']), 'echarts-fulldata.data');
+    if (typeof value.ref !== 'string' || value.ref.trim().length === 0) {
+      return schemaError('echarts-fulldata.data.ref must be a non-empty string');
+    }
+    if (value.format !== 'csv' && value.format !== 'json') {
+      return schemaError('echarts-fulldata.data.format must be csv or json');
+    }
+    const dimensions = readCompactDimensions(value.dimensions, 'echarts-fulldata.data.dimensions');
+    return { kind: 'ref', ref: value.ref, format: value.format, dimensions };
+  }
+  return schemaError(`Unsupported echarts-fulldata.data.kind: ${value.kind}`);
 }
 
 function getEChartsTitle(option: Record<string, JsonValue>): string | undefined {
@@ -286,6 +377,23 @@ function parseData(value: unknown, limits: EChartsLimits): EChartsDataset {
   return schemaError(`Unsupported echarts.data.kind: ${value.kind}`);
 }
 
+function assertSafeString(value: string, path: string): void {
+  if (UNSAFE_ASCII_CONTROL_CHARACTER.test(value)) {
+    throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains an ASCII control character`);
+  }
+  const normalizedForProtocolCheck = value.replace(/[\n\r\t]/g, '');
+  const trimmed = value.trim();
+  if (
+    URL_LIKE.test(trimmed)
+    || URL_LIKE.test(normalizedForProtocolCheck.trim())
+    || CSS_URL_LIKE.test(value)
+    || HTML_LIKE_MARKUP.test(value)
+    || HTML_ENTITY.test(value)
+  ) {
+    throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains a URL, CSS URL, or unsafe markup`);
+  }
+}
+
 function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimits): void {
   for (const key of Object.keys(option)) {
     if (!ALLOWED_TOP_LEVEL_OPTION_KEYS.has(key)) {
@@ -303,13 +411,7 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
       throw new MarkdownChartError('LIMIT_EXCEEDED', `ECharts option exceeds the ${limits.maxDepth} depth limit`);
     }
     if (typeof value === 'string') {
-      if (ASCII_CONTROL_CHARACTER.test(value)) {
-        throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains an ASCII control character`);
-      }
-      const trimmed = value.trim();
-      if (URL_LIKE.test(trimmed) || CSS_URL_LIKE.test(value) || HTML_LIKE_MARKUP.test(value)) {
-        throw new MarkdownChartError('UNSAFE_SPEC', `${path} contains a URL, CSS URL, or unsafe markup`);
-      }
+      assertSafeString(value, path);
       return;
     }
     if (Array.isArray(value)) {
@@ -320,7 +422,15 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
       return;
     }
     for (const [key, child] of Object.entries(value)) {
-      if (FORBIDDEN_OPTION_KEYS.has(key.toLowerCase()) || URL_BEARING_OPTION_KEY.test(key)) {
+      const normalizedKey = key.toLowerCase();
+      if (normalizedKey === 'formatter') {
+        if (typeof child !== 'string') {
+          throw new MarkdownChartError('UNSAFE_SPEC', `${path}.${key} must be a string`);
+        }
+        assertSafeString(child, `${path}.${key}`);
+        continue;
+      }
+      if (FORBIDDEN_OPTION_KEYS.has(normalizedKey) || URL_BEARING_OPTION_KEY.test(key)) {
         throw new MarkdownChartError('UNSAFE_SPEC', `${path}.${key} is not allowed`);
       }
       if (key === 'type' && child === 'custom') {
@@ -376,6 +486,30 @@ function parseSpec(
   }
   assertSafeOption(option, limits);
   return { option, data };
+}
+
+function parseCompactEnvelope(
+  value: JsonValue,
+  limits: EChartsLimits,
+): ParsedEChartsSpec {
+  if (!isJsonObject(value)) {
+    return schemaError('echarts-fulldata must contain an object');
+  }
+  assertOwnKeys(value, new Set(['version', 'data', 'option']), 'echarts-fulldata');
+  if (value.version !== 1) {
+    throw new MarkdownChartError(
+      'UNSUPPORTED_VERSION',
+      'Only echarts-fulldata version 1 is supported',
+    );
+  }
+  if (!Object.prototype.hasOwnProperty.call(value, 'data')) {
+    return schemaError('echarts-fulldata.data is required');
+  }
+  if (!isJsonObject(value.option)) {
+    return schemaError('echarts-fulldata.option must be an object');
+  }
+  const data = parseCompactData(value.data as JsonValue, limits);
+  return parseSpec(value.option, data, limits);
 }
 
 function normalizeRuntime(loaded: LoadedEChartsRuntime): EChartsRuntime {
@@ -632,6 +766,7 @@ export function createEChartsRenderer(
   }
   const limits: EChartsLimits = { ...DEFAULT_ECHARTS_LIMITS, ...options.limits };
   const legacyArtifactLimits = options.resolveLegacyArtifactContent
+    || options.resolveLegacySandboxFileContent
     ? resolveLegacyArtifactLimits({
         maxRows: limits.maxRows,
         maxCells: limits.maxCells,
@@ -678,11 +813,25 @@ export function createEChartsRenderer(
 
   return {
     id: 'echarts',
-    matchLanguage: isLegacyEChartQueryLanguage,
+    aliases: ['echarts-fulldata'],
+    matchLanguage: isLegacyEChartLanguage,
     parse(spec, context) {
+      if (context.language === 'echarts-fulldata') {
+        return parseCompactEnvelope(spec, limits);
+      }
       return parseSpec(spec, context.data, limits);
     },
     parseSource(source, context) {
+      if (isLegacyEChartSandboxFileLanguage(context.language)) {
+        return {
+          option: {},
+          data: undefined,
+          legacyEChartSandboxFile: parseLegacyEChartSandboxFileBlock(
+            context.rawLanguage ?? context.language,
+            source,
+          ),
+        };
+      }
       return {
         option: {},
         data: undefined,
@@ -693,7 +842,7 @@ export function createEChartsRenderer(
       return getEChartsTitle(parsed.option);
     },
     async materialize(parsed, context) {
-      if (!parsed.legacyEChartQuery) {
+      if (!parsed.legacyEChartQuery && !parsed.legacyEChartSandboxFile) {
         if (parsed.data?.kind === 'ref') {
           const data = await resolveReferencedData(parsed.data, context.signal);
           if (!data) {
@@ -701,27 +850,46 @@ export function createEChartsRenderer(
           }
           return { parsed: { ...parsed, data }, data };
         }
-        return { parsed, data: context.data };
+        return { parsed, data: parsed.data };
       }
-      if (!options.resolveLegacyArtifactContent && !options.resolveLegacyEChartQuery) {
+      if (
+        parsed.legacyEChartQuery
+        && !options.resolveLegacyArtifactContent
+        && !options.resolveLegacyEChartQuery
+      ) {
         throw new MarkdownChartError(
           'REF_RESOLVER_MISSING',
           'resolveLegacyArtifactContent is required for this temporary ChatBI fence',
         );
       }
+      if (parsed.legacyEChartSandboxFile && !options.resolveLegacySandboxFileContent) {
+        throw new MarkdownChartError(
+          'REF_RESOLVER_MISSING',
+          'resolveLegacySandboxFileContent is required for this temporary ChatBI fence',
+        );
+      }
       let resolved: unknown;
       try {
-        resolved = options.resolveLegacyArtifactContent
-          ? await resolveLegacyArtifactQuery({
-              block: parsed.legacyEChartQuery,
-              signal: context.signal,
-              resolveArtifactContent: options.resolveLegacyArtifactContent,
-              limits: legacyArtifactLimits as LegacyArtifactLimits,
-            })
-          : await options.resolveLegacyEChartQuery?.({
-              ...parsed.legacyEChartQuery,
-              signal: context.signal,
-            });
+        if (parsed.legacyEChartSandboxFile) {
+          resolved = await resolveLegacySandboxFile({
+            block: parsed.legacyEChartSandboxFile,
+            signal: context.signal,
+            resolveSandboxFileContent: options.resolveLegacySandboxFileContent as ResolveLegacySandboxFileContent,
+            limits: legacyArtifactLimits as LegacyArtifactLimits,
+          });
+        } else {
+          resolved = options.resolveLegacyArtifactContent
+            ? await resolveLegacyArtifactQuery({
+                block: parsed.legacyEChartQuery as LegacyEChartQueryBlock,
+                signal: context.signal,
+                resolveArtifactContent: options.resolveLegacyArtifactContent,
+                limits: legacyArtifactLimits as LegacyArtifactLimits,
+              })
+            : await options.resolveLegacyEChartQuery?.({
+                ...parsed.legacyEChartQuery as LegacyEChartQueryBlock,
+                signal: context.signal,
+              });
+        }
       } catch (cause) {
         if (context.signal.aborted) {
           return { parsed, data: context.data };
@@ -774,7 +942,7 @@ export function createEChartsRenderer(
       return { parsed: resolvedSpec, data: resolvedSpec.data };
     },
     async mount(container, parsed, context) {
-      if (parsed.legacyEChartQuery) {
+      if (parsed.legacyEChartQuery || parsed.legacyEChartSandboxFile) {
         return schemaError('Temporary ChatBI charts must be materialized before mounting');
       }
 

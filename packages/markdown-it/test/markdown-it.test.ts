@@ -20,6 +20,7 @@ describe('markdownChartPlugin', () => {
     expect(getMarkdownChartBlocks(env)).toEqual([{
       id: 'markdown-chart-0',
       language: 'markdown-chart',
+      rawLanguage: 'markdown-chart',
       source: '{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{}}\n',
       complete: true,
     }]);
@@ -142,6 +143,23 @@ describe('markdownChartPlugin', () => {
     const html = md.render('```vega-lite\n{"mark":"bar"}\n```', env);
     expect(html).toContain('markdown-chart-placeholder');
     expect(getMarkdownChartBlocks(env)[0]?.language).toBe('vega-lite');
+  });
+
+  it('keeps the raw fence token for a case-sensitive dynamic payload', () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'echarts',
+      matchLanguage: (language) => language.startsWith('echarts-chatbi_sandbox_filepath_'),
+      parse: (spec) => spec,
+      parseSource: (source) => source,
+      mount() {},
+    });
+    const md = new MarkdownIt().use(markdownChartPlugin, { registry });
+    const env: MarkdownChartEnvironment = {};
+    md.render('```echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv\noption = {};\n```', env);
+    expect(getMarkdownChartBlocks(env)[0]).toMatchObject({
+      language: 'echarts-chatbi_sandbox_filepath_app/csv/foo.csv',
+      rawLanguage: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+    });
   });
 
   it('supports a live host language predicate without renderer defaults', () => {

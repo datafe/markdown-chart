@@ -272,6 +272,8 @@ export function parseChartData(value: unknown): ChartData {
 
 export interface ChartParseContext {
   readonly language: string;
+  /** The original first fence-info token, before case normalization. */
+  readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
 }
@@ -283,6 +285,7 @@ export interface ChartMountContext {
 
 export interface ChartMaterializeContext extends ChartMountContext {
   readonly language: string;
+  readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
 }
@@ -321,6 +324,7 @@ export interface PreparedChart {
   readonly parsed: unknown;
   readonly data: ChartData | undefined;
   readonly language: string;
+  readonly rawLanguage: string;
   readonly rendererId: string;
 }
 
@@ -336,8 +340,12 @@ function normalizeName(name: string, label: string): string {
   return normalized;
 }
 
+export function extractFenceLanguage(info: string): string {
+  return info.trim().split(/\s+/, 1)[0] ?? '';
+}
+
 export function normalizeFenceLanguage(info: string): string {
-  return info.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? '';
+  return extractFenceLanguage(info).toLowerCase();
 }
 
 export interface MarkdownChartEnvelope {
@@ -438,7 +446,8 @@ export class ChartRendererRegistry {
   }
 
   async prepare(languageInfo: string, source: string): Promise<PreparedChart> {
-    const language = normalizeFenceLanguage(languageInfo);
+    const rawLanguage = extractFenceLanguage(languageInfo);
+    const language = rawLanguage.toLowerCase();
 
     let rendererId: string;
     let spec: JsonValue;
@@ -475,7 +484,7 @@ export class ChartRendererRegistry {
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const context: ChartParseContext = { language, rendererId, data };
+    const context: ChartParseContext = { language, rawLanguage, rendererId, data };
     if (parseSource && !renderer.parseSource) {
       throw new MarkdownChartError(
         'SCHEMA_INVALID',
@@ -485,7 +494,7 @@ export class ChartRendererRegistry {
     const parsed = parseSource
       ? await renderer.parseSource!(source, context)
       : await renderer.parse(spec, context);
-    return { renderer, parsed, data, language, rendererId };
+    return { renderer, parsed, data, language, rawLanguage, rendererId };
   }
 }
 
@@ -936,6 +945,7 @@ export class ChartController {
             signal: abortController.signal,
             theme: request.theme,
             language: prepared.language,
+            rawLanguage: prepared.rawLanguage,
             rendererId: prepared.rendererId,
             data: prepared.data,
           })

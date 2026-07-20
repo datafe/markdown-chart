@@ -84,7 +84,8 @@ describe('MarkdownChart reactive object props', () => {
     app.unmount();
   });
 
-  it.each(['echarts', 'echarts-fulldata'])('leaves the removed %s shorthand as code', async (language) => {
+  it('leaves the removed echarts shorthand as code', async () => {
+    const language = 'echarts';
     const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
     const app = createApp(defineComponent({
       setup() {
@@ -96,6 +97,21 @@ describe('MarkdownChart reactive object props', () => {
     await nextTick();
     expect(root.querySelector(`code.language-${language}`)).not.toBeNull();
     expect(root.querySelector('.markdown-chart-placeholder')).toBeNull();
+    app.unmount();
+  });
+
+  it('routes the dataworks-chart compact ECharts fence', async () => {
+    const source = '```echarts-fulldata\n{"version":1,"data":{"kind":"inline","dimensions":["name","value"],"source":[["A",1]]},"option":{"series":[]}}\n```';
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, streaming: true });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await nextTick();
+    expect(root.querySelector('.markdown-chart-placeholder')).not.toBeNull();
+    expect(root.querySelector('code.language-echarts-fulldata')).toBeNull();
     app.unmount();
   });
 
@@ -188,6 +204,33 @@ describe('MarkdownChart reactive object props', () => {
     await answerLegacySandbox({ series: [{ type: 'bar' }] });
     await assertDataView(advancedRoot);
     advancedApp.unmount();
+  });
+
+  it('passes the original sandbox file path through the top-level resolver prop', async () => {
+    const source = '```echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv\nvar option = { series: [] };\n//#end\n```';
+    const resolver = vi.fn(async () => 'name,value\nA,10\n');
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source,
+          resolveLegacySandboxFileContent: resolver,
+          legacySandboxFileContextKey: 'session-a',
+          echarts: { loadECharts: fakeEChartsRuntime, resizeObserver: false },
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
+    await answerLegacySandbox({ series: [] });
+    await vi.waitFor(() => {
+      expect(root.querySelector('button[aria-label="Show data"]')).not.toBeNull();
+    });
+    expect(resolver).toHaveBeenCalledWith(expect.objectContaining({
+      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      filePath: 'App/CSV/Foo.csv',
+    }));
+    app.unmount();
   });
 
   it('does not refetch when an inline legacy resolver changes identity under one context key', async () => {

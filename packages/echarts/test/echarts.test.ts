@@ -39,6 +39,10 @@ function canonical(spec: JsonValue, data?: JsonValue): string {
   });
 }
 
+function compact(option: JsonValue, data: JsonValue): string {
+  return JSON.stringify({ version: 1, data, option });
+}
+
 function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
   runtime: EChartsRuntime;
   dispose: ReturnType<typeof vi.fn>;
@@ -91,16 +95,82 @@ describe('createEChartsRenderer', () => {
     expect(renderer.getTitle?.({ ...parsed, option: { series: [] } })).toBeUndefined();
   });
 
-  it('uses only the canonical fence while retaining the ECharts renderer id', async () => {
+  it('registers only the exact dataworks-chart compact alias', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer());
     expect(registry.has('echarts')).toBe(false);
-    expect(registry.has('echarts-fulldata')).toBe(false);
+    expect(registry.has('echarts-fulldata')).toBe(true);
+    expect(registry.has('echart-fulldata')).toBe(false);
     await expect(registry.prepare('echarts', '{"series":[]}'))
       .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
-    await expect(registry.prepare('echarts-fulldata', '{"series":[]}'))
-      .rejects.toMatchObject({ code: 'RENDERER_NOT_FOUND' });
+    await expect(registry.prepare('echarts-fulldata', compact(
+      { series: [] },
+      { kind: 'inline', dimensions: ['name'], source: [['A']] },
+    ))).resolves.toMatchObject({ rendererId: 'echarts' });
     await expect(registry.prepare('markdown-chart', canonical({ series: [] })))
       .resolves.toMatchObject({ rendererId: 'echarts' });
+  });
+
+  it('normalizes compact inline data into the shared title and Data view', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    }));
+    const container = document.createElement('div');
+    const controller = new ChartController(registry);
+    await controller.render(container, {
+      language: 'echarts-fulldata',
+      source: compact(
+        { title: { text: 'Compact chart' }, series: [{ type: 'bar' }] },
+        {
+          kind: 'inline',
+          dimensions: ['name', 'value'],
+          source: [['A', 1], ['B', 2]],
+        },
+      ),
+    });
+
+    expect(container.querySelector('.markdown-chart-title')?.textContent).toBe('Compact chart');
+    expect(rendered?.dataset).toEqual({
+      dimensions: ['name', 'value'],
+      source: [['A', 1], ['B', 2]],
+    });
+    const showData = container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
+    expect(showData).not.toBeNull();
+    showData?.click();
+    expect(container.querySelector('thead')?.textContent).toContain('namevalue');
+    expect(container.querySelector('tbody')?.textContent).toContain('A1');
+    controller.dispose();
+  });
+
+  it.each([
+    ['unknown envelope field', { version: 1, data: { kind: 'inline', dimensions: ['x'], source: [[1]] }, option: {}, extra: true }],
+    ['unknown inline field', { version: 1, data: { kind: 'inline', dimensions: ['x'], source: [[1]], extra: true }, option: {} }],
+    ['unknown ref field', { version: 1, data: { kind: 'ref', ref: 'a.csv', format: 'csv', dimensions: ['x'], extra: true }, option: {} }],
+    ['invalid dimension', { version: 1, data: { kind: 'inline', dimensions: ['not stable'], source: [[1]] }, option: {} }],
+    ['duplicate dimension', { version: 1, data: { kind: 'inline', dimensions: ['x', 'x'], source: [[1, 2]] }, option: {} }],
+    ['object row', { version: 1, data: { kind: 'inline', dimensions: ['x'], source: [{ x: 1 }] }, option: {} }],
+    ['uneven row', { version: 1, data: { kind: 'inline', dimensions: ['x', 'y'], source: [[1]] }, option: {} }],
+    ['missing ref format', { version: 1, data: { kind: 'ref', ref: 'a.csv', dimensions: ['x'] }, option: {} }],
+    ['missing ref dimensions', { version: 1, data: { kind: 'ref', ref: 'a.csv', format: 'csv' }, option: {} }],
+  ])('rejects compact schema violation: %s', async (_label, body) => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare('echarts-fulldata', JSON.stringify(body)))
+      .rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  it('rejects unsupported compact versions and data/option.dataset conflicts', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare('echarts-fulldata', JSON.stringify({
+      version: 2,
+      data: { kind: 'inline', dimensions: ['x'], source: [[1]] },
+      option: {},
+    }))).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' });
+    await expect(registry.prepare('echarts-fulldata', compact(
+      { dataset: { source: [] }, series: [] },
+      { kind: 'inline', dimensions: ['x'], source: [[1]] },
+    ))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
   it('injects canonical inline data from outside the renderer spec', async () => {
@@ -309,6 +379,35 @@ describe('createEChartsRenderer', () => {
     controller.dispose();
   });
 
+  it('resolves a case-sensitive sandbox file path through the host callback', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const resolveLegacySandboxFileContent = vi.fn(async () => 'name,value\nA,10\n');
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resolveLegacySandboxFileContent,
+      resizeObserver: false,
+    }));
+    const controller = new ChartController(registry);
+    const render = controller.render(document.createElement('div'), {
+      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      source: 'var option = { series: [{ type: "bar" }] };\n//#end',
+    });
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
+    await render;
+
+    expect(resolveLegacySandboxFileContent).toHaveBeenCalledWith({
+      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
+      filePath: 'App/CSV/Foo.csv',
+      signal: expect.any(AbortSignal),
+    });
+    expect(rendered?.dataset).toEqual({
+      dimensions: ['name', 'value'],
+      source: [{ name: 'A', value: 10 }],
+    });
+    controller.dispose();
+  });
+
   it('rejects ambiguous legacy resolver configuration immediately', () => {
     expect(() => createEChartsRenderer({
       resolveLegacyArtifactContent: async () => 'a\n1\n',
@@ -330,7 +429,7 @@ describe('createEChartsRenderer', () => {
       source: 'var option = {};',
     });
     await answerLegacySandbox({
-      tooltip: { formatter: '{b}' },
+      tooltip: { formatter: { unsafe: true } },
       series: [],
     });
     await expect(render).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
@@ -421,7 +520,7 @@ describe('createEChartsRenderer', () => {
       loadECharts,
       resolveLegacyEChartQuery: async () => ({
         data: { kind: 'inline', source: [] },
-        spec: { tooltip: { formatter: '{b}' }, series: [] },
+        spec: { tooltip: { formatter: { unsafe: true } as unknown as JsonValue }, series: [] },
       }),
     }));
 
@@ -608,6 +707,34 @@ describe('createEChartsRenderer', () => {
   });
 
   it.each([
+    ['canonical', 'markdown-chart', canonical({ tooltip: { formatter: '{b}: {@value}%' }, series: [] })],
+    ['compact', 'echarts-fulldata', compact(
+      { series: [{ type: 'bar', label: { formatter: '{@conversionRate}%\n{b}' } }] },
+      { kind: 'inline', dimensions: ['name', 'conversionRate'], source: [['A', 10]] },
+    )],
+  ])('accepts safe string formatter templates through %s input', async (_label, language, source) => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare(language, source)).resolves.toMatchObject({ rendererId: 'echarts' });
+  });
+
+  it.each([
+    ['non-string', { unsafe: true }],
+    ['URL', 'https://example.test/value'],
+    ['HTML', '<img src=x>'],
+    ['entity', '&lt;script&gt;'],
+    ['control', 'bad\u0001value'],
+  ])('rejects unsafe formatter %s through canonical and compact input', async (_label, formatter) => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    const option = { tooltip: { formatter: formatter as unknown as JsonValue }, series: [] };
+    await expect(registry.prepare('markdown-chart', canonical(option)))
+      .rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
+    await expect(registry.prepare('echarts-fulldata', compact(
+      option,
+      { kind: 'inline', dimensions: ['x'], source: [[1]] },
+    ))).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
+  });
+
+  it.each([
     ['tooltip CSS injection', {
       tooltip: { extraCssText: 'background-image:url(javascript:alert(1))' },
       series: [],
@@ -622,7 +749,6 @@ describe('createEChartsRenderer', () => {
       },
       series: [],
     }],
-    ['formatter surface', { tooltip: { formatter: '{b}: {c}' }, series: [] }],
     ['toolbox data view surface', { toolbox: { feature: { dataView: {} } }, series: [] }],
     ['custom renderer surface', { series: [{ type: 'custom', renderItem: 'return value' }] }],
     ['graphic surface', { graphic: [{ type: 'rect', shape: { width: 1, height: 1 } }], series: [] }],

@@ -9,6 +9,8 @@ export const MARKDOWN_CHART_ENV_KEY = 'markdownChart' as const;
 export interface MarkdownChartBlock {
   readonly id: string;
   readonly language: string;
+  /** Original first fence-info token, preserved for case-sensitive legacy payloads. */
+  readonly rawLanguage?: string;
   readonly source: string;
   /** False only for an unterminated fence in an actively streaming document. */
   readonly complete?: boolean;
@@ -36,8 +38,8 @@ export interface CreateMarkdownChartEnvironmentOptions {
 
 const SAFE_TOKEN = /^[a-z][a-z0-9_-]*$/i;
 
-function normalizeLanguage(info: string): string {
-  return info.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? '';
+function extractLanguage(info: string): string {
+  return info.trim().split(/\s+/, 1)[0] ?? '';
 }
 
 function stateFor(env: unknown): MarkdownChartEnvironmentState {
@@ -99,7 +101,8 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
     if (!token) {
       return '';
     }
-    const language = normalizeLanguage(token.info);
+    const rawLanguage = extractLanguage(token.info);
+    const language = rawLanguage.toLowerCase();
     const isChartLanguage = language === MARKDOWN_CHART_LANGUAGE
       || options.registry?.has(language) === true
       || options.isChartLanguage?.(language) === true;
@@ -122,7 +125,7 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
       }
     }
     const complete = !incompleteStreamingTail;
-    state.blocks.push({ id, language, source: token.content, complete });
+    state.blocks.push({ id, language, rawLanguage, source: token.content, complete });
     const streamingClass = complete ? '' : ' markdown-chart-streaming';
     const busy = complete ? '' : ' aria-busy="true"';
     return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="Chart"${busy}></div>\n`;

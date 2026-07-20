@@ -11,13 +11,16 @@ untrusted model.
   inline rows may contain only JSON scalar arrays or scalar-valued objects.
 - The ECharts renderer uses a strict top-level option allowlist plus a recursive
   denylist. It rejects functions, non-JSON values, prototype-related keys,
-  `formatter`, `tooltip.extraCssText`, `toolbox`/`dataView`, custom series,
+  non-string or unsafe `formatter` values, `tooltip.extraCssText`,
+  `toolbox`/`dataView`, custom series,
   `renderItem`, `graphic`, image options, URL-like strings, CSS `url(...)`, and
-  HTML-like markup.
+  HTML-like markup/entities. Safe string formatter templates such as
+  `{@conversionRate}%` are allowed; formatter code is not.
 - URL-bearing option keys such as `link`, `sublink`, `href`, `src`, and `url`
-  are rejected even when their values are relative or obfuscated. All ASCII C0
-  controls are rejected in option strings, preventing split-protocol forms such
-  as `java\nscript:` and `java\tscript:`; legacy `vbscript:` is rejected too.
+  are rejected even when their values are relative or obfuscated. Unsafe ASCII
+  C0 controls are rejected; permitted line/tab whitespace is removed for the
+  protocol check, preventing split-protocol forms such as `java\nscript:` and
+  `java\tscript:`. Legacy `vbscript:` is rejected too.
 - ECharts dataset transforms are disabled. In particular, untrusted
   `dataset.transform.config.reg` values never reach the ECharts transform
   engine, avoiding attacker-controlled regular-expression execution.
@@ -37,6 +40,9 @@ untrusted model.
   authorization, honor its `AbortSignal`, and avoid returning secrets in errors.
 - Treat the deprecated `resolveLegacyArtifactContent` callback as a privileged
   data-access boundary. It should return only the authorized raw CSV content.
+- Treat `resolveLegacySandboxFileContent` the same way. Validate the requested
+  case-sensitive file path against the active session/request before returning
+  raw CSV, and honor its `AbortSignal`.
 - Apply a Content Security Policy suitable for the surrounding application.
 - Use a trusted ECharts runtime and keep it patched.
 - Do not add an "unsafe" option that evaluates formatters or `renderItem` code.
