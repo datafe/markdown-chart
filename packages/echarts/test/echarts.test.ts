@@ -74,6 +74,46 @@ function fakeRuntime(onOption: (option: Record<string, JsonValue>) => void): {
   };
 }
 
+const THIRTY_DAY_DATES = Array.from(
+  { length: 30 },
+  (_, index) => `2017-12-${String(index + 1).padStart(2, '0')}`,
+);
+
+function thirtyDayTrendOption(): Record<string, JsonValue> {
+  return {
+    title: { text: '最近30天各品类日销售额趋势', left: 'center' },
+    legend: {
+      top: '10%',
+      data: ['Furniture', 'Office Supplies', 'Technology'],
+    },
+    grid: { bottom: 3, containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: THIRTY_DAY_DATES,
+      axisLabel: { rotate: 45 },
+    },
+    yAxis: { type: 'value', name: '销售额 ($)' },
+    series: [
+      { name: 'Furniture', type: 'line', smooth: true, encode: { x: 'date', y: 'furniture' } },
+      { name: 'Office Supplies', type: 'line', smooth: true, encode: { x: 'date', y: 'office' } },
+      { name: 'Technology', type: 'line', smooth: true, encode: { x: 'date', y: 'technology' } },
+    ],
+  };
+}
+
+function thirtyDayTrendData(): JsonValue {
+  return {
+    kind: 'inline',
+    dimensions: ['date', 'furniture', 'office', 'technology'],
+    source: THIRTY_DAY_DATES.map((date, index) => [
+      date,
+      (index * 733) % 4_100,
+      (index * 419) % 2_700,
+      (index * 947) % 3_800,
+    ]),
+  };
+}
+
 async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<void> {
   await vi.waitFor(() => {
     expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
@@ -349,6 +389,136 @@ describe('createEChartsRenderer', () => {
     });
     controller.dispose();
     expect(fake.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('reserves a stable top region for the real 30-day trend option', () => {
+    const input = thirtyDayTrendOption();
+    const original = structuredClone(input);
+
+    const styled = applyEChartsDefaultStyle(input);
+
+    expect(styled.legend).toMatchObject({ top: '10%' });
+    expect(styled.legend).not.toHaveProperty('bottom');
+    expect(styled.grid).toMatchObject({ top: 114, bottom: 3, containLabel: true });
+    expect(styled.xAxis).toMatchObject({
+      data: THIRTY_DAY_DATES,
+      axisLabel: { rotate: 45, hideOverlap: true },
+    });
+    for (const height of [360, 640, 740]) {
+      expect((styled.grid as Record<string, JsonValue>).top)
+        .toBeGreaterThanOrEqual(height * 0.1 + 24 + 16);
+    }
+    expect(input).toEqual(original);
+  });
+
+  it.each([
+    [0, 40],
+    ['top', 40],
+    [74, 114],
+    [75, 24],
+    [-1, 24],
+    ['0%', 114],
+    ['1%', 114],
+    ['10%', 114],
+    ['10.1%', 24],
+    ['middle', 24],
+    ['bottom', 24],
+    ['auto', 24],
+  ] as const)('classifies legend top=%s with grid.top=%s', (top, expectedGridTop) => {
+    const styled = applyEChartsDefaultStyle({ legend: { top }, series: [] });
+
+    expect(styled.legend).toMatchObject({ top });
+    expect(styled.legend).not.toHaveProperty('bottom');
+    expect(styled.grid).toMatchObject({ top: expectedGridTop });
+  });
+
+  it('preserves explicit anchors and computes title, legend, and grid arrays independently', () => {
+    const styled = applyEChartsDefaultStyle({
+      title: [
+        { text: 'Default top title' },
+        { text: 'Hidden title', show: false, top: '10%' },
+        { text: 'Bottom title', bottom: 0 },
+        { subtext: 'Top subtitle', top: 74 },
+      ],
+      legend: [
+        { top: 0 },
+        { bottom: 12 },
+        { top: '10%', show: false },
+        null,
+      ],
+      grid: [
+        { right: 10 },
+        { top: 9, bottom: 7 },
+      ],
+      series: [],
+    });
+
+    expect(styled.legend).toMatchObject([
+      { top: 0 },
+      { bottom: 12 },
+      { top: '10%', show: false },
+      null,
+    ]);
+    expect((styled.legend as JsonValue[])[0]).not.toHaveProperty('bottom');
+    expect((styled.legend as JsonValue[])[1]).not.toHaveProperty('top');
+    expect(styled.grid).toMatchObject([
+      { top: 114, right: 10, bottom: 48, containLabel: true },
+      { top: 9, bottom: 7, containLabel: true },
+    ]);
+
+    const explicitBoth = applyEChartsDefaultStyle({
+      title: { text: 'Native title' },
+      legend: { top: '10%', bottom: 6 },
+      grid: { top: '20%', left: 7 },
+      series: [],
+    });
+    expect(explicitBoth.legend).toMatchObject({ top: '10%', bottom: 6 });
+    expect(explicitBoth.grid).toMatchObject({ top: '20%', left: 7 });
+
+    expect(applyEChartsDefaultStyle({
+      title: { text: 'Native title' },
+      legend: { show: false, top: '10%' },
+      series: [],
+    }).grid).toMatchObject({ top: 40 });
+    expect(applyEChartsDefaultStyle({
+      title: { text: 'Bottom title', bottom: 0 },
+      legend: { bottom: 4 },
+      series: [],
+    }).grid).toMatchObject({ top: 24 });
+  });
+
+  it('captures the final externalized-title layout through ChartController inline data', async () => {
+    const rendered: Array<Record<string, JsonValue>> = [];
+    const fake = fakeRuntime((option) => { rendered.push(option); });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+    }));
+
+    for (const height of [360, 640, 740]) {
+      const container = document.createElement('div');
+      container.style.height = `${height}px`;
+      const controller = new ChartController(registry);
+      await controller.render(container, {
+        language: 'markdown-chart',
+        source: canonical(thirtyDayTrendOption(), thirtyDayTrendData()),
+      });
+
+      const finalOption = rendered.at(-1);
+      expect(container.querySelector('.markdown-chart-title')?.textContent)
+        .toBe('最近30天各品类日销售额趋势');
+      expect(container.querySelectorAll('.markdown-chart-title')).toHaveLength(1);
+      expect(finalOption).not.toHaveProperty('title');
+      expect(finalOption?.legend).toMatchObject({ top: '10%' });
+      expect(finalOption?.legend).not.toHaveProperty('bottom');
+      expect(finalOption?.grid).toMatchObject({ top: 114, bottom: 3, containLabel: true });
+      expect(finalOption?.dataset).toMatchObject({
+        dimensions: ['date', 'furniture', 'office', 'technology'],
+      });
+      expect((finalOption?.dataset as Record<string, JsonValue>).source).toHaveLength(30);
+      controller.dispose();
+    }
+    expect(fake.dispose).toHaveBeenCalledTimes(3);
   });
 
   it.each([
