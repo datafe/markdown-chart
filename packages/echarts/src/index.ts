@@ -665,6 +665,109 @@ function styleComponent(
   return value === undefined || value === null ? cloneJson(defaults) : value;
 }
 
+function hasOwnPosition(
+  value: Record<string, JsonValue>,
+  position: 'top' | 'bottom',
+): boolean {
+  return Object.prototype.hasOwnProperty.call(value, position);
+}
+
+function styleVerticallyPositionedComponent(
+  value: JsonValue | undefined,
+  defaults: Record<string, JsonValue>,
+): JsonValue {
+  const styleEntry = (entry: Record<string, JsonValue>): Record<string, JsonValue> => {
+    if (!hasOwnPosition(entry, 'top') && !hasOwnPosition(entry, 'bottom')) {
+      return mergeObjectDefaults(defaults, entry);
+    }
+    const defaultsWithoutVerticalPosition = cloneJson(defaults);
+    delete defaultsWithoutVerticalPosition.top;
+    delete defaultsWithoutVerticalPosition.bottom;
+    return mergeObjectDefaults(defaultsWithoutVerticalPosition, entry);
+  };
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => isJsonObject(entry) ? styleEntry(entry) : entry);
+  }
+  if (isJsonObject(value)) {
+    return styleEntry(value);
+  }
+  return value === undefined || value === null ? cloneJson(defaults) : value;
+}
+
+const SUPPORTED_MAX_HEIGHT_PX = 740;
+const TOP_PERCENT_MAX = 10;
+const TOP_PIXEL_MAX = SUPPORTED_MAX_HEIGHT_PX * TOP_PERCENT_MAX / 100;
+const TITLE_HEIGHT_MAX = 24;
+const LEGEND_HEIGHT_MAX = 24;
+const COMPONENT_GAP = 16;
+const BASE_GRID_TOP = 24;
+
+function topPosition(value: JsonValue | undefined): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 && value <= TOP_PIXEL_MAX ? value : null;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed === 'top') {
+    return 0;
+  }
+  const percentage = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))%$/.exec(trimmed);
+  if (!percentage) {
+    return null;
+  }
+  const percent = Number(percentage[1]);
+  return Number.isFinite(percent) && percent >= 0 && percent <= TOP_PERCENT_MAX
+    ? TOP_PIXEL_MAX
+    : null;
+}
+
+function hasVisibleTitleText(title: Record<string, JsonValue>): boolean {
+  return ['text', 'subtext'].some((key) => (
+    typeof title[key] === 'string' && title[key].trim().length > 0
+  ));
+}
+
+function titleTopPosition(title: Record<string, JsonValue>): number | null {
+  if (title.show === false || !hasVisibleTitleText(title)) {
+    return null;
+  }
+  if (hasOwnPosition(title, 'top')) {
+    return topPosition(title.top);
+  }
+  return hasOwnPosition(title, 'bottom') ? null : 0;
+}
+
+function legendTopPosition(legend: Record<string, JsonValue>): number | null {
+  return legend.show === false || !hasOwnPosition(legend, 'top')
+    ? null
+    : topPosition(legend.top);
+}
+
+function componentEntries(value: JsonValue | undefined): Record<string, JsonValue>[] {
+  if (Array.isArray(value)) {
+    return value.filter(isJsonObject);
+  }
+  return isJsonObject(value) ? [value] : [];
+}
+
+function defaultGridTop(
+  title: JsonValue | undefined,
+  legend: JsonValue | undefined,
+): number {
+  const titleReserves = componentEntries(title).flatMap((entry) => {
+    const position = titleTopPosition(entry);
+    return position === null ? [] : [position + TITLE_HEIGHT_MAX + COMPONENT_GAP];
+  });
+  const legendReserves = componentEntries(legend).flatMap((entry) => {
+    const position = legendTopPosition(entry);
+    return position === null ? [] : [position + LEGEND_HEIGHT_MAX + COMPONENT_GAP];
+  });
+  return Math.max(BASE_GRID_TOP, ...titleReserves, ...legendReserves);
+}
+
 function styleAxis(
   value: JsonValue,
   defaults: (index: number) => Record<string, JsonValue>,
@@ -750,13 +853,6 @@ export function applyEChartsDefaultStyle(
       subtextStyle: { color: tokens.subtext },
     });
   }
-  styled.grid = styleComponent(styled.grid, {
-    top: 24,
-    right: 36,
-    bottom: 48,
-    left: 24,
-    containLabel: true,
-  });
   styled.tooltip = styleComponent(styled.tooltip, {
     trigger: defaultTooltipTrigger(option),
     confine: true,
@@ -772,7 +868,7 @@ export function applyEChartsDefaultStyle(
       crossStyle: { color: tokens.pointer, width: 1 },
     },
   });
-  styled.legend = styleComponent(styled.legend, {
+  styled.legend = styleVerticallyPositionedComponent(styled.legend, {
     type: 'scroll',
     bottom: 8,
     padding: [4, 16],
@@ -780,6 +876,13 @@ export function applyEChartsDefaultStyle(
     pageIconColor: tokens.primary,
     pageIconInactiveColor: tokens.splitLine,
     pageTextStyle: { color: tokens.legendText },
+  });
+  styled.grid = styleComponent(styled.grid, {
+    top: defaultGridTop(styled.title, styled.legend),
+    right: 36,
+    bottom: 48,
+    left: 24,
+    containLabel: true,
   });
   if (styled.xAxis !== undefined) {
     styled.xAxis = styleAxis(styled.xAxis, () => ({
