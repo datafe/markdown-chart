@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.7
+
+### Patch Changes
+
+- d0e1196: Add a host-transport-based legacy sandbox client with principal-isolated caching, deterministic request-to-session retries, unique CSV matching, stable public errors, and renderer bindings that preserve existing deprecated callback behavior.
+  - @datafe-open/markdown-chart@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
