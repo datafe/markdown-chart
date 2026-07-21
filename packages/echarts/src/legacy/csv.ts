@@ -3,7 +3,6 @@ import {
   MarkdownChartError,
   type ChartDataRow,
   type InlineChartData,
-  type JsonPrimitive,
 } from '@datafe-open/markdown-chart';
 import type { LegacyArtifactLimits } from './types';
 
@@ -15,16 +14,6 @@ function utf8ByteLength(value: string): number {
 
 function csvSchemaError(message: string, cause?: unknown): never {
   throw new MarkdownChartError('SCHEMA_INVALID', message, { cause });
-}
-
-function assertJsonScalar(value: unknown, path: string): JsonPrimitive {
-  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
-    if (typeof value === 'number' && !Number.isFinite(value)) {
-      return csvSchemaError(`${path} must be a finite JSON number`);
-    }
-    return value as JsonPrimitive;
-  }
-  return csvSchemaError(`${path} must be a JSON scalar`);
 }
 
 /** @deprecated CSV parser for the temporary ChatBI migration adapter. */
@@ -39,13 +28,13 @@ export function parseLegacyArtifactCsv(
     );
   }
 
-  let parsed: Papa.ParseResult<Record<string, unknown>>;
+  let parsed: Papa.ParseResult<Record<string, string>>;
   const transformedHeaders = new Set<string>();
   const transformedHeaderIndexes = new Set<number>();
   let headerError: string | undefined;
   try {
-    parsed = Papa.parse<Record<string, unknown>>(content, {
-      dynamicTyping: true,
+    parsed = Papa.parse<Record<string, string>>(content, {
+      dynamicTyping: false,
       header: true,
       preview: limits.maxRows + 1,
       skipEmptyLines: 'greedy',
@@ -109,14 +98,10 @@ export function parseLegacyArtifactCsv(
     );
   }
 
-  const source: ChartDataRow[] = parsed.data.map((row, rowIndex) => {
-    const normalized: Record<string, JsonPrimitive> = {};
+  const source: ChartDataRow[] = parsed.data.map((row) => {
+    const normalized: Record<string, string> = {};
     for (const dimension of dimensions) {
-      const value = row[dimension] ?? null;
-      normalized[dimension] = assertJsonScalar(
-        value,
-        `ArtifactContent CSV row ${rowIndex + 1} column ${dimension}`,
-      );
+      normalized[dimension] = row[dimension] ?? '';
     }
     return normalized;
   });
