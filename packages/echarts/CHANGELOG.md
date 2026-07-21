@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.6
+
+### Patch Changes
+
+- d1e480c: Prevent default legend anchors from conflicting with explicit positions and reserve enough plot space for visible top titles and legends.
+  - @datafe-open/markdown-chart@0.1.6
+
 ## 0.1.5
 
 ### Patch Changes
