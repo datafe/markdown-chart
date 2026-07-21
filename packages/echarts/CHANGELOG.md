@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.5
+
+### Patch Changes
+
+- 4855b9d: Restore string cell semantics in the deprecated ChatBI legacy CSV adapter so saved chart scripts can continue using string operations on digit-only dates and other CSV values.
+  - @datafe-open/markdown-chart@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes
