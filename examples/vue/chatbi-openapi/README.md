@@ -1,80 +1,58 @@
 # Vue + markdown-it + ChatBI OpenAPI 示例
 
-这个可直接运行的 Vue 3 示例在保留应用现有 markdown-it 处理链路的同时，渲染
-ChatBI 返回的流式 Markdown。可复用的 `ChatBIChartMessage.vue` 只会在 artifact
-查找范围变化时重建解析器和渲染上下文：
+本示例保留宿主的 markdown-it 处理链路，同时把既有两个同源 OpenAPI 代理路由
+适配为 `LegacySandboxTransport`。`ChatBIChartMessage.vue` 与测试共用
+`useChatBIChartMessageLifecycle`：transport 在 setup 生命周期内稳定，principal 变化
+重建 client，session/request/phase 变化只计算新 binding：
 
-```vue
-<script setup lang="ts">
-import { computed } from 'vue';
-import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-import MarkdownIt from 'markdown-it';
-import { createChatBIArtifactContentResolver } from './data';
-
-const props = defineProps<{
-  markdown: string;
-  sessionId: string;
-  requestId?: string;
-  streaming?: boolean;
-}>();
-
-const context = computed(() => {
-  const resolveLegacyArtifactContent = createChatBIArtifactContentResolver({
-    sessionId: props.sessionId,
-    ...(props.requestId ? { requestId: props.requestId } : {}),
-  });
-  const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-    resolveLegacyArtifactContent,
-  }));
-  const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
-    registry,
-  });
-  return { registry, markdownIt };
-});
-</script>
-
-<template>
-  <MarkdownChart
-    :source="markdown"
-    :streaming="streaming ?? false"
-    :markdown-it="context.markdownIt"
-    :registry="context.registry"
-  />
-</template>
+```ts
+const transport = createChatBILegacySandboxTransport();
+const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifecycle({
+  markdown: () => props.markdown,
+  sessionId: () => props.sessionId,
+  requestId: () => props.requestId,
+  streaming: () => props.streaming,
+  cacheScopeKey: () => props.cacheScopeKey,
+}, transport);
 ```
 
-回调返回原始 CSV `ArtifactContent`。渲染器内部负责有界 CSV 解析、临时图表 source
-净化和沙箱转换、JSON 校验以及内联数据物化。本示例不会在应用窗口中解析 CSV 或
-执行图表 source。
+模板把 `chartContext.markdownIt` 和 `chartContext.registry` 交给 `<MarkdownChart>`。公共 client
+负责唯一匹配、重试、request → session-only fallback、成功缓存和 live waiting；
+example 的 `data.ts` 只负责 OpenAPI transport。
 
-向同一个流追加文本时，应保持 `registry` 和 `markdownIt` 实例稳定，以便复用
-已完成的图表块。`sessionId` 或 `requestId` 变化时，应同时重建这两个实例，避免
-缓存的 artifact 数据跨越 ChatBI 上下文。只要能够获得当前 `requestId`，就应将其
-传入；否则会话级查找可能命中同名的历史 artifact。
+`cacheScopeKey` 是调用方显式传入的必填非 secret 主体标识，推荐
+`${tenantId}:${userId}`。不得使用 token/cookie/session secret 的原文或 hash，也不得
+回退为 `sessionId`。认证主体变化会创建新的 client/registry，让旧 chart controller
+按既有 Abort 生命周期取消；A → B → A 的第三次 A 会重新 List/Get，不会复用第一次
+A 的 success cache。
+
+live 阶段尚无 `requestId` 时，lifecycle 对每个已闭合 query / sandbox-filepath legacy
+fence 消费 `binding.shouldDefer(rawLanguage)`，只把命中 fence 替换为中性 waiting
+Markdown，并用 `deferredCount` 在消息容器标记 `aria-busy=true`。同一消息中的正文、
+普通代码、canonical/compact chart 和其他非命中 block 继续由 `<MarkdownChart>` 渲染，
+legacy List/Get 保持零网络且无 error UI；`requestId` 到达后 `renderSource` 恢复原文。
+真实 resolver/transport 错误不会被这个 gate 吞掉。predicate 使用与 core 一致的
+lowercase language；顶层、blockquote、bullet / ordered-list container 的合法 fence
+都按 block 处理，未闭合 fence 保持原文并继续使用框架既有 streaming 语义。
+
+新接入应使用 `createLegacySandboxClient` + `createEChartsRenderer({ legacySandbox })`。
+已弃用的 raw-content callbacks 仅用于旧迁移路径，不能与 binding 混用。
 
 ## 浏览器到后端的契约
 
-第三方后端只暴露两个同源路由：
+| 浏览器端点 | 请求参数 | 后端职责 |
+| --- | --- | --- |
+| `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、可选 `RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
+| `POST /api/dataworks/get-agent-session-artifact-meta` | `SessionId`、`ArtifactPath` | 完成鉴权/签名并调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，转发 JSON-RPC 响应。 |
 
-| 浏览器端点 | 后端职责 |
-| --- | --- |
-| `POST /api/dataworks/list-agent-session-artifacts` | 完成鉴权和签名，调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，然后转发 JSON-RPC 响应。 |
-| `POST /api/dataworks/get-agent-session-artifact-meta` | 完成鉴权和签名，调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，然后转发 JSON-RPC 响应。 |
-
-本地辅助函数会遍历 List 分页，要求恰好存在一个以所请求 job 命名的 artifact，使用
-`SessionId + ArtifactPath` 调用 Get，并原样返回 `ArtifactContent`。AccessKey 凭证
-和签名逻辑应保留在后端，鉴权与响应大小限制也应由后端执行。
-
-提供上述两个路由后，运行示例：
+端点和 BFF 参数名保持不变。`data.ts` 遍历全部分页并返回 descriptor，Get 返回 raw
+string；404 为 not-found，408/425/429/5xx/网络错误为 retryable，鉴权、永久 4xx、
+非法 envelope/content 为 fatal。AccessKey、Caller-Context、cookie 和签名必须留在
+后端/宿主；`AbortSignal` 原样传递，代理和浏览器分别执行响应大小限制。
 
 ```sh
 pnpm --filter @datafe-open/markdown-chart-example-vue-chatbi-openapi dev
 ```
 
-`ArtifactContent` resolver 和临时渲染器适配器都是已弃用的迁移代码。它们被隔离
-在这个专用示例和 ECharts 包的 `legacy/` 目录中；ChatBI 停止输出 legacy 流格式后，
-可以将二者一并删除。canonical `markdown-chart` 支持以及普通的 Vue/markdown-it
-示例都不依赖这些代码。
+legacy adapter 与临时 sandbox renderer 仍是可删除的迁移层；canonical JSON 图表和
+普通 Vue/markdown-it 示例不依赖它们。

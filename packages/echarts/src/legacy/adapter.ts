@@ -2,6 +2,7 @@ import { MarkdownChartError } from '@datafe-open/markdown-chart';
 import { parseLegacyArtifactCsv } from './csv';
 import { sanitizeLegacyEChartSource } from './sanitize';
 import { executeLegacyChartSource } from './sandbox';
+import { LegacySandboxError } from './types';
 import type {
   LegacyArtifactLimits,
   LegacyEChartQueryBlock,
@@ -16,6 +17,7 @@ export interface ResolveLegacyArtifactQueryOptions {
   readonly signal: AbortSignal;
   readonly resolveArtifactContent: ResolveLegacyArtifactContent;
   readonly limits: LegacyArtifactLimits;
+  readonly preserveLegacySandboxError?: boolean;
 }
 
 interface ResolveLegacyChartOptions {
@@ -25,6 +27,7 @@ interface ResolveLegacyChartOptions {
   readonly resolveContent: () => string | Promise<string>;
   readonly resolutionError: string;
   readonly returnTypeError: string;
+  readonly preserveLegacySandboxError: boolean;
 }
 
 async function resolveLegacyChart(
@@ -35,6 +38,9 @@ async function resolveLegacyChart(
     content = await options.resolveContent();
   } catch (cause) {
     if (options.signal.aborted) {
+      throw cause;
+    }
+    if (options.preserveLegacySandboxError && cause instanceof LegacySandboxError) {
       throw cause;
     }
     throw new MarkdownChartError('REF_RESOLUTION_FAILED', options.resolutionError, { cause });
@@ -79,6 +85,7 @@ export async function resolveLegacyArtifactQuery(
     }),
     resolutionError: 'The temporary ChatBI ArtifactContent could not be resolved',
     returnTypeError: 'resolveLegacyArtifactContent must return the raw CSV ArtifactContent string',
+    preserveLegacySandboxError: options.preserveLegacySandboxError === true,
   });
 }
 
@@ -87,6 +94,7 @@ export interface ResolveLegacySandboxFileOptions {
   readonly signal: AbortSignal;
   readonly resolveSandboxFileContent: ResolveLegacySandboxFileContent;
   readonly limits: LegacyArtifactLimits;
+  readonly preserveLegacySandboxError?: boolean;
 }
 
 /** @deprecated Orchestrator for the temporary ChatBI sandbox-file adapter. */
@@ -104,5 +112,6 @@ export async function resolveLegacySandboxFile(
     }),
     resolutionError: 'The temporary ChatBI sandbox file could not be resolved',
     returnTypeError: 'resolveLegacySandboxFileContent must return a raw CSV string',
+    preserveLegacySandboxError: options.preserveLegacySandboxError === true,
   });
 }

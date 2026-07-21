@@ -7,8 +7,10 @@ the actual integration cost:
   creates the ECharts registry.
 - `advanced/` passes a host-created markdown-it instance, plugin, and renderer
   registry to `MarkdownChart`.
-- `chatbi-openapi/` keeps a host-owned markdown-it pipeline while resolving raw
-  ChatBI artifact content through two same-origin OpenAPI proxy routes.
+- `chatbi-openapi/` keeps a host-owned markdown-it pipeline and adapts two
+  same-origin OpenAPI proxy routes to `LegacySandboxTransport`. Its component
+  creates one client per lifecycle, then recomputes only the binding and
+  renderer context when the principal/session/request/phase changes.
 
 Run any Vite example from the repository root:
 

@@ -26,11 +26,18 @@ Set `:streaming="true"` while tokens are arriving. Closed fences render
 immediately, and their existing DOM and chart controller are reused as later
 Markdown is appended. Only the active unterminated tail fence waits.
 
-The deprecated ChatBI migration prop `resolveLegacyArtifactContent` accepts a
-callback that returns raw CSV content. `legacyArtifactContextKey` can keep an
-equivalent inline callback stable across rerenders; change the key when its
-session or authorization context changes. If the key is omitted, callback
-identity is used as the safe cache boundary.
+New legacy ChatBI integrations should create one `createLegacySandboxClient`
+per authenticated principal lifecycle, compute a binding from `{ sessionId,
+requestId, phase, cacheScopeKey }`, and register ECharts with
+`createEChartsRenderer({ legacySandbox })`. Keep the client stable and replace
+only the binding/registry context. `cacheScopeKey` must be an explicit stable,
+non-secret principal identity; never use a token/cookie value or hash.
+
+The deprecated ChatBI migration prop `resolveLegacyArtifactContent` remains for
+older hosts. `legacyArtifactContextKey` can keep an equivalent inline callback
+stable across rerenders; change the key when its session or authorization
+context changes. Do not configure deprecated callbacks together with
+`echarts.legacySandbox`.
 
 For deprecated `echarts-chatbi_sandbox_filepath_<filePath>` content, use
 `resolveLegacySandboxFileContent`. Its request preserves the original

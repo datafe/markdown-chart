@@ -11,9 +11,10 @@ Simple examples use the all-in-one framework component. Advanced examples show
 host-owned Markdown parsing and renderer registration. Canonical examples use
 inline data, so both modes also demonstrate the built-in Chart/Data switch.
 
-The [`react/chatbi-openapi/`](./react/chatbi-openapi/) integration example
-shows a third-party frontend resolving ChatBI artifact CSV data through its own
-same-origin DataWorks OpenAPI proxy while the component handles CSV parsing and
-temporary chart conversion. The [`vue/chatbi-openapi/`](./vue/chatbi-openapi/)
-example demonstrates the same data contract with a host-created markdown-it
-instance, plugin, and renderer registry.
+The [`react/chatbi-openapi/`](./react/chatbi-openapi/) and
+[`vue/chatbi-openapi/`](./vue/chatbi-openapi/) integrations show a third-party
+frontend adapting two same-origin DataWorks OpenAPI routes into a
+`LegacySandboxTransport`. The shared client owns file matching, retries,
+request-to-session fallback, caching, and live waiting. Each host keeps one
+client per authenticated principal lifecycle and binds session/request/phase
+context with an explicit non-secret `cacheScopeKey`.

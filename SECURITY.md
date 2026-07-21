@@ -43,6 +43,16 @@ untrusted model.
 - Treat `resolveLegacySandboxFileContent` the same way. Validate the requested
   case-sensitive file path against the active session/request before returning
   raw CSV, and honor its `AbortSignal`.
+- Prefer the shared `createLegacySandboxClient` for new legacy integrations.
+  Its host-owned `LegacySandboxTransport` is a privileged authenticated data
+  boundary: preserve `AbortSignal`, authorize every list/read operation, bound
+  responses, and classify HTTP/network/envelope failures without exposing
+  credentials. Matching, retry, request-to-session fallback, and caching stay
+  in the shared client rather than being reimplemented in the transport.
+- Supply a stable non-secret `cacheScopeKey` for the current principal (for
+  example, `tenantId:userId`) and create a new client when authentication
+  identity changes. Never use bearer tokens, cookies, session secrets, or
+  hashes of those values as cache identity, and never fall back to sessionId.
 - Apply a Content Security Policy suitable for the surrounding application.
 - Use a trusted ECharts runtime and keep it patched.
 - Do not add an "unsafe" option that evaluates formatters or `renderItem` code.
