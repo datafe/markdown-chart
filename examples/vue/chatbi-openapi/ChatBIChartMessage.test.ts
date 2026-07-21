@@ -125,7 +125,7 @@ describe('Vue + markdown-it ChatBI message integration', () => {
     await answerLegacySandbox({
       xAxis: { type: 'category', data: ['A', 'B'] },
       yAxis: {},
-      series: [{ type: 'bar', data: [10, 20] }],
+      series: [{ type: 'bar', data: ['10', '20'] }],
     });
     await vi.waitFor(() => {
       expect(echartsRuntime.init).toHaveBeenCalledOnce();
@@ -133,8 +133,8 @@ describe('Vue + markdown-it ChatBI message integration', () => {
       expect(root.querySelector('button[aria-label="Show data"]')).not.toBeNull();
     });
     expect(echartsRuntime.setOption.mock.calls[0]?.[0]).toMatchObject({
-      dataset: { dimensions: ['name', 'value'], source: [{ name: 'A', value: 10 }, { name: 'B', value: 20 }] },
-      series: [{ type: 'bar', data: [10, 20] }],
+      dataset: { dimensions: ['name', 'value'], source: [{ name: 'A', value: '10' }, { name: 'B', value: '20' }] },
+      series: [{ type: 'bar', data: ['10', '20'] }],
     });
     root.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
     const dataView = root.querySelector<HTMLElement>('[data-markdown-chart-data-view]');

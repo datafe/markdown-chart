@@ -608,7 +608,7 @@ describe('createEChartsRenderer', () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });
     const resolveLegacyArtifactContent = vi.fn(async () => (
-      'category,value,active\nA,10,true\nB,20,false\n'
+      'category,value,active,empty,biz_date\nA,10,true,,20260622\nB,20,false,,20260701\n'
     ));
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
@@ -616,7 +616,8 @@ describe('createEChartsRenderer', () => {
       resizeObserver: false,
     }));
     const controller = new ChartController(registry);
-    const render = controller.render(document.createElement('div'), {
+    const container = document.createElement('div');
+    const render = controller.render(container, {
       language: 'echarts-chatbi_query_42-0',
       source: 'var option = { series: [{ type: "bar" }] };\n//#end',
     });
@@ -634,12 +635,16 @@ describe('createEChartsRenderer', () => {
       signal: expect.any(AbortSignal),
     });
     expect(rendered?.dataset).toEqual({
-      dimensions: ['category', 'value', 'active'],
+      dimensions: ['category', 'value', 'active', 'empty', 'biz_date'],
       source: [
-        { category: 'A', value: 10, active: true },
-        { category: 'B', value: 20, active: false },
+        { category: 'A', value: '10', active: 'true', empty: '', biz_date: '20260622' },
+        { category: 'B', value: '20', active: 'false', empty: '', biz_date: '20260701' },
       ],
     });
+    container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.querySelector('tbody')?.textContent).toContain('A10true""20260622');
     controller.dispose();
   });
 
@@ -667,7 +672,7 @@ describe('createEChartsRenderer', () => {
     });
     expect(rendered?.dataset).toEqual({
       dimensions: ['name', 'value'],
-      source: [{ name: 'A', value: 10 }],
+      source: [{ name: 'A', value: '10' }],
     });
     controller.dispose();
   });

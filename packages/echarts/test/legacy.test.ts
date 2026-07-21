@@ -52,7 +52,7 @@ describe('temporary legacy matcher', () => {
 });
 
 describe('temporary legacy CSV parser', () => {
-  it('uses dynamic JSON scalar typing and returns inspectable inline rows', () => {
+  it('preserves historical string cells and returns inspectable inline rows', () => {
     expect(parseLegacyArtifactCsv(
       'category,value,active,empty\nA,10,true,\nB,2.5,false,\n',
       limits(),
@@ -60,10 +60,28 @@ describe('temporary legacy CSV parser', () => {
       kind: 'inline',
       dimensions: ['category', 'value', 'active', 'empty'],
       source: [
-        { category: 'A', value: 10, active: true, empty: null },
-        { category: 'B', value: 2.5, active: false, empty: null },
+        { category: 'A', value: '10', active: 'true', empty: '' },
+        { category: 'B', value: '2.5', active: 'false', empty: '' },
       ],
     });
+  });
+
+  it('keeps digit-only dates sliceable by historical chart scripts', () => {
+    const data = parseLegacyArtifactCsv(
+      'ds,biz_date,value\n20260622,20260701,10\n',
+      limits(),
+    );
+    const row = data.source[0] as Record<string, string>;
+    const ds = row.ds;
+    const bizDate = row.biz_date;
+
+    expect(typeof ds).toBe('string');
+    expect(typeof bizDate).toBe('string');
+    if (typeof ds !== 'string' || typeof bizDate !== 'string') {
+      throw new Error('legacy date cells must remain strings');
+    }
+    expect(ds.slice(4)).toBe('0622');
+    expect(bizDate.slice(4)).toBe('0701');
   });
 
   it('bounds UTF-8 bytes, rows, columns, and cells independently', () => {
