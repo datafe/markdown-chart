@@ -11,6 +11,7 @@ import {
   type RefChartData,
 } from '@datafe-open/markdown-chart';
 import {
+  LegacySandboxError,
   isLegacyEChartLanguage,
   isLegacyEChartSandboxFileLanguage,
   parseLegacyEChartQueryBlock,
@@ -21,24 +22,37 @@ import {
   type LegacyArtifactLimits,
   type LegacyEChartQueryBlock,
   type LegacyEChartSandboxFileBlock,
+  type LegacySandboxBinding,
   type ResolveLegacyArtifactContent,
   type ResolveLegacyEChartQuery,
   type ResolveLegacySandboxFileContent,
 } from './legacy';
 
 export type {
+  CreateLegacySandboxClientOptions,
   LegacyArtifactContentRequest,
   LegacyArtifactLimits,
   LegacyEChartQueryBlock,
   LegacyEChartQueryRequest,
   LegacyEChartSandboxFileBlock,
+  LegacySandboxBinding,
+  LegacySandboxClient,
+  LegacySandboxContext,
+  LegacySandboxErrorCode,
+  LegacySandboxFailureKind,
+  LegacySandboxFile,
   LegacySandboxFileContentRequest,
+  LegacySandboxTransport,
   ResolveLegacyArtifactContent,
   ResolveLegacySandboxFileContent,
   ResolvedLegacyEChartQuery,
   ResolveLegacyEChartQuery,
 } from './legacy';
-export { DEFAULT_LEGACY_ARTIFACT_LIMITS } from './legacy';
+export {
+  DEFAULT_LEGACY_ARTIFACT_LIMITS,
+  LegacySandboxError,
+  createLegacySandboxClient,
+} from './legacy';
 
 export type DatasetRow = ChartDataRow;
 export type InlineDataset = InlineChartData;
@@ -117,6 +131,8 @@ export interface CreateEChartsRendererOptions {
   readonly resizeObserver?: boolean;
   /** Apply Qwen Code WebShell-inspired safe defaults while preserving explicit spec values. */
   readonly defaultStyle?: boolean;
+  /** Shared legacy sandbox binding. Mutually exclusive with all deprecated resolver callbacks. */
+  readonly legacySandbox?: LegacySandboxBinding;
   /**
    * @deprecated Temporary ChatBI migration hook. Return raw CSV ArtifactContent.
    * The renderer parses the CSV and converts the legacy source in an isolated iframe.
@@ -927,6 +943,16 @@ const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 export function createEChartsRenderer(
   options: CreateEChartsRendererOptions = {},
 ): ChartRenderer<ParsedEChartsSpec> {
+  if (options.legacySandbox && (
+    options.resolveLegacyArtifactContent
+    || options.resolveLegacySandboxFileContent
+    || options.resolveLegacyEChartQuery
+  )) {
+    throw new LegacySandboxError(
+      'LEGACY_SANDBOX_CONFIGURATION_CONFLICT',
+      'Configure legacySandbox without deprecated legacy resolver callbacks',
+    );
+  }
   if (options.resolveLegacyArtifactContent && options.resolveLegacyEChartQuery) {
     throw new MarkdownChartError(
       'SCHEMA_INVALID',
@@ -934,8 +960,12 @@ export function createEChartsRenderer(
     );
   }
   const limits: EChartsLimits = { ...DEFAULT_ECHARTS_LIMITS, ...options.limits };
-  const legacyArtifactLimits = options.resolveLegacyArtifactContent
-    || options.resolveLegacySandboxFileContent
+  const resolveLegacyArtifactContent = options.legacySandbox?.resolveLegacyArtifactContent
+    ?? options.resolveLegacyArtifactContent;
+  const resolveLegacySandboxFileContent = options.legacySandbox?.resolveLegacySandboxFileContent
+    ?? options.resolveLegacySandboxFileContent;
+  const legacyArtifactLimits = resolveLegacyArtifactContent
+    || resolveLegacySandboxFileContent
     ? resolveLegacyArtifactLimits({
         maxRows: limits.maxRows,
         maxCells: limits.maxCells,
@@ -1023,7 +1053,7 @@ export function createEChartsRenderer(
       }
       if (
         parsed.legacyEChartQuery
-        && !options.resolveLegacyArtifactContent
+        && !resolveLegacyArtifactContent
         && !options.resolveLegacyEChartQuery
       ) {
         throw new MarkdownChartError(
@@ -1031,7 +1061,7 @@ export function createEChartsRenderer(
           'resolveLegacyArtifactContent is required for this temporary ChatBI fence',
         );
       }
-      if (parsed.legacyEChartSandboxFile && !options.resolveLegacySandboxFileContent) {
+      if (parsed.legacyEChartSandboxFile && !resolveLegacySandboxFileContent) {
         throw new MarkdownChartError(
           'REF_RESOLVER_MISSING',
           'resolveLegacySandboxFileContent is required for this temporary ChatBI fence',
@@ -1043,16 +1073,18 @@ export function createEChartsRenderer(
           resolved = await resolveLegacySandboxFile({
             block: parsed.legacyEChartSandboxFile,
             signal: context.signal,
-            resolveSandboxFileContent: options.resolveLegacySandboxFileContent as ResolveLegacySandboxFileContent,
+            resolveSandboxFileContent: resolveLegacySandboxFileContent as ResolveLegacySandboxFileContent,
             limits: legacyArtifactLimits as LegacyArtifactLimits,
+            preserveLegacySandboxError: options.legacySandbox !== undefined,
           });
         } else {
-          resolved = options.resolveLegacyArtifactContent
+          resolved = resolveLegacyArtifactContent
             ? await resolveLegacyArtifactQuery({
                 block: parsed.legacyEChartQuery as LegacyEChartQueryBlock,
                 signal: context.signal,
-                resolveArtifactContent: options.resolveLegacyArtifactContent,
+                resolveArtifactContent: resolveLegacyArtifactContent,
                 limits: legacyArtifactLimits as LegacyArtifactLimits,
+                preserveLegacySandboxError: options.legacySandbox !== undefined,
               })
             : await options.resolveLegacyEChartQuery?.({
                 ...parsed.legacyEChartQuery as LegacyEChartQueryBlock,
@@ -1064,6 +1096,9 @@ export function createEChartsRenderer(
           return { parsed, data: context.data };
         }
         if (cause instanceof MarkdownChartError) {
+          throw cause;
+        }
+        if (options.legacySandbox && cause instanceof LegacySandboxError) {
           throw cause;
         }
         throw new MarkdownChartError(

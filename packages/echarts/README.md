@@ -56,6 +56,58 @@ core materialization flow for the Chart/Data view.
 
 ## Temporary legacy adapter
 
+Hosts that need the temporary query and sandbox-file fences can share the file
+discovery state machine while keeping authentication and HTTP details local:
+
+```ts
+import {
+  createEChartsRenderer,
+  createLegacySandboxClient,
+  type LegacySandboxFile,
+  type LegacySandboxTransport,
+} from '@datafe-open/markdown-chart-echarts';
+
+interface HostFile extends LegacySandboxFile {
+  readonly downloadId: string;
+}
+
+const transport: LegacySandboxTransport<HostFile> = {
+  async listFiles({ sessionId, requestId, signal }) {
+    return listAuthorizedFiles({ sessionId, requestId, signal });
+  },
+  async readFile({ sessionId, file, signal }) {
+    return downloadAuthorizedCsv({ sessionId, id: file.downloadId, signal });
+  },
+  classifyError(error, operation) {
+    return classifyHostSandboxError(error, operation);
+  },
+};
+
+const client = createLegacySandboxClient({ transport });
+const legacySandbox = client.bind({
+  sessionId,
+  requestId,
+  phase: isStreaming ? 'live' : 'final',
+  cacheScopeKey: `${tenantId}:${userId}`,
+});
+const renderer = createEChartsRenderer({ legacySandbox });
+```
+
+`cacheScopeKey` is required and must be a stable, non-secret principal identity;
+never use a bearer token, cookie, or their hashes. The binding owns the fixed
+request-to-session retry schedule, unique CSV matching, a private 30-second / 64
+entry success cache, and `shouldDefer(language)` for live fences that do not yet
+have a request id. A final binding without a request id deliberately skips both
+success-cache reads and writes. The transport owns authorization, response
+mapping, file download, and classification into `not-found`, `retryable`, or
+`fatal`, and must honor the supplied `AbortSignal`.
+
+Direct binding failures use the exported `LegacySandboxError` codes. A renderer
+configured with `legacySandbox` preserves those public failures. It is invalid
+to combine the binding with any of the three deprecated resolver callbacks;
+without a binding, all existing callback combinations and error wrapping remain
+unchanged.
+
 `resolveLegacyArtifactContent` is a deprecated migration hook for existing
 ChatBI streams. The host callback only returns the raw CSV `ArtifactContent`;
 this package applies byte/row/column/cell limits, parses it, sanitizes the
@@ -68,7 +120,17 @@ then passes through the same ECharts option validation as canonical content.
 case-sensitive `filePath`; the host owns session/request lookup and returns raw
 CSV. Both legacy paths share the same CSV, sandbox, limits, and option pipeline.
 
-All migration code lives under `src/legacy`; its exported types and options are
-marked `@deprecated`. Removing that directory and the thin renderer hook does
-not change the canonical envelope, parser, or validation path. See the ChatBI
-OpenAPI example for host-side List/Get proxy integration.
+All migration code lives under `src/legacy`. The three existing resolver
+callbacks and the legacy limits remain marked `@deprecated`. The new client,
+binding, transport, descriptor, and error exports are also a temporary legacy
+migration surface, but are not individually annotated `@deprecated` in this
+release so ChatBI and ADA can first converge on one implementation. Do not use
+them for canonical or compact charts.
+
+Removal requires every host to stop producing and resolving the temporary
+query and sandbox-file fences, published deprecation notice for at least one
+release cycle, and zero known repository, external-consumer, and runtime usage.
+The removal release will delete the renderer option/callbacks, root exports,
+and `src/legacy` implementation together while retaining canonical parsing and
+validation. See the ChatBI OpenAPI example for host-side List/Get proxy
+integration during the migration.

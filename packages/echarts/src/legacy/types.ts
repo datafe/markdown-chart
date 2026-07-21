@@ -69,6 +69,86 @@ export type ResolveLegacySandboxFileContent = (
   request: LegacySandboxFileContentRequest,
 ) => string | Promise<string>;
 
+/** Descriptor returned by a host legacy sandbox file listing. */
+export interface LegacySandboxFile {
+  readonly fileName: string;
+  readonly filePath: string;
+  readonly originalFilePath: string;
+  readonly fileType: string;
+}
+
+/** Principal- and turn-scoped context bound to a legacy sandbox client. */
+export interface LegacySandboxContext {
+  readonly sessionId: string;
+  readonly requestId?: string;
+  readonly phase: 'live' | 'final';
+  readonly cacheScopeKey: string;
+}
+
+export type LegacySandboxFailureKind = 'not-found' | 'retryable' | 'fatal';
+
+export type LegacySandboxErrorCode =
+  | 'LEGACY_SANDBOX_NOT_FOUND'
+  | 'LEGACY_SANDBOX_RETRYABLE'
+  | 'LEGACY_SANDBOX_FATAL'
+  | 'LEGACY_SANDBOX_CONFIGURATION_CONFLICT';
+
+/** Stable public failure emitted by the shared legacy sandbox client. */
+export class LegacySandboxError extends Error {
+  readonly code: LegacySandboxErrorCode;
+  override readonly cause?: unknown;
+
+  constructor(
+    code: LegacySandboxErrorCode,
+    message: string,
+    options?: { readonly cause?: unknown },
+  ) {
+    super(message, options && 'cause' in options ? { cause: options.cause } : undefined);
+    this.name = 'LegacySandboxError';
+    this.code = code;
+    this.cause = options?.cause;
+  }
+}
+
+/** Host-owned authenticated file transport. */
+export interface LegacySandboxTransport<
+  File extends LegacySandboxFile = LegacySandboxFile,
+> {
+  listFiles(input: {
+    readonly sessionId: string;
+    readonly requestId?: string;
+    readonly signal: AbortSignal;
+  }): Promise<readonly File[]>;
+  readFile(input: {
+    readonly sessionId: string;
+    readonly file: File;
+    readonly signal: AbortSignal;
+  }): Promise<string>;
+  classifyError(
+    error: unknown,
+    operation: 'list' | 'read',
+  ): LegacySandboxFailureKind;
+}
+
+/** Resolver pair and streaming gate bound to one host context. */
+export interface LegacySandboxBinding {
+  readonly resolveLegacyArtifactContent: ResolveLegacyArtifactContent;
+  readonly resolveLegacySandboxFileContent: ResolveLegacySandboxFileContent;
+  readonly shouldDefer: (language: string) => boolean;
+}
+
+export interface LegacySandboxClient<
+  File extends LegacySandboxFile = LegacySandboxFile,
+> {
+  bind(context: LegacySandboxContext): LegacySandboxBinding;
+}
+
+export interface CreateLegacySandboxClientOptions<
+  File extends LegacySandboxFile = LegacySandboxFile,
+> {
+  readonly transport: LegacySandboxTransport<File>;
+}
+
 /** @deprecated Resource limits for the temporary ChatBI adapter. */
 export interface LegacyArtifactLimits {
   readonly maxArtifactContentBytes: number;

@@ -126,7 +126,10 @@ try {
     path.join(consumerDirectory, 'import-smoke.mjs'),
     [
       "import { MarkdownChart } from '@datafe-open/markdown-chart-react';",
+      "import { LegacySandboxError, createLegacySandboxClient } from '@datafe-open/markdown-chart-echarts';",
       "if (typeof MarkdownChart !== 'function') throw new Error('React ESM export is unavailable');",
+      "if (typeof createLegacySandboxClient !== 'function') throw new Error('ECharts legacy sandbox ESM export is unavailable');",
+      "if (new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'smoke').code !== 'LEGACY_SANDBOX_FATAL') throw new Error('ECharts legacy sandbox ESM error export is unavailable');",
       '',
     ].join('\n'),
   );
@@ -134,12 +137,39 @@ try {
     cwd: consumerDirectory,
     encoding: 'utf8',
   });
-  console.log(`@datafe-open/markdown-chart-react: ESM import passed on Node ${process.versions.node}`);
+  console.log(`React and ECharts legacy sandbox: ESM imports passed on Node ${process.versions.node}`);
+
+  writeFileSync(
+    path.join(consumerDirectory, 'require-smoke.cjs'),
+    [
+      "const { LegacySandboxError, createLegacySandboxClient } = require('@datafe-open/markdown-chart-echarts');",
+      "if (typeof createLegacySandboxClient !== 'function') throw new Error('ECharts legacy sandbox CJS export is unavailable');",
+      "const client = createLegacySandboxClient({ transport: { listFiles: async () => [], readFile: async () => '', classifyError: () => 'fatal' } });",
+      "const binding = client.bind({ sessionId: 'session', requestId: 'request', phase: 'live', cacheScopeKey: 'tenant:user' });",
+      "if (typeof binding.resolveLegacyArtifactContent !== 'function' || typeof binding.shouldDefer !== 'function') throw new Error('ECharts legacy sandbox CJS binding is unavailable');",
+      "if (new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'smoke').code !== 'LEGACY_SANDBOX_FATAL') throw new Error('ECharts legacy sandbox CJS error export is unavailable');",
+      '',
+    ].join('\n'),
+  );
+  execFileSync(process.execPath, ['require-smoke.cjs'], {
+    cwd: consumerDirectory,
+    encoding: 'utf8',
+  });
+  console.log(`@datafe-open/markdown-chart-echarts: CJS require passed on Node ${process.versions.node}`);
 
   writeFileSync(path.join(consumerDirectory, 'strict-consumer.ts'), [
     "import { markdownChartPlugin, type MarkdownChartPluginOptions } from '@datafe-open/markdown-chart-markdown-it';",
     "import { MarkdownChart } from '@datafe-open/markdown-chart-vue';",
+    "import { LegacySandboxError, createLegacySandboxClient, type LegacySandboxBinding, type LegacySandboxContext, type LegacySandboxErrorCode, type LegacySandboxFile, type LegacySandboxTransport } from '@datafe-open/markdown-chart-echarts';",
+    'interface HostFile extends LegacySandboxFile { readonly downloadId: string; }',
+    "const hostFile: HostFile = { fileName: 'a.csv', filePath: 'a.csv', originalFilePath: '', fileType: 'csv', downloadId: 'download' };",
+    "const transport: LegacySandboxTransport<HostFile> = { listFiles: async () => [hostFile], readFile: async ({ file }) => file.downloadId, classifyError: () => 'fatal' };",
+    "const context: LegacySandboxContext = { sessionId: 'session', requestId: 'request', phase: 'live', cacheScopeKey: 'tenant:user' };",
+    'const binding: LegacySandboxBinding = createLegacySandboxClient({ transport }).bind(context);',
+    "const code: LegacySandboxErrorCode = new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'typed smoke').code;",
     'const options: MarkdownChartPluginOptions = {};',
+    'void binding;',
+    'void code;',
     'void markdownChartPlugin;',
     'void options;',
     'void MarkdownChart;',
@@ -152,6 +182,7 @@ try {
       moduleResolution: 'Bundler',
       lib: ['ES2022', 'DOM', 'DOM.Iterable'],
       strict: true,
+      exactOptionalPropertyTypes: true,
       skipLibCheck: false,
       esModuleInterop: true,
       noEmit: true,
@@ -162,7 +193,7 @@ try {
     cwd: consumerDirectory,
     encoding: 'utf8',
   });
-  console.log('markdown-it and Vue tarballs: isolated strict TypeScript consumer passed');
+  console.log('markdown-it, Vue, and ECharts legacy sandbox: isolated strict TypeScript consumer passed');
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
