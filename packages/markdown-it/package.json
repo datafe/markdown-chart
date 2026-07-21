@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-markdown-it",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Safe markdown-it placeholder adapter for Markdown Chart",
   "license": "MIT",
   "repository": {
