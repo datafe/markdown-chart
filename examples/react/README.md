@@ -8,8 +8,10 @@ the actual integration cost:
 - `advanced/` uses `MarkdownChartProvider` and
   `createMarkdownChartComponents` around the host's own `ReactMarkdown`, with a
   custom renderer registry.
-- `chatbi-openapi/` shows a third-party application connecting ChatBI artifact
-  data through its own same-origin DataWorks OpenAPI proxy.
+- `chatbi-openapi/` shows a third-party application adapting its same-origin
+  DataWorks OpenAPI proxy to `LegacySandboxTransport`, keeping one shared
+  client stable while session/request/phase bindings change. Authentication
+  and the non-secret principal `cacheScopeKey` remain host responsibilities.
 
 Run either Vite example from the repository root:
 

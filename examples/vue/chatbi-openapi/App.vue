@@ -21,6 +21,7 @@ var option = {
       :markdown="mockStreamedMarkdown"
       session-id="replace-with-session-id"
       request-id="replace-with-current-request-id"
+      cache-scope-key="replace-with-tenant-id:replace-with-user-id"
     />
   </main>
 </template>

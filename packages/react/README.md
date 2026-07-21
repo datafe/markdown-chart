@@ -27,11 +27,18 @@ tail fence waits. The provider automatically infers the Markdown source from a
 direct `ReactMarkdown` child, so the usual advanced integration needs no extra
 source prop.
 
-The deprecated ChatBI migration prop `resolveLegacyArtifactContent` accepts a
-callback that returns raw CSV content. `legacyArtifactContextKey` can keep an
-equivalent inline callback stable across rerenders; change the key when its
-session or authorization context changes. If the key is omitted, callback
-identity is used as the safe cache boundary.
+New legacy ChatBI integrations should create one `createLegacySandboxClient`
+per authenticated principal lifecycle, bind `{ sessionId, requestId, phase,
+cacheScopeKey }`, and pass the binding as `echarts={{ legacySandbox }}`. Keep
+the client stable across ordinary renders and rebind when context changes.
+`cacheScopeKey` must be an explicit stable, non-secret principal identity; do
+not use a token/cookie value or hash, and rebuild the client on login changes.
+
+The deprecated ChatBI migration prop `resolveLegacyArtifactContent` remains for
+older hosts. `legacyArtifactContextKey` can keep an equivalent inline callback
+stable across rerenders; change the key when its session or authorization
+context changes. Do not configure deprecated callbacks together with
+`echarts.legacySandbox`.
 
 For deprecated `echarts-chatbi_sandbox_filepath_<filePath>` content, use
 `resolveLegacySandboxFileContent`. Its request preserves the original
