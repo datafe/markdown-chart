@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
+import { createLegacySandboxHostAdapter } from '@datafe-open/markdown-chart-echarts';
 import { useChatBIChartMessageLifecycle } from './chart-context';
 import { createChatBILegacySandboxTransport } from './data';
 
@@ -14,13 +15,14 @@ const props = withDefaults(defineProps<{
 });
 
 const transport = createChatBILegacySandboxTransport();
+const hostAdapter = createLegacySandboxHostAdapter({ transport });
 const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifecycle({
   markdown: () => props.markdown,
   sessionId: () => props.sessionId,
   requestId: () => props.requestId,
   streaming: () => props.streaming,
   cacheScopeKey: () => props.cacheScopeKey,
-}, transport);
+}, hostAdapter);
 </script>
 
 <template>

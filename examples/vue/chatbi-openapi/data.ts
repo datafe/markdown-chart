@@ -2,10 +2,11 @@ import {
   isJsonObject,
   type JsonValue,
 } from '@datafe-open/markdown-chart';
-import type {
-  LegacySandboxFailureKind,
-  LegacySandboxFile,
-  LegacySandboxTransport,
+import {
+  createLegacySandboxErrorClassifier,
+  type LegacySandboxFailureKind,
+  type LegacySandboxFile,
+  type LegacySandboxTransport,
 } from '@datafe-open/markdown-chart-echarts';
 
 interface ListArtifactsResult {
@@ -32,13 +33,21 @@ const MAX_ARTIFACT_PAGES = 100;
 let jsonRpcId = 0;
 
 class OpenApiTransportError extends Error {
+  readonly kind: LegacySandboxFailureKind | undefined;
+  readonly status: number | undefined;
+
   constructor(
-    readonly kind: LegacySandboxFailureKind,
     message: string,
-    options?: { readonly cause?: unknown },
+    options?: {
+      readonly cause?: unknown;
+      readonly kind?: LegacySandboxFailureKind;
+      readonly status?: number;
+    },
   ) {
     super(message, options && 'cause' in options ? { cause: options.cause } : undefined);
     this.name = 'OpenApiTransportError';
+    this.kind = options?.kind;
+    this.status = options?.status;
   }
 }
 
@@ -47,7 +56,14 @@ function failure(
   message: string,
   cause?: unknown,
 ): OpenApiTransportError {
-  return new OpenApiTransportError(kind, message, cause === undefined ? undefined : { cause });
+  return new OpenApiTransportError(message, {
+    kind,
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
+function httpFailure(status: number, message: string): OpenApiTransportError {
+  return new OpenApiTransportError(message, { status });
 }
 
 function requiredText(value: string, label: string): string {
@@ -65,14 +81,6 @@ function positiveSafeInteger(value: number, label: string): number {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
-}
-
-function statusFailureKind(status: number): LegacySandboxFailureKind {
-  if (status === 404) return 'not-found';
-  if (status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599)) {
-    return 'retryable';
-  }
-  return 'fatal';
 }
 
 function errorDetail(value: unknown): string | undefined {
@@ -165,8 +173,8 @@ async function postJsonRpc<Result>(
       parsedError = undefined;
     }
     const detail = errorDetail(parsedError);
-    throw failure(
-      statusFailureKind(response.status),
+    throw httpFailure(
+      response.status,
       `${operation} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`,
     );
   }
@@ -227,6 +235,14 @@ export function createChatBILegacySandboxTransport(
     options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
     'maxResponseBytes',
   );
+  const classifyError = createLegacySandboxErrorClassifier({
+    getFailureKind: (error) => (
+      error instanceof OpenApiTransportError ? error.kind : undefined
+    ),
+    getStatus: (error) => (
+      error instanceof OpenApiTransportError ? error.status : undefined
+    ),
+  });
 
   return {
     async listFiles({ sessionId, requestId, signal }) {
@@ -290,8 +306,6 @@ export function createChatBILegacySandboxTransport(
       return meta.ArtifactContent;
     },
 
-    classifyError(error) {
-      return error instanceof OpenApiTransportError ? error.kind : 'fatal';
-    },
+    classifyError,
   };
 }

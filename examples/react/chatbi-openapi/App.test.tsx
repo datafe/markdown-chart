@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLegacySandboxClient } from '@datafe-open/markdown-chart-echarts';
+import { createLegacySandboxHostAdapter } from '@datafe-open/markdown-chart-echarts';
 import { ChatBIChartMessage } from './App';
 import { createChatBILegacySandboxTransport } from './data';
 
@@ -379,17 +379,18 @@ describe('ChatBIChartMessage streaming integration', () => {
       }
       return rpcResult({ ArtifactContent: 'name,value\nA,10\n' });
     });
-    const client = createLegacySandboxClient({
+    const hostAdapter = createLegacySandboxHostAdapter({
       transport: createChatBILegacySandboxTransport({
         fetch: fetcher as unknown as typeof fetch,
       }),
     });
-    const binding = client.bind({
+    const binding = hostAdapter.bind({
       sessionId: 'session-1',
       requestId: 'request-1',
       phase: 'live',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!binding) throw new Error('Expected a complete host context');
     const pending = binding.resolveLegacyArtifactContent({
       language: 'echarts-chatbi_query_42-0',
       jobId: 'chatbi_query_42',
@@ -425,17 +426,18 @@ describe('ChatBIChartMessage streaming integration', () => {
           })
         : rpcResult({ ArtifactContent: 'name,value\nA,10\n' })
     ));
-    const client = createLegacySandboxClient({
+    const hostAdapter = createLegacySandboxHostAdapter({
       transport: createChatBILegacySandboxTransport({
         fetch: fetcher as unknown as typeof fetch,
       }),
     });
-    const finalBinding = client.bind({
+    const finalBinding = hostAdapter.bind({
       sessionId: 'session-1',
       requestId: 'request-ignored-in-final',
       phase: 'final',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!finalBinding) throw new Error('Expected a complete final host context');
     await expect(finalBinding.resolveLegacyArtifactContent({
       language: 'echarts-chatbi_query_42-0',
       jobId: 'chatbi_query_42',
@@ -450,11 +452,12 @@ describe('ChatBIChartMessage streaming integration', () => {
     expect(firstParams).toEqual({ SessionId: 'session-1', MaxResults: 50 });
 
     fetcher.mockClear();
-    const liveWithoutRequest = client.bind({
+    const liveWithoutRequest = hostAdapter.bind({
       sessionId: 'session-1',
       phase: 'live',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!liveWithoutRequest) throw new Error('Expected a complete live host context');
     expect(liveWithoutRequest.shouldDefer('echarts-chatbi_query_42-0')).toBe(true);
     expect(liveWithoutRequest.shouldDefer(
       'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',

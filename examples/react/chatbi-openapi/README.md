@@ -6,16 +6,22 @@ request scope 到 session-only 的 fallback、成功缓存和 live waiting：
 
 ```tsx
 const transport = useMemo(() => createChatBILegacySandboxTransport(), []);
-const client = useMemo(
-  () => createLegacySandboxClient({ transport }),
-  [transport, cacheScopeKey],
+const hostAdapter = useMemo(
+  () => createLegacySandboxHostAdapter({ transport }),
+  [transport],
 );
-const legacySandbox = useMemo(() => client.bind({
+const hostContext = useMemo(() => ({
   sessionId,
   ...(requestId ? { requestId } : {}),
   phase: streaming ? 'live' : 'final',
   cacheScopeKey,
-}), [client, sessionId, requestId, streaming, cacheScopeKey]);
+}), [sessionId, requestId, streaming, cacheScopeKey]);
+const hostIdentity = hostAdapter.identity(hostContext);
+const legacySandbox = useMemo(
+  () => hostAdapter.bind(hostContext),
+  [hostAdapter, hostIdentity],
+);
+if (!legacySandbox) throw new Error('sessionId and cacheScopeKey are required');
 const echarts = useMemo(() => ({ legacySandbox }), [legacySandbox]);
 const deferredMarkdown = useMemo(
   () => replaceDeferredLegacyFences(markdown, legacySandbox.shouldDefer),
@@ -25,11 +31,11 @@ const deferredMarkdown = useMemo(
 <MarkdownChart source={deferredMarkdown.source} streaming={streaming} echarts={echarts} />
 ```
 
-transport 在组件生命周期内保持稳定；`client` 在当前认证主体内保持稳定，
-`cacheScopeKey` 变化时重建，session/request/phase 变化只重新 `bind`。
+transport 与 host adapter 在组件生命周期内保持稳定；adapter 按认证主体私有管理
+active client/cache，`identity(context)` 变化时才重新 `bind` 并替换 renderer generation。
 `cacheScopeKey` 是必填的非 secret 主体标识，推荐 `${tenantId}:${userId}`。不得使用
 token、cookie、session secret 的原文或 hash，也不得回退为 `sessionId`。登录身份变化
-时新的 client/registry 会让既有 chart controller 取消旧请求；A → B → A 也不会复用
+时新的 binding/registry 会让既有 chart controller 取消旧请求；A → B → A 也不会复用
 第一次 A 的 success cache。
 
 live 阶段尚无 `requestId` 时，组件只对 Markdown 中实际出现的 query / sandbox-filepath
@@ -41,7 +47,7 @@ canonical/compact chart 和其他非命中 block 继续渲染，且不发 legacy
 blockquote、bullet / ordered-list container 的合法 fence 都按 block 处理，未闭合 fence
 保持原文并继续使用框架既有 streaming 语义。
 
-新接入应使用 `createLegacySandboxClient` + `legacySandbox`。已弃用的
+新接入应使用 `createLegacySandboxHostAdapter` + `legacySandbox`。已弃用的
 `resolveLegacyArtifactContent` / `resolveLegacySandboxFileContent` 仅用于尚未迁移的旧
 宿主；不要与 `legacySandbox` 同时配置。
 
@@ -54,10 +60,12 @@ blockquote、bullet / ordered-list container 的合法 fence 都按 block 处理
 | `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、可选 `RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
 | `POST /api/dataworks/get-agent-session-artifact-meta` | `SessionId`、`ArtifactPath` | 完成鉴权/签名并调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，转发 JSON-RPC 响应。 |
 
-`data.ts` 只遍历 List 分页、映射 descriptor、读取 raw `ArtifactContent` 并把 HTTP /
-网络 / envelope 错误分类。它不复制 matching、retry、fallback 或 cache。AccessKey、
+`data.ts` 只遍历 List 分页、映射 descriptor、读取 raw `ArtifactContent`，并通过
+`createLegacySandboxErrorClassifier` 扩展 host-owned HTTP / 网络 / envelope 错误。它不
+复制 matching、retry、fallback 或 cache。AccessKey、
 Caller-Context、cookie 和签名逻辑必须留在后端/宿主；代理应先鉴权并限制响应大小，
-浏览器的 8 MiB 上限是第二道防线。`AbortSignal` 会原样传递给两个 fetch。
+浏览器的 8 MiB 上限是第二道防线。`AbortSignal` 会原样传递给两个原生 fetch；不要用
+`waitForLegacySandboxAbortable` 再包裹原生 fetch。
 
 提供上述路由后运行：
 

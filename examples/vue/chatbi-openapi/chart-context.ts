@@ -1,9 +1,9 @@
 import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
-  createLegacySandboxClient,
   type LegacySandboxBinding,
-  type LegacySandboxTransport,
+  type LegacySandboxHostAdapter,
+  type LegacySandboxHostContext,
 } from '@datafe-open/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
 import MarkdownIt from 'markdown-it';
@@ -167,23 +167,26 @@ export function createChatBIChartContext(
   return { registry, markdownIt };
 }
 
-/** Owns the principal client, bound context, and live-fence gate used by the SFC entry. */
+/** Binds the SFC-owned host adapter and live-fence gate to reactive turn context. */
 export function useChatBIChartMessageLifecycle(
   state: ChatBIChartMessageState,
-  transport: LegacySandboxTransport,
+  hostAdapter: LegacySandboxHostAdapter,
 ): ChatBIChartMessageLifecycle {
-  const principalClient = computed(() => ({
-    cacheScopeKey: state.cacheScopeKey(),
-    client: createLegacySandboxClient({ transport }),
-  }));
-  const legacySandbox = computed(() => {
+  const hostContext = computed<LegacySandboxHostContext>(() => {
     const requestId = state.requestId();
-    return principalClient.value.client.bind({
+    return {
       sessionId: state.sessionId(),
       ...(requestId ? { requestId } : {}),
       phase: state.streaming() ? 'live' : 'final',
-      cacheScopeKey: principalClient.value.cacheScopeKey,
-    });
+      cacheScopeKey: state.cacheScopeKey(),
+    };
+  });
+  const hostIdentity = computed(() => hostAdapter.identity(hostContext.value));
+  const legacySandbox = computed(() => {
+    void hostIdentity.value;
+    const binding = hostAdapter.bind(hostContext.value);
+    if (!binding) throw new Error('sessionId and cacheScopeKey are required');
+    return binding;
   });
   const chartContext = computed(() => createChatBIChartContext({
     legacySandbox: legacySandbox.value,

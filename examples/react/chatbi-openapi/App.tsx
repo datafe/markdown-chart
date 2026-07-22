@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import { MarkdownChart } from '@datafe-open/markdown-chart-react';
-import { createLegacySandboxClient } from '@datafe-open/markdown-chart-echarts';
+import {
+  createLegacySandboxHostAdapter,
+  type LegacySandboxHostContext,
+} from '@datafe-open/markdown-chart-echarts';
 import { createChatBILegacySandboxTransport } from './data';
 
 export interface ChatBIChartMessageProps {
@@ -141,19 +144,22 @@ export function ChatBIChartMessage({
   cacheScopeKey,
 }: ChatBIChartMessageProps) {
   const transport = useMemo(() => createChatBILegacySandboxTransport(), []);
-  const client = useMemo(
-    () => createLegacySandboxClient({ transport }),
-    [transport, cacheScopeKey],
+  const hostAdapter = useMemo(
+    () => createLegacySandboxHostAdapter({ transport }),
+    [transport],
   );
-  const legacySandbox = useMemo(
-    () => client.bind({
+  const hostContext = useMemo<LegacySandboxHostContext>(() => ({
       sessionId,
       ...(requestId ? { requestId } : {}),
       phase: streaming ? 'live' : 'final',
       cacheScopeKey,
-    }),
-    [client, sessionId, requestId, streaming, cacheScopeKey],
-  );
+    }), [sessionId, requestId, streaming, cacheScopeKey]);
+  const hostIdentity = hostAdapter.identity(hostContext);
+  const legacySandbox = useMemo(() => {
+    const binding = hostAdapter.bind(hostContext);
+    if (!binding) throw new Error('sessionId and cacheScopeKey are required');
+    return binding;
+  }, [hostAdapter, hostIdentity]);
   const echarts = useMemo(() => ({ legacySandbox }), [legacySandbox]);
   const deferredMarkdown = useMemo(
     () => replaceDeferredLegacyFences(markdown, legacySandbox.shouldDefer),
