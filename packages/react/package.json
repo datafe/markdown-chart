@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-react",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "react-markdown adapter for Markdown Chart",
   "license": "MIT",
   "repository": {
