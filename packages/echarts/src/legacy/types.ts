@@ -19,24 +19,11 @@ export interface LegacyEChartSandboxFileBlock {
   readonly source: string;
 }
 
-/** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
-export interface LegacyEChartQueryRequest extends LegacyEChartQueryBlock {
-  readonly signal: AbortSignal;
-}
-
-/** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
+/** Internal materialized result for the temporary legacy sandbox orchestrator. */
 export interface ResolvedLegacyEChartQuery {
   readonly data: InlineChartData;
   readonly spec: Record<string, JsonValue>;
 }
-
-/**
- * @deprecated Advanced escape hatch for the temporary ChatBI migration format.
- * Prefer `ResolveLegacyArtifactContent` while the migration is active.
- */
-export type ResolveLegacyEChartQuery = (
-  request: LegacyEChartQueryRequest,
-) => ResolvedLegacyEChartQuery | Promise<ResolvedLegacyEChartQuery>;
 
 /** @deprecated Request for the temporary ChatBI artifact-content adapter. */
 export interface LegacyArtifactContentRequest {

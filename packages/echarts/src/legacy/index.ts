@@ -18,7 +18,6 @@ export type {
   LegacyArtifactContentRequest,
   LegacyArtifactLimits,
   LegacyEChartQueryBlock,
-  LegacyEChartQueryRequest,
   LegacyEChartSandboxFileBlock,
   LegacySandboxBinding,
   LegacySandboxClient,
@@ -33,8 +32,6 @@ export type {
   LegacySandboxTransport,
   ResolveLegacyArtifactContent,
   ResolveLegacySandboxFileContent,
-  ResolvedLegacyEChartQuery,
-  ResolveLegacyEChartQuery,
 } from './types';
 export { DEFAULT_LEGACY_ARTIFACT_LIMITS, LegacySandboxError } from './types';
 export { resolveLegacyArtifactLimits } from './types';

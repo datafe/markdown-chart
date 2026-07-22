@@ -11,14 +11,12 @@ import {
   createLegacySandboxClient,
   createEChartsRenderer,
   LegacySandboxError,
-  type CreateEChartsRendererOptions,
   type EChartsRuntime,
   type LegacySandboxBinding,
   type LegacySandboxFile,
   type LegacySandboxTransport,
   type ParsedEChartsSpec,
   type ResolvedDataset,
-  type ResolvedLegacyEChartQuery,
 } from '../src/index';
 
 const LEGACY_CHANNEL = '@datafe-open/markdown-chart/legacy-echart-query';
@@ -135,6 +133,17 @@ async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<v
       option,
     },
   }));
+}
+
+function legacySandboxBinding(
+  overrides: Partial<LegacySandboxBinding> = {},
+): LegacySandboxBinding {
+  return {
+    resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+    resolveLegacySandboxFileContent: async () => 'name,value\nA,10\n',
+    shouldDefer: () => false,
+    ...overrides,
+  };
 }
 
 describe('createEChartsRenderer', () => {
@@ -731,56 +740,7 @@ describe('createEChartsRenderer', () => {
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
-  it('resolves the temporary ChatBI query fence through a host callback', async () => {
-    let rendered: Record<string, JsonValue> | undefined;
-    const fake = fakeRuntime((option) => { rendered = option; });
-    const resolveLegacyEChartQuery = vi.fn(async () => ({
-      data: {
-        kind: 'inline' as const,
-        dimensions: ['name', 'value'],
-        source: [{ name: 'A', value: 10 }, { name: 'B', value: 20 }],
-      },
-      spec: {
-        xAxis: { type: 'category' },
-        yAxis: {},
-        series: [{ type: 'bar', encode: { x: 'name', y: 'value' } }],
-      },
-    }));
-    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-      loadECharts: () => fake.runtime,
-      resolveLegacyEChartQuery,
-      resizeObserver: false,
-    }));
-    const controller = new ChartController(registry);
-    const container = document.createElement('div');
-
-    await controller.render(container, {
-      language: 'echarts-chatbi_query_8660210443288600709-0',
-      source: 'var option = { series: [] };\n//#end',
-    });
-
-    expect(resolveLegacyEChartQuery).toHaveBeenCalledWith(expect.objectContaining({
-      language: 'echarts-chatbi_query_8660210443288600709-0',
-      jobId: 'chatbi_query_8660210443288600709',
-      index: 0,
-      source: 'var option = { series: [] };\n//#end',
-      signal: expect.any(AbortSignal),
-    }));
-    expect(rendered?.dataset).toEqual({
-      dimensions: ['name', 'value'],
-      source: [{ name: 'A', value: 10 }, { name: 'B', value: 20 }],
-    });
-    const showData = container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
-    expect(showData).not.toBeNull();
-    showData?.click();
-    const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
-    expect(dataView?.hidden).toBe(false);
-    expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
-    expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
-    controller.dispose();
-  });
-
-  it('owns CSV parsing and sandbox conversion for the ArtifactContent resolver', async () => {
+  it('owns CSV parsing and sandbox conversion for the legacySandbox binding', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });
     const resolveLegacyArtifactContent = vi.fn(async () => (
@@ -788,7 +748,7 @@ describe('createEChartsRenderer', () => {
     ));
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
-      resolveLegacyArtifactContent,
+      legacySandbox: legacySandboxBinding({ resolveLegacyArtifactContent }),
       resizeObserver: false,
     }));
     const controller = new ChartController(registry);
@@ -824,13 +784,13 @@ describe('createEChartsRenderer', () => {
     controller.dispose();
   });
 
-  it('resolves a case-sensitive sandbox file path through the host callback', async () => {
+  it('resolves a case-sensitive sandbox file path through the legacySandbox binding', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });
     const resolveLegacySandboxFileContent = vi.fn(async () => 'name,value\nA,10\n');
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
-      resolveLegacySandboxFileContent,
+      legacySandbox: legacySandboxBinding({ resolveLegacySandboxFileContent }),
       resizeObserver: false,
     }));
     const controller = new ChartController(registry);
@@ -851,16 +811,6 @@ describe('createEChartsRenderer', () => {
       source: [{ name: 'A', value: '10' }],
     });
     controller.dispose();
-  });
-
-  it('rejects ambiguous legacy resolver configuration immediately', () => {
-    expect(() => createEChartsRenderer({
-      resolveLegacyArtifactContent: async () => 'a\n1\n',
-      resolveLegacyEChartQuery: async () => ({
-        data: { kind: 'inline', source: [] },
-        spec: { series: [] },
-      }),
-    })).toThrow(/either resolveLegacyArtifactContent or resolveLegacyEChartQuery/);
   });
 
   it('materializes legacy content through the public sandbox client binding', async () => {
@@ -910,50 +860,6 @@ describe('createEChartsRenderer', () => {
   });
 
   it.each([
-    ['raw artifact', {
-      resolveLegacyArtifactContent: async () => 'a\n1\n',
-    }],
-    ['sandbox file', {
-      resolveLegacySandboxFileContent: async () => 'a\n1\n',
-    }],
-    ['advanced query', {
-      resolveLegacyEChartQuery: async () => ({
-        data: { kind: 'inline' as const, source: [] },
-        spec: { series: [] },
-      }),
-    }],
-  ] satisfies readonly [string, Partial<CreateEChartsRendererOptions>][]) (
-    'rejects legacySandbox combined with the deprecated %s callback',
-    (_label, deprecatedOption) => {
-      const legacySandbox: LegacySandboxBinding = {
-        resolveLegacyArtifactContent: async () => 'a\n1\n',
-        resolveLegacySandboxFileContent: async () => 'a\n1\n',
-        shouldDefer: () => false,
-      };
-      expect(() => createEChartsRenderer({ legacySandbox, ...deprecatedOption }))
-        .toThrowError(expect.objectContaining({
-          name: 'LegacySandboxError',
-          code: 'LEGACY_SANDBOX_CONFIGURATION_CONFLICT',
-        }));
-    },
-  );
-
-  it('keeps the existing old-callback combination matrix unchanged', () => {
-    const resolveLegacySandboxFileContent = async (): Promise<string> => 'a\n1\n';
-    expect(() => createEChartsRenderer({
-      resolveLegacyArtifactContent: async () => 'a\n1\n',
-      resolveLegacySandboxFileContent,
-    })).not.toThrow();
-    expect(() => createEChartsRenderer({
-      resolveLegacyEChartQuery: async () => ({
-        data: { kind: 'inline', source: [] },
-        spec: { series: [] },
-      }),
-      resolveLegacySandboxFileContent,
-    })).not.toThrow();
-  });
-
-  it.each([
     ['query', 'echarts-chatbi_query_42-0'],
     ['sandbox file', 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv'],
   ] as const)('preserves a public LegacySandboxError through the %s renderer path', async (
@@ -982,34 +888,6 @@ describe('createEChartsRenderer', () => {
     }).catch((cause: unknown) => cause);
     expect(error).toBe(publicError);
     expect(loadECharts).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['raw artifact', 'echarts-chatbi_query_42-0', (error: LegacySandboxError) => ({
-      resolveLegacyArtifactContent: async () => { throw error; },
-    })],
-    ['sandbox file', 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv', (
-      error: LegacySandboxError,
-    ) => ({
-      resolveLegacySandboxFileContent: async () => { throw error; },
-    })],
-    ['advanced query', 'echarts-chatbi_query_42-0', (error: LegacySandboxError) => ({
-      resolveLegacyEChartQuery: async () => { throw error; },
-    })],
-  ] as const)('keeps a LegacySandboxError from the old %s callback wrapped', async (
-    _label,
-    language,
-    option,
-  ) => {
-    const original = new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'old callback failure');
-    const registry = new ChartRendererRegistry().register(createEChartsRenderer(option(original)));
-
-    const error = await new ChartController(registry).render(document.createElement('div'), {
-      language,
-      source: 'var option = {};',
-    }).catch((cause: unknown) => cause);
-    expect(error).toBeInstanceOf(MarkdownChartError);
-    expect(error).toMatchObject({ code: 'REF_RESOLUTION_FAILED', cause: original });
   });
 
   it.each(['delay', 'list', 'read'] as const)(
@@ -1080,7 +958,7 @@ describe('createEChartsRenderer', () => {
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts,
-      resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+      legacySandbox: legacySandboxBinding(),
     }));
     const render = new ChartController(registry).render(document.createElement('div'), {
       language: 'echarts-chatbi_query_42-0',
@@ -1094,18 +972,19 @@ describe('createEChartsRenderer', () => {
     expect(loadECharts).not.toHaveBeenCalled();
   });
 
-  it('aborts an in-flight temporary ChatBI resolver before UI or runtime creation', async () => {
-    let finishResolve: ((value: ResolvedLegacyEChartQuery) => void) | undefined;
+  it('aborts an in-flight legacySandbox binding before UI or runtime creation', async () => {
+    let finishResolve: ((value: string) => void) | undefined;
     let resolverSignal: AbortSignal | undefined;
     const loadECharts = vi.fn();
+    const resolveLegacyArtifactContent = ({ signal }: { readonly signal: AbortSignal }) => {
+      resolverSignal = signal;
+      return new Promise<string>((resolve) => {
+        finishResolve = resolve;
+      });
+    };
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts,
-      resolveLegacyEChartQuery: ({ signal }) => {
-        resolverSignal = signal;
-        return new Promise((resolve) => {
-          finishResolve = resolve;
-        });
-      },
+      legacySandbox: legacySandboxBinding({ resolveLegacyArtifactContent }),
     }));
     const controller = new ChartController(registry);
     const container = document.createElement('div');
@@ -1121,48 +1000,43 @@ describe('createEChartsRenderer', () => {
       streaming: true,
     });
     expect(resolverSignal?.aborted).toBe(true);
-    finishResolve?.({
-      data: { kind: 'inline', source: [] },
-      spec: { series: [] },
-    });
+    finishResolve?.('name,value\nA,10\n');
     await render;
     expect(loadECharts).not.toHaveBeenCalled();
     expect(container.childElementCount).toBe(0);
   });
 
-  it('accepts legacy resolver data over 500 KB within ECharts row and cell limits', async () => {
+  it('accepts legacySandbox CSV over 500 KB within ECharts row and cell limits', async () => {
     let rendered: Record<string, JsonValue> | undefined;
-    const source = Array.from({ length: 2_000 }, (_, rowIndex) => (
+    const rows = Array.from({ length: 2_000 }, (_, rowIndex) => (
       Array.from({ length: 20 }, (_, columnIndex) => (
         `${rowIndex}-${columnIndex}-${'x'.repeat(16)}`
       ))
     ));
-    const resolved = {
-      data: {
-        kind: 'inline' as const,
-        dimensions: Array.from({ length: 20 }, (_, index) => `column_${index}`),
-        source,
-      },
-      spec: { series: [{ type: 'bar' }] },
-    };
-    expect(JSON.stringify(resolved).length).toBeGreaterThan(500_000);
+    const dimensions = Array.from({ length: 20 }, (_, index) => `column_${index}`);
+    const csv = [dimensions, ...rows].map((row) => row.join(',')).join('\n');
+    expect(csv.length).toBeGreaterThan(500_000);
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
-      resolveLegacyEChartQuery: async () => resolved,
+      legacySandbox: legacySandboxBinding({
+        resolveLegacyArtifactContent: async () => csv,
+      }),
       resizeObserver: false,
     }));
 
-    await new ChartController(registry).render(document.createElement('div'), {
+    const render = new ChartController(registry).render(document.createElement('div'), {
       language: 'echarts-chatbi_query_8660210443288600709-0',
       source: 'var option = {};',
     });
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
+    await render;
 
     const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
     expect(dataset?.source).toHaveLength(2_000);
   });
 
-  it('requires a host callback for the temporary ChatBI query fence', async () => {
+  it('requires legacySandbox for the temporary ChatBI query fence', async () => {
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => { throw new Error('must not load'); },
     }));
@@ -1172,40 +1046,21 @@ describe('createEChartsRenderer', () => {
     })).rejects.toMatchObject({ code: 'REF_RESOLVER_MISSING' });
   });
 
-  it('revalidates temporary ChatBI resolver output before loading ECharts', async () => {
-    const loadECharts = vi.fn();
-    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-      loadECharts,
-      resolveLegacyEChartQuery: async () => ({
-        data: { kind: 'inline', source: [] },
-        spec: { tooltip: { formatter: { unsafe: true } as unknown as JsonValue }, series: [] },
-      }),
-    }));
-
-    await expect(new ChartController(registry).render(document.createElement('div'), {
-      language: 'echarts-chatbi_query_8660210443288600709-0',
-      source: 'var option = {};',
-    })).rejects.toMatchObject({ code: 'UNSAFE_SPEC' });
-    expect(loadECharts).not.toHaveBeenCalled();
-  });
-
-  it('rejects non-JSON prototypes returned by the temporary resolver', async () => {
+  it('rejects non-JSON prototypes returned by the temporary sandbox', async () => {
     const loadECharts = vi.fn();
     const spec = Object.assign(Object.create({ inherited: true }) as Record<string, JsonValue>, {
       series: [],
     });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts,
-      resolveLegacyEChartQuery: async () => ({
-        data: { kind: 'inline', source: [] },
-        spec,
-      }),
+      legacySandbox: legacySandboxBinding(),
     }));
-
-    await expect(new ChartController(registry).render(document.createElement('div'), {
+    const render = new ChartController(registry).render(document.createElement('div'), {
       language: 'echarts-chatbi_query_8660210443288600709-0',
       source: 'var option = {};',
-    })).rejects.toMatchObject({ code: 'INVALID_JSON' });
+    });
+    await answerLegacySandbox(spec);
+    await expect(render).rejects.toMatchObject({ code: 'INVALID_JSON' });
     expect(loadECharts).not.toHaveBeenCalled();
   });
 

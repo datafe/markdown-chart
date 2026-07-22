@@ -32,18 +32,9 @@ requestId, phase, cacheScopeKey }`, and register ECharts with
 `createEChartsRenderer({ legacySandbox })`. Keep the client stable and replace
 only the binding/registry context. `cacheScopeKey` must be an explicit stable,
 non-secret principal identity; never use a token/cookie value or hash.
-
-The deprecated ChatBI migration prop `resolveLegacyArtifactContent` remains for
-older hosts. `legacyArtifactContextKey` can keep an equivalent inline callback
-stable across rerenders; change the key when its session or authorization
-context changes. Do not configure deprecated callbacks together with
-`echarts.legacySandbox`.
-
-For deprecated `echarts-chatbi_sandbox_filepath_<filePath>` content, use
-`resolveLegacySandboxFileContent`. Its request preserves the original
-case-sensitive `filePath`; `legacySandboxFileContextKey` provides the same
-stable session/authorization cache boundary. Configure each resolver either as
-a top-level prop or in `echarts` options, never both.
+`legacySandbox` is the only supported public renderer configuration for
+temporary ChatBI query and sandbox-file fences; `<MarkdownChart>` exposes no
+standalone legacy resolver props or callback context keys.
 
 Chart placeholders must have a non-zero height so ECharts can measure its
 container:

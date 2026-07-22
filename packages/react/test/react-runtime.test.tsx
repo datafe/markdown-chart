@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
 import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+import {
+  createEChartsRenderer,
+  type LegacySandboxBinding,
+} from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartComponents,
   MarkdownChart,
@@ -57,19 +60,23 @@ describe('react-markdown runtime adapter', () => {
 
   it('routes the temporary ChatBI fence in simple and advanced modes', () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
-    const resolveLegacyArtifactContent = async () => 'name,value\nA,10\n';
+    const legacySandbox: LegacySandboxBinding = {
+      resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+      resolveLegacySandboxFileContent: async () => 'name,value\nA,10\n',
+      shouldDefer: () => false,
+    };
 
     const simpleHtml = renderToStaticMarkup(
       <MarkdownChart
         source={source}
-        resolveLegacyArtifactContent={resolveLegacyArtifactContent}
+        echarts={{ legacySandbox }}
       />,
     );
     expect(simpleHtml).toContain('markdown-chart-placeholder');
     expect(simpleHtml).not.toContain('<pre>');
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
-      resolveLegacyArtifactContent,
+      legacySandbox,
     }));
     const components = createMarkdownChartComponents({ chartStyle: { minHeight: 360 } });
     const advancedHtml = renderToStaticMarkup(

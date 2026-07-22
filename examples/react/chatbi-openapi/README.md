@@ -47,9 +47,9 @@ canonical/compact chart 和其他非命中 block 继续渲染，且不发 legacy
 blockquote、bullet / ordered-list container 的合法 fence 都按 block 处理，未闭合 fence
 保持原文并继续使用框架既有 streaming 语义。
 
-新接入应使用 `createLegacySandboxHostAdapter` + `legacySandbox`。已弃用的
-`resolveLegacyArtifactContent` / `resolveLegacySandboxFileContent` 仅用于尚未迁移的旧
-宿主；不要与 `legacySandbox` 同时配置。
+临时 query / sandbox-file fence 只通过
+`createLegacySandboxHostAdapter` + `legacySandbox` 接入；renderer 和 React
+`MarkdownChart` 不再提供 standalone legacy callback 配置。
 
 ## 浏览器到后端的契约
 
