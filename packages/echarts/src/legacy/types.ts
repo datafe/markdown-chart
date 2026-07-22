@@ -149,6 +149,35 @@ export interface CreateLegacySandboxClientOptions<
   readonly transport: LegacySandboxTransport<File>;
 }
 
+/** Promise-like host request that may expose an imperative cancellation hook. */
+export interface LegacySandboxAbortablePromiseLike<T> extends PromiseLike<T> {
+  abort?(): void;
+}
+
+/** Host-specific extensions for the shared structural error classifier. */
+export interface LegacySandboxErrorClassifierOptions {
+  readonly getFailureKind?: (
+    error: unknown,
+    operation: 'list' | 'read',
+  ) => LegacySandboxFailureKind | undefined;
+  readonly getStatus?: (error: unknown) => number | string | undefined;
+  readonly isRetryableError?: (error: unknown) => boolean;
+}
+
+/** Optional host context normalized before binding the shared sandbox client. */
+export interface LegacySandboxHostContext {
+  readonly sessionId?: string;
+  readonly requestId?: string;
+  readonly phase: 'live' | 'final';
+  readonly cacheScopeKey?: string;
+}
+
+/** Stable host-facing lifecycle wrapper around a private sandbox client. */
+export interface LegacySandboxHostAdapter {
+  bind(context: LegacySandboxHostContext): LegacySandboxBinding | undefined;
+  identity(context: LegacySandboxHostContext): string;
+}
+
 /** @deprecated Resource limits for the temporary ChatBI adapter. */
 export interface LegacyArtifactLimits {
   readonly maxArtifactContentBytes: number;

@@ -35,13 +35,17 @@ export type {
   LegacyEChartQueryBlock,
   LegacyEChartQueryRequest,
   LegacyEChartSandboxFileBlock,
+  LegacySandboxAbortablePromiseLike,
   LegacySandboxBinding,
   LegacySandboxClient,
   LegacySandboxContext,
   LegacySandboxErrorCode,
+  LegacySandboxErrorClassifierOptions,
   LegacySandboxFailureKind,
   LegacySandboxFile,
   LegacySandboxFileContentRequest,
+  LegacySandboxHostAdapter,
+  LegacySandboxHostContext,
   LegacySandboxTransport,
   ResolveLegacyArtifactContent,
   ResolveLegacySandboxFileContent,
@@ -51,7 +55,10 @@ export type {
 export {
   DEFAULT_LEGACY_ARTIFACT_LIMITS,
   LegacySandboxError,
+  createLegacySandboxErrorClassifier,
+  createLegacySandboxHostAdapter,
   createLegacySandboxClient,
+  waitForLegacySandboxAbortable,
 } from './legacy';
 
 export type DatasetRow = ChartDataRow;

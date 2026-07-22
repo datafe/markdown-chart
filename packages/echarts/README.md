@@ -62,7 +62,9 @@ discovery state machine while keeping authentication and HTTP details local:
 ```ts
 import {
   createEChartsRenderer,
-  createLegacySandboxClient,
+  createLegacySandboxErrorClassifier,
+  createLegacySandboxHostAdapter,
+  waitForLegacySandboxAbortable,
   type LegacySandboxFile,
   type LegacySandboxTransport,
 } from '@datafe-open/markdown-chart-echarts';
@@ -71,26 +73,35 @@ interface HostFile extends LegacySandboxFile {
   readonly downloadId: string;
 }
 
+const classifyError = createLegacySandboxErrorClassifier({
+  getStatus(error) {
+    return isHostHttpError(error) ? error.statusCode : undefined;
+  },
+});
+
 const transport: LegacySandboxTransport<HostFile> = {
   async listFiles({ sessionId, requestId, signal }) {
-    return listAuthorizedFiles({ sessionId, requestId, signal });
+    const request = listAuthorizedFiles({ sessionId, requestId });
+    return waitForLegacySandboxAbortable(request, signal);
   },
   async readFile({ sessionId, file, signal }) {
-    return downloadAuthorizedCsv({ sessionId, id: file.downloadId, signal });
+    const request = downloadAuthorizedCsv({ sessionId, id: file.downloadId });
+    return waitForLegacySandboxAbortable(request, signal);
   },
-  classifyError(error, operation) {
-    return classifyHostSandboxError(error, operation);
-  },
+  classifyError,
 };
 
-const client = createLegacySandboxClient({ transport });
-const legacySandbox = client.bind({
+const adapter = createLegacySandboxHostAdapter({ transport });
+const context = {
   sessionId,
   requestId,
-  phase: isStreaming ? 'live' : 'final',
+  phase: turnPhase,
   cacheScopeKey: `${tenantId}:${userId}`,
-});
+} as const;
+const legacySandbox = adapter.bind(context);
+if (!legacySandbox) throw new Error('Legacy sandbox context is incomplete');
 const renderer = createEChartsRenderer({ legacySandbox });
+const rendererIdentity = adapter.identity(context);
 ```
 
 `cacheScopeKey` is required and must be a stable, non-secret principal identity;
@@ -101,6 +112,22 @@ have a request id. A final binding without a request id deliberately skips both
 success-cache reads and writes. The transport owns authorization, response
 mapping, file download, and classification into `not-found`, `retryable`, or
 `fatal`, and must honor the supplied `AbortSignal`.
+
+The optional host helpers keep the remaining host-neutral glue in this package:
+`waitForLegacySandboxAbortable` bridges an abortable Promise-like request to an
+`AbortSignal`, `createLegacySandboxErrorClassifier` handles structural HTTP and
+network failures without inspecting error messages, and
+`createLegacySandboxHostAdapter` normalizes context and privately owns the
+active client/cache generation. A host still owns its authenticated API calls,
+response and file-descriptor mapping, download URL handling, principal source,
+and any host-specific status extensions. Use `adapter.identity(context)` as the
+host component/controller identity so a principal or turn change replaces and
+disposes the old controller. Create a new adapter instance when an isolated
+client/cache lifetime is needed; the public adapter intentionally has no
+`reset()` method. Direct `createLegacySandboxClient({ transport })` usage remains
+supported for existing consumers. `turnPhase` must come from the host's actual
+assistant-turn lifecycle; do not infer it from a renderer placeholder or fence
+state.
 
 Direct binding failures use the exported `LegacySandboxError` codes. A renderer
 configured with `legacySandbox` preserves those public failures. It is invalid
