@@ -16,5 +16,6 @@ The [`react/chatbi-openapi/`](./react/chatbi-openapi/) and
 frontend adapting two same-origin DataWorks OpenAPI routes into a
 `LegacySandboxTransport`. The shared client owns file matching, retries,
 request-to-session fallback, caching, and live waiting. Each host keeps one
-client per authenticated principal lifecycle and binds session/request/phase
-context with an explicit non-secret `cacheScopeKey`.
+`createLegacySandboxHostAdapter` per component lifecycle and uses its
+`identity`/`bind` pair with session/request/phase context and an explicit
+non-secret `cacheScopeKey`.

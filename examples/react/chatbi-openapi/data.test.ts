@@ -113,6 +113,16 @@ describe('React ChatBI OpenAPI legacy sandbox transport', () => {
     const networkError = await rejected(networkTransport.listFiles(listInput()));
     expect(networkTransport.classifyError(networkError, 'list')).toBe('retryable');
 
+    const readFailureTransport = createChatBILegacySandboxTransport({
+      fetch: vi.fn().mockResolvedValue(new Response(new ReadableStream({
+        start(controller) {
+          controller.error(new Error('response read failed'));
+        },
+      }))) as unknown as typeof fetch,
+    });
+    const readError = await rejected(readFailureTransport.listFiles(listInput()));
+    expect(readFailureTransport.classifyError(readError, 'list')).toBe('retryable');
+
     const invalidEnvelope = createChatBILegacySandboxTransport({
       fetch: vi.fn().mockResolvedValue(Response.json({ unexpected: true })) as unknown as typeof fetch,
     });

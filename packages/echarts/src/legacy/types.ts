@@ -19,24 +19,11 @@ export interface LegacyEChartSandboxFileBlock {
   readonly source: string;
 }
 
-/** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
-export interface LegacyEChartQueryRequest extends LegacyEChartQueryBlock {
-  readonly signal: AbortSignal;
-}
-
-/** @deprecated Temporary ChatBI migration format. Remove with the legacy adapter. */
+/** Internal materialized result for the temporary legacy sandbox orchestrator. */
 export interface ResolvedLegacyEChartQuery {
   readonly data: InlineChartData;
   readonly spec: Record<string, JsonValue>;
 }
-
-/**
- * @deprecated Advanced escape hatch for the temporary ChatBI migration format.
- * Prefer `ResolveLegacyArtifactContent` while the migration is active.
- */
-export type ResolveLegacyEChartQuery = (
-  request: LegacyEChartQueryRequest,
-) => ResolvedLegacyEChartQuery | Promise<ResolvedLegacyEChartQuery>;
 
 /** @deprecated Request for the temporary ChatBI artifact-content adapter. */
 export interface LegacyArtifactContentRequest {
@@ -147,6 +134,35 @@ export interface CreateLegacySandboxClientOptions<
   File extends LegacySandboxFile = LegacySandboxFile,
 > {
   readonly transport: LegacySandboxTransport<File>;
+}
+
+/** Promise-like host request that may expose an imperative cancellation hook. */
+export interface LegacySandboxAbortablePromiseLike<T> extends PromiseLike<T> {
+  abort?(): void;
+}
+
+/** Host-specific extensions for the shared structural error classifier. */
+export interface LegacySandboxErrorClassifierOptions {
+  readonly getFailureKind?: (
+    error: unknown,
+    operation: 'list' | 'read',
+  ) => LegacySandboxFailureKind | undefined;
+  readonly getStatus?: (error: unknown) => number | string | undefined;
+  readonly isRetryableError?: (error: unknown) => boolean;
+}
+
+/** Optional host context normalized before binding the shared sandbox client. */
+export interface LegacySandboxHostContext {
+  readonly sessionId?: string;
+  readonly requestId?: string;
+  readonly phase: 'live' | 'final';
+  readonly cacheScopeKey?: string;
+}
+
+/** Stable host-facing lifecycle wrapper around a private sandbox client. */
+export interface LegacySandboxHostAdapter {
+  bind(context: LegacySandboxHostContext): LegacySandboxBinding | undefined;
+  identity(context: LegacySandboxHostContext): string;
 }
 
 /** @deprecated Resource limits for the temporary ChatBI adapter. */

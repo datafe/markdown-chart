@@ -38,11 +38,6 @@ untrusted model.
   enabling raw HTML. This is separate from chart placeholder safety.
 - Treat `resolveDataRef` as a privileged boundary. Validate schemes and
   authorization, honor its `AbortSignal`, and avoid returning secrets in errors.
-- Treat the deprecated `resolveLegacyArtifactContent` callback as a privileged
-  data-access boundary. It should return only the authorized raw CSV content.
-- Treat `resolveLegacySandboxFileContent` the same way. Validate the requested
-  case-sensitive file path against the active session/request before returning
-  raw CSV, and honor its `AbortSignal`.
 - Prefer the shared `createLegacySandboxClient` for new legacy integrations.
   Its host-owned `LegacySandboxTransport` is a privileged authenticated data
   boundary: preserve `AbortSignal`, authorize every list/read operation, bound

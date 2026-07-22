@@ -6,8 +6,6 @@ import {
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
-  type ResolveLegacyArtifactContent,
-  type ResolveLegacySandboxFileContent,
 } from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartEnvironment,
@@ -278,26 +276,6 @@ export const MarkdownChart = defineComponent({
     markdownIt: { type: Object as PropType<MarkdownIt>, required: false },
     registry: { type: Object as PropType<ChartRendererRegistry>, required: false },
     echarts: { type: Object as PropType<CreateEChartsRendererOptions>, required: false },
-    /** @deprecated Temporary ChatBI migration hook. Return raw CSV ArtifactContent. */
-    resolveLegacyArtifactContent: {
-      type: Function as PropType<ResolveLegacyArtifactContent>,
-      required: false,
-    },
-    /** @deprecated Cache context for the temporary ChatBI migration hook. */
-    legacyArtifactContextKey: {
-      type: [String, Number] as PropType<string | number>,
-      required: false,
-    },
-    /** @deprecated Temporary ChatBI migration hook. Return raw sandbox CSV. */
-    resolveLegacySandboxFileContent: {
-      type: Function as PropType<ResolveLegacySandboxFileContent>,
-      required: false,
-    },
-    /** @deprecated Cache context for the temporary ChatBI sandbox-file hook. */
-    legacySandboxFileContextKey: {
-      type: [String, Number] as PropType<string | number>,
-      required: false,
-    },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
     minHeight: {
@@ -310,93 +288,9 @@ export const MarkdownChart = defineComponent({
     },
   },
   setup(props) {
-    const latestLegacyArtifactContentResolver = shallowRef(props.resolveLegacyArtifactContent);
-    const hasLegacyArtifactContentResolver = ref(
-      props.resolveLegacyArtifactContent !== undefined,
+    const automaticRegistry = computed(
+      () => new ChartRendererRegistry().register(createEChartsRenderer(props.echarts)),
     );
-    const legacyArtifactContextVersion = shallowRef<object>({});
-    watch(
-      [
-        () => props.resolveLegacyArtifactContent,
-        () => props.legacyArtifactContextKey,
-      ],
-      ([resolver, contextKey], [previousResolver, previousContextKey]) => {
-        latestLegacyArtifactContentResolver.value = resolver;
-        hasLegacyArtifactContentResolver.value = resolver !== undefined;
-        const context = contextKey ?? resolver;
-        const previousContext = previousContextKey ?? previousResolver;
-        if (!Object.is(context, previousContext)) {
-          legacyArtifactContextVersion.value = {};
-        }
-      },
-      { flush: 'sync' },
-    );
-    const stableResolveLegacyArtifactContent: ResolveLegacyArtifactContent = (request) => {
-      const resolver = latestLegacyArtifactContentResolver.value;
-      if (!resolver) {
-        throw new Error('resolveLegacyArtifactContent is no longer configured');
-      }
-      return resolver(request);
-    };
-    const latestLegacySandboxFileResolver = shallowRef(props.resolveLegacySandboxFileContent);
-    const hasLegacySandboxFileResolver = ref(
-      props.resolveLegacySandboxFileContent !== undefined,
-    );
-    const legacySandboxFileContextVersion = shallowRef<object>({});
-    watch(
-      [
-        () => props.resolveLegacySandboxFileContent,
-        () => props.legacySandboxFileContextKey,
-      ],
-      ([resolver, contextKey], [previousResolver, previousContextKey]) => {
-        latestLegacySandboxFileResolver.value = resolver;
-        hasLegacySandboxFileResolver.value = resolver !== undefined;
-        const context = contextKey ?? resolver;
-        const previousContext = previousContextKey ?? previousResolver;
-        if (!Object.is(context, previousContext)) {
-          legacySandboxFileContextVersion.value = {};
-        }
-      },
-      { flush: 'sync' },
-    );
-    const stableResolveLegacySandboxFileContent: ResolveLegacySandboxFileContent = (request) => {
-      const resolver = latestLegacySandboxFileResolver.value;
-      if (!resolver) {
-        throw new Error('resolveLegacySandboxFileContent is no longer configured');
-      }
-      return resolver(request);
-    };
-    const automaticRegistry = computed(() => {
-      const hasResolver = hasLegacyArtifactContentResolver.value;
-      const hasSandboxResolver = hasLegacySandboxFileResolver.value;
-      void legacyArtifactContextVersion.value;
-      void legacySandboxFileContextVersion.value;
-      if (
-        hasResolver
-        && props.echarts?.resolveLegacyArtifactContent
-      ) {
-        throw new Error(
-          'Configure resolveLegacyArtifactContent either as a MarkdownChart prop or in echarts options, not both',
-        );
-      }
-      if (
-        hasSandboxResolver
-        && props.echarts?.resolveLegacySandboxFileContent
-      ) {
-        throw new Error(
-          'Configure resolveLegacySandboxFileContent either as a MarkdownChart prop or in echarts options, not both',
-        );
-      }
-      return new ChartRendererRegistry().register(createEChartsRenderer({
-        ...props.echarts,
-        ...(hasResolver
-          ? { resolveLegacyArtifactContent: stableResolveLegacyArtifactContent }
-          : {}),
-        ...(hasSandboxResolver
-          ? { resolveLegacySandboxFileContent: stableResolveLegacySandboxFileContent }
-          : {}),
-      }));
-    });
     const registry = computed(() => props.registry ?? automaticRegistry.value);
     const automaticMarkdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
       registry: { has: (language) => registry.value.has(language) },

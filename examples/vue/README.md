@@ -9,8 +9,8 @@ the actual integration cost:
   registry to `MarkdownChart`.
 - `chatbi-openapi/` keeps a host-owned markdown-it pipeline and adapts two
   same-origin OpenAPI proxy routes to `LegacySandboxTransport`. Its component
-  creates one client per lifecycle, then recomputes only the binding and
-  renderer context when the principal/session/request/phase changes.
+  creates one host adapter per lifecycle, then uses its `identity`/`bind` pair
+  to replace the renderer context when principal/session/request/phase changes.
 
 Run any Vite example from the repository root:
 

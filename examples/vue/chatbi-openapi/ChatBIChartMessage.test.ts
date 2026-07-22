@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
 import {
-  createLegacySandboxClient,
+  createLegacySandboxHostAdapter,
   type LegacySandboxTransport,
 } from '@datafe-open/markdown-chart-echarts';
 import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
@@ -145,7 +145,9 @@ function mountChatBIChartMessageLifecycle(
         requestId: () => state.requestId,
         streaming: () => state.streaming,
         cacheScopeKey: () => state.cacheScopeKey,
-      }, createChatBILegacySandboxTransport());
+      }, createLegacySandboxHostAdapter({
+        transport: createChatBILegacySandboxTransport(),
+      }));
       return () => h('div', {
         'aria-busy': deferredCount.value > 0 ? 'true' : undefined,
         'data-chatbi-legacy-chart-pending': deferredCount.value > 0 ? 'true' : undefined,
@@ -430,11 +432,12 @@ describe('Vue + markdown-it ChatBI message integration', () => {
       readFile: vi.fn(async () => ''),
       classifyError: vi.fn<LegacySandboxTransport['classifyError']>(() => 'fatal'),
     };
-    const legacySandbox = createLegacySandboxClient({ transport }).bind({
+    const legacySandbox = createLegacySandboxHostAdapter({ transport }).bind({
       sessionId: 'session-1',
       phase: 'final',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!legacySandbox) throw new Error('Expected a complete host context');
     const { registry, markdownIt } = createChatBIChartContext({ legacySandbox });
     expect(markdownIt).toBeInstanceOf(MarkdownIt);
     expect(registry).toBeInstanceOf(ChartRendererRegistry);
@@ -449,17 +452,18 @@ describe('Vue + markdown-it ChatBI message integration', () => {
           })
         : rpcResult({ ArtifactContent: 'name,value\nA,10\n' })
     ));
-    const client = createLegacySandboxClient({
+    const hostAdapter = createLegacySandboxHostAdapter({
       transport: createChatBILegacySandboxTransport({
         fetch: fetcher as unknown as typeof fetch,
       }),
     });
-    const finalBinding = client.bind({
+    const finalBinding = hostAdapter.bind({
       sessionId: 'session-1',
       requestId: 'request-is-not-sent',
       phase: 'final',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!finalBinding) throw new Error('Expected a complete final host context');
     await expect(finalBinding.resolveLegacySandboxFileContent({
       language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
       filePath: 'App/CSV/Foo.csv',
@@ -473,11 +477,12 @@ describe('Vue + markdown-it ChatBI message integration', () => {
     expect(params).toEqual({ SessionId: 'session-1', MaxResults: 50 });
 
     fetcher.mockClear();
-    const deferred = client.bind({
+    const deferred = hostAdapter.bind({
       sessionId: 'session-1',
       phase: 'live',
       cacheScopeKey: 'tenant-1:user-1',
     });
+    if (!deferred) throw new Error('Expected a complete live host context');
     expect(deferred.shouldDefer('echarts-chatbi_query_42-0')).toBe(true);
     expect(deferred.shouldDefer('echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv')).toBe(true);
     expect(fetcher).not.toHaveBeenCalled();

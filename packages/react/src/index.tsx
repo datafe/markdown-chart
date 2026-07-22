@@ -21,8 +21,6 @@ import {
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
-  type ResolveLegacyArtifactContent,
-  type ResolveLegacySandboxFileContent,
 } from '@datafe-open/markdown-chart-echarts';
 
 export type MarkdownChartReactErrorHandler = (
@@ -209,18 +207,6 @@ export interface MarkdownChartProps {
   readonly source: string;
   readonly registry?: ChartRendererRegistry;
   readonly echarts?: CreateEChartsRendererOptions;
-  /** @deprecated Temporary ChatBI migration hook. Return raw CSV ArtifactContent. */
-  readonly resolveLegacyArtifactContent?: ResolveLegacyArtifactContent;
-  /** @deprecated Temporary ChatBI migration hook. Return raw sandbox CSV. */
-  readonly resolveLegacySandboxFileContent?: ResolveLegacySandboxFileContent;
-  /**
-   * @deprecated Cache context for the temporary ChatBI migration hook.
-   * Keep this stable across equivalent callback instances and change it when
-   * the callback's authorization/session context changes.
-   */
-  readonly legacyArtifactContextKey?: string | number;
-  /** @deprecated Cache context for the temporary ChatBI sandbox-file hook. */
-  readonly legacySandboxFileContextKey?: string | number;
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly onError?: MarkdownChartReactErrorHandler;
@@ -229,69 +215,10 @@ export interface MarkdownChartProps {
 }
 
 export function MarkdownChart(props: MarkdownChartProps): ReactElement {
-  const legacyArtifactContentRef = useRef(props.resolveLegacyArtifactContent);
-  legacyArtifactContentRef.current = props.resolveLegacyArtifactContent;
-  const stableResolveLegacyArtifactContent = useMemo<ResolveLegacyArtifactContent>(() => (
-    (request) => {
-      const resolver = legacyArtifactContentRef.current;
-      if (!resolver) {
-        throw new Error('resolveLegacyArtifactContent is no longer configured');
-      }
-      return resolver(request);
-    }
-  ), []);
-  const hasLegacyArtifactContentResolver = props.resolveLegacyArtifactContent !== undefined;
-  const legacyArtifactContext = props.legacyArtifactContextKey
-    ?? props.resolveLegacyArtifactContent;
-  const legacySandboxFileContentRef = useRef(props.resolveLegacySandboxFileContent);
-  legacySandboxFileContentRef.current = props.resolveLegacySandboxFileContent;
-  const stableResolveLegacySandboxFileContent = useMemo<ResolveLegacySandboxFileContent>(() => (
-    (request) => {
-      const resolver = legacySandboxFileContentRef.current;
-      if (!resolver) {
-        throw new Error('resolveLegacySandboxFileContent is no longer configured');
-      }
-      return resolver(request);
-    }
-  ), []);
-  const hasLegacySandboxFileResolver = props.resolveLegacySandboxFileContent !== undefined;
-  const legacySandboxFileContext = props.legacySandboxFileContextKey
-    ?? props.resolveLegacySandboxFileContent;
-  const automaticRegistry = useMemo(() => {
-    if (
-      hasLegacyArtifactContentResolver
-      && props.echarts?.resolveLegacyArtifactContent
-    ) {
-      throw new Error(
-        'Configure resolveLegacyArtifactContent either as a MarkdownChart prop or in echarts options, not both',
-      );
-    }
-    if (
-      hasLegacySandboxFileResolver
-      && props.echarts?.resolveLegacySandboxFileContent
-    ) {
-      throw new Error(
-        'Configure resolveLegacySandboxFileContent either as a MarkdownChart prop or in echarts options, not both',
-      );
-    }
-    return new ChartRendererRegistry().register(createEChartsRenderer({
-      ...props.echarts,
-      ...(hasLegacyArtifactContentResolver
-        ? { resolveLegacyArtifactContent: stableResolveLegacyArtifactContent }
-        : {}),
-      ...(hasLegacySandboxFileResolver
-        ? { resolveLegacySandboxFileContent: stableResolveLegacySandboxFileContent }
-        : {}),
-    }));
-  }, [
-    props.echarts,
-    hasLegacyArtifactContentResolver,
-    legacyArtifactContext,
-    hasLegacySandboxFileResolver,
-    legacySandboxFileContext,
-    stableResolveLegacyArtifactContent,
-    stableResolveLegacySandboxFileContent,
-  ]);
+  const automaticRegistry = useMemo(
+    () => new ChartRendererRegistry().register(createEChartsRenderer(props.echarts)),
+    [props.echarts],
+  );
   const registry = props.registry ?? automaticRegistry;
   const components = useMemo(() => createMarkdownChartComponents({
     ...(props.chartClassName ? { chartClassName: props.chartClassName } : {}),

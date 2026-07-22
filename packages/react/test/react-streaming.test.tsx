@@ -4,7 +4,11 @@ import { createRoot } from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer, type EChartsRuntime } from '@datafe-open/markdown-chart-echarts';
+import {
+  createEChartsRenderer,
+  type EChartsRuntime,
+  type LegacySandboxBinding,
+} from '@datafe-open/markdown-chart-echarts';
 import {
   createMarkdownChartComponents,
   MarkdownChart,
@@ -73,6 +77,17 @@ async function answerLegacySandbox(option: Record<string, unknown>): Promise<voi
       option,
     },
   }));
+}
+
+function legacySandboxBinding(
+  overrides: Partial<LegacySandboxBinding> = {},
+): LegacySandboxBinding {
+  return {
+    resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+    resolveLegacySandboxFileContent: async () => 'name,value\nA,10\n',
+    shouldDefer: () => false,
+    ...overrides,
+  };
 }
 
 describe('MarkdownChart streaming lifecycle', () => {
@@ -155,13 +170,8 @@ describe('MarkdownChart streaming lifecycle', () => {
   it('shows materialized legacy data in simple and advanced integrations', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
     const resolveLegacyArtifactContent = async () => 'name,value\nA,10\nB,20\n';
-    const resolveLegacyEChartQuery = async () => ({
-      data: {
-        kind: 'inline' as const,
-        dimensions: ['name', 'value'],
-        source: [['A', 10], ['B', 20]],
-      },
-      spec: { series: [{ type: 'bar' }] },
+    const legacySandbox = legacySandboxBinding({
+      resolveLegacyArtifactContent,
     });
     const assertDataView = async (container: HTMLElement): Promise<void> => {
       await vi.waitFor(() => {
@@ -181,8 +191,8 @@ describe('MarkdownChart streaming lifecycle', () => {
       simpleRoot.render(
         <MarkdownChart
           source={source}
-          resolveLegacyArtifactContent={resolveLegacyArtifactContent}
           echarts={{
+            legacySandbox,
             loadECharts: fakeEChartsRuntime,
             resizeObserver: false,
           }}
@@ -195,7 +205,7 @@ describe('MarkdownChart streaming lifecycle', () => {
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: fakeEChartsRuntime,
-      resolveLegacyEChartQuery,
+      legacySandbox,
       resizeObserver: false,
     }));
     const components = createMarkdownChartComponents({ chartStyle: { minHeight: 360 } });
@@ -208,11 +218,12 @@ describe('MarkdownChart streaming lifecycle', () => {
         </MarkdownChartProvider>,
       );
     });
+    await answerLegacySandbox({ series: [{ type: 'bar' }] });
     await assertDataView(advancedContainer);
     await act(async () => advancedRoot.unmount());
   });
 
-  it('passes the original sandbox file path through the top-level resolver prop', async () => {
+  it('passes the original sandbox file path through the legacySandbox binding', async () => {
     const source = '```echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv\nvar option = { series: [] };\n//#end\n```';
     const resolver = vi.fn(async () => 'name,value\nA,10\n');
     const container = document.createElement('div');
@@ -221,9 +232,13 @@ describe('MarkdownChart streaming lifecycle', () => {
       root.render(
         <MarkdownChart
           source={source}
-          resolveLegacySandboxFileContent={resolver}
-          legacySandboxFileContextKey="session-a"
-          echarts={{ loadECharts: fakeEChartsRuntime, resizeObserver: false }}
+          echarts={{
+            legacySandbox: legacySandboxBinding({
+              resolveLegacySandboxFileContent: resolver,
+            }),
+            loadECharts: fakeEChartsRuntime,
+            resizeObserver: false,
+          }}
         />,
       );
     });
@@ -239,115 +254,4 @@ describe('MarkdownChart streaming lifecycle', () => {
     await act(async () => root.unmount());
   });
 
-  it('keeps a completed legacy artifact stable when callback identity changes under one context key', async () => {
-    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const resolver = vi.fn(async (_request: unknown) => 'name,value\nA,10\nB,20\n');
-    const echarts = {
-      loadECharts: fakeEChartsRuntime,
-      resizeObserver: false,
-    };
-    const container = document.createElement('div');
-    const root = createRoot(container);
-    const render = (markdown: string) => (
-      <MarkdownChart
-        source={markdown}
-        streaming
-        echarts={echarts}
-        legacyArtifactContextKey="session-a"
-        resolveLegacyArtifactContent={(request) => resolver(request)}
-      />
-    );
-
-    await act(async () => {
-      root.render(render(source));
-    });
-    await answerLegacySandbox({ series: [{ type: 'bar' }] });
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
-    await vi.waitFor(() => {
-      expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
-    });
-    const original = container.querySelector('.markdown-chart-placeholder');
-
-    await act(async () => {
-      root.render(render(`${source}\n\nMore streamed analysis.`));
-    });
-    expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
-    expect(resolver).toHaveBeenCalledOnce();
-    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
-
-    await act(async () => root.unmount());
-  });
-
-  it('refetches when an unkeyed legacy resolver changes identity', async () => {
-    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const firstResolver = vi.fn(async () => 'name,value\nA,10\n');
-    const secondResolver = vi.fn(async () => 'name,value\nB,20\n');
-    const echarts = {
-      loadECharts: fakeEChartsRuntime,
-      resizeObserver: false,
-    };
-    const container = document.createElement('div');
-    const root = createRoot(container);
-
-    await act(async () => {
-      root.render(
-        <MarkdownChart
-          source={source}
-          echarts={echarts}
-          resolveLegacyArtifactContent={firstResolver}
-        />,
-      );
-    });
-    await vi.waitFor(() => expect(firstResolver).toHaveBeenCalledOnce());
-    await answerLegacySandbox({ series: [] });
-    await vi.waitFor(() => {
-      expect(container.querySelector('button[aria-label="Show data"]')).not.toBeNull();
-    });
-
-    await act(async () => {
-      root.render(
-        <MarkdownChart
-          source={source}
-          echarts={echarts}
-          resolveLegacyArtifactContent={secondResolver}
-        />,
-      );
-    });
-    await vi.waitFor(() => expect(secondResolver).toHaveBeenCalledOnce());
-    await answerLegacySandbox({ series: [] });
-    expect(firstResolver).toHaveBeenCalledOnce();
-    expect(secondResolver).toHaveBeenCalledOnce();
-
-    await act(async () => root.unmount());
-  });
-
-  it('refetches when the explicit legacy artifact context key changes', async () => {
-    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const resolver = vi.fn(async () => 'name,value\nA,10\n');
-    const echarts = {
-      loadECharts: fakeEChartsRuntime,
-      resizeObserver: false,
-    };
-    const container = document.createElement('div');
-    const root = createRoot(container);
-    const render = (contextKey: string) => (
-      <MarkdownChart
-        source={source}
-        echarts={echarts}
-        legacyArtifactContextKey={contextKey}
-        resolveLegacyArtifactContent={resolver}
-      />
-    );
-
-    await act(async () => root.render(render('session-a')));
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(1));
-    await answerLegacySandbox({ series: [] });
-
-    await act(async () => root.render(render('session-b')));
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
-    await answerLegacySandbox({ series: [] });
-    expect(resolver).toHaveBeenCalledTimes(2);
-
-    await act(async () => root.unmount());
-  });
 });

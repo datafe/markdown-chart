@@ -3,7 +3,11 @@ import MarkdownIt from 'markdown-it';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick, ref, shallowRef } from 'vue';
 import { ChartRendererRegistry, type ChartRenderer } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer, type EChartsRuntime } from '@datafe-open/markdown-chart-echarts';
+import {
+  createEChartsRenderer,
+  type EChartsRuntime,
+  type LegacySandboxBinding,
+} from '@datafe-open/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
 import {
   MarkdownChart,
@@ -65,6 +69,17 @@ async function answerLegacySandbox(option: Record<string, unknown>): Promise<voi
       option,
     },
   }));
+}
+
+function legacySandboxBinding(
+  overrides: Partial<LegacySandboxBinding> = {},
+): LegacySandboxBinding {
+  return {
+    resolveLegacyArtifactContent: async () => 'name,value\nA,10\n',
+    resolveLegacySandboxFileContent: async () => 'name,value\nA,10\n',
+    shouldDefer: () => false,
+    ...overrides,
+  };
 }
 
 describe('MarkdownChart reactive object props', () => {
@@ -155,6 +170,7 @@ describe('MarkdownChart reactive object props', () => {
   it('shows materialized legacy data in simple and advanced modes', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
     const resolveLegacyArtifactContent = async () => 'name,value\nA,10\nB,20\n';
+    const legacySandbox = legacySandboxBinding({ resolveLegacyArtifactContent });
     const assertDataView = async (root: HTMLElement): Promise<void> => {
       await vi.waitFor(() => {
         expect(root.querySelector('button[aria-label="Show data"]')).not.toBeNull();
@@ -170,8 +186,8 @@ describe('MarkdownChart reactive object props', () => {
       setup() {
         return () => h(MarkdownChart, {
           source,
-          resolveLegacyArtifactContent,
           echarts: {
+            legacySandbox,
             loadECharts: fakeEChartsRuntime,
             resizeObserver: false,
           },
@@ -186,7 +202,7 @@ describe('MarkdownChart reactive object props', () => {
 
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: fakeEChartsRuntime,
-      resolveLegacyArtifactContent,
+      legacySandbox,
       resizeObserver: false,
     }));
     const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
@@ -206,16 +222,20 @@ describe('MarkdownChart reactive object props', () => {
     advancedApp.unmount();
   });
 
-  it('passes the original sandbox file path through the top-level resolver prop', async () => {
+  it('passes the original sandbox file path through the legacySandbox binding', async () => {
     const source = '```echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv\nvar option = { series: [] };\n//#end\n```';
     const resolver = vi.fn(async () => 'name,value\nA,10\n');
     const app = createApp(defineComponent({
       setup() {
         return () => h(MarkdownChart, {
           source,
-          resolveLegacySandboxFileContent: resolver,
-          legacySandboxFileContextKey: 'session-a',
-          echarts: { loadECharts: fakeEChartsRuntime, resizeObserver: false },
+          echarts: {
+            legacySandbox: legacySandboxBinding({
+              resolveLegacySandboxFileContent: resolver,
+            }),
+            loadECharts: fakeEChartsRuntime,
+            resizeObserver: false,
+          },
         });
       },
     }));
@@ -230,103 +250,6 @@ describe('MarkdownChart reactive object props', () => {
       language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
       filePath: 'App/CSV/Foo.csv',
     }));
-    app.unmount();
-  });
-
-  it('does not refetch when an inline legacy resolver changes identity under one context key', async () => {
-    const chart = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const source = ref(chart);
-    const resolver = vi.fn(async (_request: unknown) => 'name,value\nA,10\n');
-    const app = createApp(defineComponent({
-      setup() {
-        return () => h(MarkdownChart, {
-          source: source.value,
-          streaming: true,
-          legacyArtifactContextKey: 'session-a',
-          resolveLegacyArtifactContent: (request) => resolver(request),
-          echarts: {
-            loadECharts: fakeEChartsRuntime,
-            resizeObserver: false,
-          },
-        });
-      },
-    }));
-    const root = document.createElement('div');
-    app.mount(root);
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledOnce());
-    await answerLegacySandbox({ series: [] });
-
-    source.value = `${chart}\n\nMore streamed analysis.`;
-    await nextTick();
-    await vi.waitFor(() => expect(root.textContent).toContain('More streamed analysis.'));
-    expect(resolver).toHaveBeenCalledOnce();
-    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
-
-    app.unmount();
-  });
-
-  it('refetches when an unkeyed legacy resolver changes identity', async () => {
-    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const firstResolver = vi.fn(async () => 'name,value\nA,10\n');
-    const secondResolver = vi.fn(async () => 'name,value\nB,20\n');
-    const activeResolver = shallowRef(firstResolver);
-    const echarts = {
-      loadECharts: fakeEChartsRuntime,
-      resizeObserver: false,
-    };
-    const app = createApp(defineComponent({
-      setup() {
-        return () => h(MarkdownChart, {
-          source,
-          echarts,
-          resolveLegacyArtifactContent: activeResolver.value,
-        });
-      },
-    }));
-    const root = document.createElement('div');
-    app.mount(root);
-    await vi.waitFor(() => expect(firstResolver).toHaveBeenCalledOnce());
-    await answerLegacySandbox({ series: [] });
-
-    activeResolver.value = secondResolver;
-    await nextTick();
-    await vi.waitFor(() => expect(secondResolver).toHaveBeenCalledOnce());
-    await answerLegacySandbox({ series: [] });
-    expect(firstResolver).toHaveBeenCalledOnce();
-    expect(secondResolver).toHaveBeenCalledOnce();
-
-    app.unmount();
-  });
-
-  it('refetches when the explicit legacy artifact context key changes', async () => {
-    const source = '```echarts-chatbi_query_42-0\nvar option = { series: [] };\n//#end\n```';
-    const contextKey = ref('session-a');
-    const resolver = vi.fn(async () => 'name,value\nA,10\n');
-    const echarts = {
-      loadECharts: fakeEChartsRuntime,
-      resizeObserver: false,
-    };
-    const app = createApp(defineComponent({
-      setup() {
-        return () => h(MarkdownChart, {
-          source,
-          echarts,
-          legacyArtifactContextKey: contextKey.value,
-          resolveLegacyArtifactContent: resolver,
-        });
-      },
-    }));
-    const root = document.createElement('div');
-    app.mount(root);
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(1));
-    await answerLegacySandbox({ series: [] });
-
-    contextKey.value = 'session-b';
-    await nextTick();
-    await vi.waitFor(() => expect(resolver).toHaveBeenCalledTimes(2));
-    await answerLegacySandbox({ series: [] });
-    expect(resolver).toHaveBeenCalledTimes(2);
-
     app.unmount();
   });
 
