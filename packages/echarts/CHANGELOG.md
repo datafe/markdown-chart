@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.8
+
+### Patch Changes
+
+- cdcdac1: Add host-neutral abort, structured error classification, and client lifecycle helpers for legacy sandbox adapters. Remove the unused standalone legacy resolver callbacks and legacy limit override from the ECharts, React, and Vue public configuration so temporary query and sandbox-file fences use `legacySandbox` exclusively.
+  - @datafe-open/markdown-chart@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes
