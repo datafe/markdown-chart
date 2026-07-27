@@ -138,7 +138,7 @@ defineProps<{ source: string }>();
 <MarkdownChart :source="source" :streaming="isStreaming" />
 ```
 
-已经闭合的图表代码块会立即渲染；后续文本继续到达时，已挂载的图表实例会保持不变。只有末尾仍未闭合、正在输出的代码块会等待更多输入。React 高级模式把相同状态传给 `MarkdownChartProvider`，Vue 高级模式则传给 `MarkdownChart`。
+已经闭合的图表代码块会立即渲染；后续文本继续到达时，已挂载的图表实例会保持不变。只有末尾仍未闭合、正在输出的代码块会等待更多输入。等待中的代码块以及异步解析、取数和运行时挂载阶段会显示内置 loading，不再留下空白占位。可以用 `loadingLabel` 本地化文案，用 `--markdown-chart-loading-color` 对齐颜色。React 高级模式把相同状态传给 `MarkdownChartProvider`，Vue 高级模式则传给 `MarkdownChart`。
 
 ## 高级配置
 

@@ -24,7 +24,9 @@ composable accepts either plain instances or Vue refs for both values.
 
 Set `:streaming="true"` while tokens are arriving. Closed fences render
 immediately, and their existing DOM and chart controller are reused as later
-Markdown is appended. Only the active unterminated tail fence waits.
+Markdown is appended. Only the active unterminated tail fence waits. Pending and
+asynchronously mounting charts show the package loading state; pass
+`:loading-label="..."` to localize its text.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, compute a binding from `{ sessionId,

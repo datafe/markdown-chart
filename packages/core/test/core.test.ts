@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
   ChartRendererRegistry,
+  createMarkdownChartLoadingMarkup,
+  findUnclosedMarkdownFence,
   isMarkdownFenceClosed,
   MarkdownChartError,
   parseChartJson,
@@ -153,6 +155,12 @@ describe('ChartRendererRegistry', () => {
 });
 
 describe('ChartController', () => {
+  it('escapes custom labels in the reusable loading markup', () => {
+    const markup = createMarkdownChartLoadingMarkup('Loading <chart> & "data"');
+    expect(markup).toContain('Loading &lt;chart&gt; &amp; &quot;data&quot;');
+    expect(markup).not.toContain('Loading <chart>');
+  });
+
   it('disposes the previous chart before mounting an update', async () => {
     const firstDispose = vi.fn();
     const secondDispose = vi.fn();
@@ -185,12 +193,16 @@ describe('ChartController', () => {
       mount() {},
     });
     const controller = new ChartController(registry);
-    await controller.render(document.createElement('div'), {
+    const element = document.createElement('div');
+    await controller.render(element, {
       language: 'test',
       source: '{',
       streaming: true,
+      loadingLabel: 'Drawing…',
     });
     expect(parse).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-loading')?.textContent).toBe('Drawing…');
+    expect(element.getAttribute('aria-busy')).toBe('true');
   });
 
   it('keeps the last completed chart mounted while a block update is incomplete', async () => {
@@ -214,6 +226,7 @@ describe('ChartController', () => {
     });
     expect(parse).toHaveBeenCalledOnce();
     expect(dispose).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-loading')).toBeNull();
     controller.dispose();
     expect(dispose).toHaveBeenCalledOnce();
   });
@@ -250,7 +263,7 @@ describe('ChartController', () => {
     await controller.render(element, { language: 'test', source: '{', streaming: true });
     expect(mountSignal?.aborted).toBe(true);
     expect(element.classList.contains('markdown-chart-card')).toBe(false);
-    expect(element.childElementCount).toBe(0);
+    expect(element.querySelector('.markdown-chart-loading')).not.toBeNull();
 
     finishMount?.({ dispose: staleDispose });
     await render;
@@ -286,6 +299,45 @@ describe('ChartController', () => {
     finishParse?.({});
     await render;
     expect(mount).not.toHaveBeenCalled();
+  });
+
+  it('keeps loading visible through asynchronous preparation and mount', async () => {
+    let finishParse: ((parsed: unknown) => void) | undefined;
+    let finishMount: (() => void) | undefined;
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse() {
+        return new Promise((resolve) => {
+          finishParse = resolve;
+        });
+      },
+      mount() {
+        return new Promise<void>((resolve) => {
+          finishMount = resolve;
+        });
+      },
+    });
+    const element = document.createElement('div');
+    const render = new ChartController(registry).render(element, {
+      language: 'test',
+      source: '{}',
+      loadingLabel: 'Preparing chart…',
+    });
+
+    await vi.waitFor(() => expect(finishParse).toBeTypeOf('function'));
+    expect(element.querySelector('.markdown-chart-loading')?.textContent)
+      .toBe('Preparing chart…');
+
+    finishParse?.({});
+    await vi.waitFor(() => expect(finishMount).toBeTypeOf('function'));
+    expect(element.querySelector('.markdown-chart-loading')?.textContent)
+      .toBe('Preparing chart…');
+
+    finishMount?.();
+    await render;
+    expect(element.querySelector('.markdown-chart-loading')).toBeNull();
+    expect(element.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('materializes renderer data before creating the data view and mounting', async () => {
@@ -371,7 +423,7 @@ describe('ChartController', () => {
     finishMaterialize?.({ parsed: {}, data: undefined });
     await render;
     expect(mount).not.toHaveBeenCalled();
-    expect(element.childElementCount).toBe(0);
+    expect(element.querySelector('.markdown-chart-loading')).not.toBeNull();
   });
 
   it('provides chart and canonical inline data views without remounting the chart', async () => {
@@ -605,6 +657,41 @@ describe('isMarkdownFenceClosed', () => {
   it('rejects unterminated or too-short closing fences', () => {
     expect(isMarkdownFenceClosed('```markdown-chart\n{}')).toBe(false);
     expect(isMarkdownFenceClosed('````markdown-chart\n{}\n```')).toBe(false);
+  });
+});
+
+describe('findUnclosedMarkdownFence', () => {
+  it('returns the final unterminated fence after completed blocks', () => {
+    const source = [
+      'before',
+      '```js',
+      'const ready = true;',
+      '```',
+      '````markdown-chart meta',
+      '{"version":1',
+    ].join('\n');
+
+    expect(findUnclosedMarkdownFence(source)).toEqual({
+      start: source.indexOf('````markdown-chart'),
+      marker: '````',
+      info: 'markdown-chart meta',
+      language: 'markdown-chart',
+      source: '{"version":1',
+    });
+  });
+
+  it('supports tilde fences and preserves CRLF content', () => {
+    expect(findUnclosedMarkdownFence('~~~echarts\r\noption = {};\r\n')).toEqual({
+      start: 0,
+      marker: '~~~',
+      info: 'echarts',
+      language: 'echarts',
+      source: 'option = {};\r\n',
+    });
+  });
+
+  it('returns undefined when the final fence is closed with enough markers', () => {
+    expect(findUnclosedMarkdownFence('````markdown-chart\n{}\n`````')).toBeUndefined();
   });
 });
 

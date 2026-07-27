@@ -27,7 +27,9 @@ describe('markdownChartPlugin', () => {
   });
 
   it('marks only an unterminated chart fence as incomplete while streaming', () => {
-    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin);
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
+      loadingLabel: '绘制图表中…',
+    });
     const completeSource = '```markdown-chart\n{"version":1,"renderer":"echarts","spec":{}}\n```\n\nMore text';
     const completeEnv = createMarkdownChartEnvironment({ streaming: true });
     const completeHtml = md.render(completeSource, completeEnv);
@@ -41,6 +43,8 @@ describe('markdownChartPlugin', () => {
     expect(getMarkdownChartBlocks(incompleteEnv)[0]?.complete).toBe(false);
     expect(incompleteHtml).toContain('markdown-chart-streaming');
     expect(incompleteHtml).toContain('aria-busy="true"');
+    expect(incompleteHtml).toContain('markdown-chart-loading');
+    expect(incompleteHtml).toContain('绘制图表中…');
   });
 
   it('keeps completed charts renderable when the final chart fence is still streaming', () => {

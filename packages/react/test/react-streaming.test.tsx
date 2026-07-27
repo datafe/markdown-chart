@@ -153,9 +153,18 @@ describe('MarkdownChart streaming lifecycle', () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(<MarkdownChart source={`\`\`\`markdown-chart\n${canonicalBody}`} registry={registry} streaming />);
+      root.render(
+        <MarkdownChart
+          source={`\`\`\`markdown-chart\n${canonicalBody}`}
+          registry={registry}
+          streaming
+          loadingLabel="Generating visualization…"
+        />,
+      );
     });
     expect(container.querySelector('.markdown-chart-streaming')).not.toBeNull();
+    expect(container.querySelector('.markdown-chart-loading')?.textContent)
+      .toBe('Generating visualization…');
     expect(parse).not.toHaveBeenCalled();
 
     await act(async () => {

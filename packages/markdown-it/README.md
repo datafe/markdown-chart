@@ -23,4 +23,6 @@ legacy fence payloads such as case-sensitive sandbox file paths are preserved.
 Streaming hosts can create the render environment with
 `createMarkdownChartEnvironment({ streaming: true })`. Each collected
 block then reports `complete`; closed blocks can mount immediately while an
-unterminated tail block remains pending.
+unterminated tail block remains pending. Pending placeholders include the
+package loading indicator; set the plugin `loadingLabel` option to localize its
+text.

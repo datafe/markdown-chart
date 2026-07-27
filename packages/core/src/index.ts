@@ -505,7 +505,10 @@ export interface ChartRenderRequest {
   readonly source: string;
   readonly theme?: unknown;
   readonly streaming?: boolean;
+  readonly loadingLabel?: string;
 }
+
+export const DEFAULT_MARKDOWN_CHART_LOADING_LABEL = 'Rendering chart…';
 
 const MARKDOWN_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 
@@ -532,6 +535,82 @@ export function isMarkdownFenceClosed(source: string): boolean {
     `^ {0,3}${markerCharacter === '`' ? '`' : '~'}{${marker.length},}[\\t ]*$`,
   );
   return lines.slice(1).some((line) => closing.test(line));
+}
+
+export interface UnclosedMarkdownFence {
+  /** Offset of the opening fence in the original Markdown source. */
+  readonly start: number;
+  /** Opening marker, including its original backtick or tilde count. */
+  readonly marker: string;
+  /** Raw info string after the opening marker, without surrounding whitespace. */
+  readonly info: string;
+  /** First whitespace-delimited token from the info string. */
+  readonly language: string;
+  /** Content received after the opening-fence line. */
+  readonly source: string;
+}
+
+/**
+ * Finds the active unterminated fenced code block at the tail of a Markdown
+ * document. Custom streaming parsers can use this when they render individual
+ * blocks and therefore cannot rely on document-relative AST offsets.
+ */
+export function findUnclosedMarkdownFence(source: string): UnclosedMarkdownFence | undefined {
+  let open:
+    | {
+        readonly start: number;
+        readonly marker: string;
+        readonly info: string;
+        readonly bodyStart: number;
+      }
+    | undefined;
+  let lineStart = 0;
+
+  while (lineStart <= source.length) {
+    const newline = source.indexOf('\n', lineStart);
+    const lineEnd = newline === -1 ? source.length : newline;
+    const line = source.slice(lineStart, lineEnd).replace(/\r$/, '');
+
+    if (open) {
+      const markerCharacter = open.marker[0];
+      const closing = markerCharacter
+        ? new RegExp(
+            `^ {0,3}${markerCharacter === '`' ? '`' : '~'}{${open.marker.length},}[\\t ]*$`,
+          )
+        : undefined;
+      if (closing?.test(line)) {
+        open = undefined;
+      }
+    } else {
+      const opening = MARKDOWN_FENCE_OPEN.exec(line);
+      const marker = opening?.[1];
+      if (marker) {
+        const openingEnd = (opening.index ?? 0) + opening[0].length;
+        open = {
+          start: lineStart + (opening.index ?? 0),
+          marker,
+          info: line.slice(openingEnd).trim(),
+          bodyStart: newline === -1 ? source.length : newline + 1,
+        };
+      }
+    }
+
+    if (newline === -1) {
+      break;
+    }
+    lineStart = newline + 1;
+  }
+
+  if (!open) {
+    return undefined;
+  }
+  return {
+    start: open.start,
+    marker: open.marker,
+    info: open.info,
+    language: open.info.split(/\s+/, 1)[0] ?? '',
+    source: source.slice(open.bodyStart),
+  };
 }
 
 const MAX_VISIBLE_DATA_ROWS = 500;
@@ -615,6 +694,144 @@ function createDataIcon(): SVGSVGElement {
   lines.setAttribute('stroke-width', '1.4');
   svg.append(rectangle, lines);
   return svg;
+}
+
+const MARKDOWN_CHART_LOADING_STYLE = [
+  'display:flex',
+  'min-height:inherit',
+  'width:100%',
+  'box-sizing:border-box',
+  'align-items:center',
+  'justify-content:center',
+  'gap:8px',
+  'padding:24px',
+  'color:var(--markdown-chart-loading-color,currentColor)',
+  'opacity:.68',
+  "font:400 12px/1.5 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+].join(';');
+
+const MARKDOWN_CHART_LOADING_SPINNER = [
+  '<svg class="markdown-chart-loading-spinner" viewBox="0 0 24 24"',
+  ' width="18" height="18" aria-hidden="true" style="flex:none;fill:none">',
+  '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" opacity=".24"></circle>',
+  '<path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" stroke-width="2"',
+  ' stroke-linecap="round"><animateTransform attributeName="transform" type="rotate"',
+  ' from="0 12 12" to="360 12 12" dur=".8s" repeatCount="indefinite"></animateTransform></path>',
+  '</svg>',
+].join('');
+
+function escapeHtmlText(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] as string);
+}
+
+export function createMarkdownChartLoadingMarkup(
+  label = DEFAULT_MARKDOWN_CHART_LOADING_LABEL,
+): string {
+  const escapedLabel = escapeHtmlText(label);
+  return [
+    '<div class="markdown-chart-loading" data-markdown-chart-loading="true"',
+    ` role="status" style="${MARKDOWN_CHART_LOADING_STYLE}">`,
+    MARKDOWN_CHART_LOADING_SPINNER,
+    `<span class="markdown-chart-loading-label">${escapedLabel}</span>`,
+    '</div>',
+  ].join('');
+}
+
+function createChartLoadingSpinner(): SVGSVGElement {
+  const svg = createSvgElement('svg') as SVGSVGElement;
+  svg.classList.add('markdown-chart-loading-spinner');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '18');
+  svg.setAttribute('height', '18');
+  svg.setAttribute('aria-hidden', 'true');
+  setStyles(svg, { flex: 'none', fill: 'none' });
+
+  const track = createSvgElement('circle');
+  Object.entries({
+    cx: '12',
+    cy: '12',
+    r: '9',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    opacity: '.24',
+  }).forEach(([name, value]) => track.setAttribute(name, value));
+
+  const arc = createSvgElement('path');
+  Object.entries({
+    d: 'M12 3a9 9 0 0 1 9 9',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+  }).forEach(([name, value]) => arc.setAttribute(name, value));
+  const animation = createSvgElement('animateTransform');
+  Object.entries({
+    attributeName: 'transform',
+    type: 'rotate',
+    from: '0 12 12',
+    to: '360 12 12',
+    dur: '.8s',
+    repeatCount: 'indefinite',
+  }).forEach(([name, value]) => animation.setAttribute(name, value));
+  arc.append(animation);
+  svg.append(track, arc);
+  return svg;
+}
+
+function findChartLoading(container: HTMLElement): HTMLElement | undefined {
+  return [...container.children].find(
+    (child): child is HTMLElement =>
+      (child as HTMLElement).dataset.markdownChartLoading === 'true',
+  );
+}
+
+function showChartLoading(
+  container: HTMLElement,
+  label = DEFAULT_MARKDOWN_CHART_LOADING_LABEL,
+): void {
+  const existing = findChartLoading(container);
+  if (existing) {
+    const labelElement = existing.querySelector<HTMLElement>('.markdown-chart-loading-label');
+    if (labelElement) {
+      labelElement.textContent = label;
+    }
+    container.setAttribute('aria-busy', 'true');
+    return;
+  }
+
+  const loading = document.createElement('div');
+  loading.className = 'markdown-chart-loading';
+  loading.dataset.markdownChartLoading = 'true';
+  loading.setAttribute('role', 'status');
+  setStyles(loading, {
+    display: 'flex',
+    minHeight: 'inherit',
+    width: '100%',
+    boxSizing: 'border-box',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '24px',
+    color: 'var(--markdown-chart-loading-color, currentColor)',
+    opacity: '.68',
+    font: '400 12px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  });
+  const labelElement = document.createElement('span');
+  labelElement.className = 'markdown-chart-loading-label';
+  labelElement.textContent = label;
+  loading.append(createChartLoadingSpinner(), labelElement);
+  container.replaceChildren(loading);
+  container.setAttribute('aria-busy', 'true');
+}
+
+function removeChartLoading(container: HTMLElement): void {
+  findChartLoading(container)?.remove();
+  container.removeAttribute('aria-busy');
 }
 
 function createViewButton(label: string, icon: SVGSVGElement): HTMLButtonElement {
@@ -911,6 +1128,7 @@ export class ChartController {
   #abortController: AbortController | undefined;
   #handle: ChartHandle | undefined;
   #view: ChartView | undefined;
+  #hasCompletedRender = false;
 
   constructor(registry: ChartRendererRegistry) {
     this.#registry = registry;
@@ -925,6 +1143,12 @@ export class ChartController {
         this.#view?.dispose();
         this.#view = undefined;
         container.replaceChildren();
+        this.#hasCompletedRender = false;
+      }
+      if (this.#hasCompletedRender) {
+        container.removeAttribute('aria-busy');
+      } else {
+        showChartLoading(container, request.loadingLabel);
       }
       return;
     }
@@ -936,6 +1160,8 @@ export class ChartController {
     this.#view?.dispose();
     this.#view = undefined;
     container.replaceChildren();
+    this.#hasCompletedRender = false;
+    showChartLoading(container, request.loadingLabel);
 
     const abortController = new AbortController();
     this.#abortController = abortController;
@@ -971,7 +1197,9 @@ export class ChartController {
           )
         : undefined;
       this.#view = view;
-      const handle = await prepared.renderer.mount(view?.chartContainer ?? container, materialized.parsed, {
+      const mountContainer = view?.chartContainer ?? container;
+      showChartLoading(mountContainer, request.loadingLabel);
+      const handle = await prepared.renderer.mount(mountContainer, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
         ...(view && chartTitle ? { externalizedTitle: chartTitle } : {}),
@@ -981,6 +1209,9 @@ export class ChartController {
         return;
       }
       this.#handle = handle || undefined;
+      this.#hasCompletedRender = true;
+      removeChartLoading(mountContainer);
+      container.removeAttribute('aria-busy');
     } catch (error) {
       if (generation !== this.#generation || abortController.signal.aborted) {
         return;
@@ -988,6 +1219,8 @@ export class ChartController {
       this.#view?.dispose();
       this.#view = undefined;
       container.replaceChildren();
+      container.removeAttribute('aria-busy');
+      this.#hasCompletedRender = false;
       throw error;
     } finally {
       if (this.#abortController === abortController) {
@@ -1004,5 +1237,6 @@ export class ChartController {
     this.#handle = undefined;
     this.#view?.dispose();
     this.#view = undefined;
+    this.#hasCompletedRender = false;
   }
 }

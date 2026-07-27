@@ -28,4 +28,9 @@ a dynamic fence embeds a case-sensitive payload such as a file path.
 
 `ChartRenderRequest.streaming` is block-level pending state. Markdown adapters
 defer only an unterminated tail fence; completed blocks remain mounted while
-the surrounding document continues streaming.
+the surrounding document continues streaming. `ChartController` renders a
+visible loading state while a block is pending and while parsing,
+materialization, or runtime mounting is in flight. Set
+`ChartRenderRequest.loadingLabel` to localize the default text. Custom Markdown
+adapters that render isolated blocks can use `findUnclosedMarkdownFence` to
+identify the active tail fence without duplicating fence parsing.

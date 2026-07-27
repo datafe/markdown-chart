@@ -25,7 +25,9 @@ Set `streaming` on `MarkdownChart` or `MarkdownChartProvider` while tokens are
 arriving. Closed chart fences render immediately; only the active unterminated
 tail fence waits. The provider automatically infers the Markdown source from a
 direct `ReactMarkdown` child, so the usual advanced integration needs no extra
-source prop.
+source prop. Pending and asynchronously mounting charts show the package loading
+state; pass `loadingLabel` to `MarkdownChart`, `MarkdownChartProvider`, or an
+individual `MarkdownChartBlock` to localize its text.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, bind `{ sessionId, requestId, phase,
