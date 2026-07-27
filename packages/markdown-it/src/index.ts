@@ -1,5 +1,6 @@
 import type MarkdownIt from 'markdown-it';
 import {
+  createMarkdownChartLoadingMarkup,
   MARKDOWN_CHART_LANGUAGE,
   type ChartRendererRegistry,
 } from '@datafe-open/markdown-chart';
@@ -30,6 +31,7 @@ export interface MarkdownChartPluginOptions {
   readonly isChartLanguage?: (language: string) => boolean;
   readonly idPrefix?: string;
   readonly placeholderClass?: string;
+  readonly loadingLabel?: string;
 }
 
 export interface CreateMarkdownChartEnvironmentOptions {
@@ -128,6 +130,9 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
     state.blocks.push({ id, language, rawLanguage, source: token.content, complete });
     const streamingClass = complete ? '' : ' markdown-chart-streaming';
     const busy = complete ? '' : ' aria-busy="true"';
-    return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="Chart"${busy}></div>\n`;
+    const loading = complete
+      ? ''
+      : createMarkdownChartLoadingMarkup(options.loadingLabel);
+    return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="Chart"${busy}>${loading}</div>\n`;
   };
 }

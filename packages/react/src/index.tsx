@@ -33,6 +33,7 @@ interface MarkdownChartContextValue {
   readonly theme: unknown;
   readonly streaming: boolean;
   readonly source: string | undefined;
+  readonly loadingLabel: string | undefined;
   readonly onError: MarkdownChartReactErrorHandler | undefined;
 }
 
@@ -44,6 +45,7 @@ export interface MarkdownChartProviderProps {
   readonly streaming?: boolean;
   /** Optional when the direct child already receives the Markdown as children. */
   readonly source?: string;
+  readonly loadingLabel?: string;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly children: ReactNode;
 }
@@ -62,8 +64,16 @@ export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactE
     theme: props.theme,
     streaming: props.streaming ?? false,
     source,
+    loadingLabel: props.loadingLabel,
     onError: props.onError,
-  }), [props.registry, props.theme, props.streaming, source, props.onError]);
+  }), [
+    props.registry,
+    props.theme,
+    props.streaming,
+    source,
+    props.loadingLabel,
+    props.onError,
+  ]);
   return createElement(MarkdownChartContext.Provider, { value }, props.children);
 }
 
@@ -71,6 +81,7 @@ export interface MarkdownChartBlockProps {
   readonly language: string;
   readonly source: string;
   readonly streaming?: boolean;
+  readonly loadingLabel?: string;
   readonly className?: string;
   readonly style?: CSSProperties;
 }
@@ -82,6 +93,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   }
   const containerRef = useRef<HTMLDivElement>(null);
   const streaming = props.streaming ?? configuration.streaming;
+  const loadingLabel = props.loadingLabel ?? configuration.loadingLabel;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -95,6 +107,9 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
       source: props.source,
       theme: configuration.theme,
       streaming,
+      ...(loadingLabel !== undefined
+        ? { loadingLabel }
+        : {}),
     }).catch((error: unknown) => {
       if (disposed) {
         return;
@@ -115,6 +130,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
     configuration.registry,
     configuration.theme,
     configuration.onError,
+    loadingLabel,
     props.language,
     props.source,
     streaming,
@@ -209,6 +225,7 @@ export interface MarkdownChartProps {
   readonly echarts?: CreateEChartsRendererOptions;
   readonly theme?: unknown;
   readonly streaming?: boolean;
+  readonly loadingLabel?: string;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly chartClassName?: string;
   readonly chartStyle?: CSSProperties;
@@ -233,6 +250,7 @@ export function MarkdownChart(props: MarkdownChartProps): ReactElement {
       children: createElement(ReactMarkdown, { components }, props.source),
       ...(props.theme !== undefined ? { theme: props.theme } : {}),
       ...(props.streaming !== undefined ? { streaming: props.streaming } : {}),
+      ...(props.loadingLabel !== undefined ? { loadingLabel: props.loadingLabel } : {}),
       ...(props.onError ? { onError: props.onError } : {}),
     },
   );

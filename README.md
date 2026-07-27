@@ -169,7 +169,11 @@ Pass the outer document streaming state to the framework component:
 
 Closed chart fences render immediately and keep their mounted chart instance as
 later text arrives. Only the active unterminated tail fence waits for more
-input. Advanced React applications pass the same state to
+input. Pending fences and asynchronous parsing, data resolution, and runtime
+mounting show a built-in loading indicator instead of a blank placeholder.
+Use `loadingLabel` to localize its text and
+`--markdown-chart-loading-color` to align its color. Advanced React applications
+pass the same state to
 `MarkdownChartProvider`; advanced Vue applications pass it to `MarkdownChart`.
 
 ## Advanced setup

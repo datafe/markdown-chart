@@ -377,6 +377,7 @@ describe('MarkdownChart reactive object props', () => {
           source: source.value,
           registry,
           streaming: true,
+          loadingLabel: 'Loading Vue chart…',
         });
       },
     }));
@@ -385,6 +386,8 @@ describe('MarkdownChart reactive object props', () => {
     await vi.waitFor(() => {
       expect(root.querySelector('.markdown-chart-streaming')).not.toBeNull();
     });
+    expect(root.querySelector('.markdown-chart-loading')?.textContent)
+      .toBe('Loading Vue chart…');
     expect(parse).not.toHaveBeenCalled();
 
     source.value = `${source.value}\n\`\`\``;

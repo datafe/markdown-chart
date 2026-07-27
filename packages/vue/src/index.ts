@@ -41,6 +41,7 @@ export interface MountMarkdownChartBlocksOptions {
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly minHeight?: string | number | undefined;
+  readonly loadingLabel?: string;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -145,6 +146,9 @@ class MarkdownChartMountManager {
         source: block.source,
         theme: options.theme,
         streaming: false,
+        ...(options.loadingLabel !== undefined
+          ? { loadingLabel: options.loadingLabel }
+          : {}),
       }).catch((error: unknown) => {
         if (this.#entries.get(block.id) !== entry) {
           return;
@@ -195,6 +199,7 @@ export interface UseMarkdownChartOptions {
   readonly theme?: MaybeRef<unknown>;
   readonly streaming?: MaybeRef<boolean>;
   readonly minHeight?: MaybeRef<string | number | undefined>;
+  readonly loadingLabel?: MaybeRef<string | undefined>;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -218,6 +223,9 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
   const currentMinHeight = (): string | number | undefined => options.minHeight === undefined
     ? undefined
     : toValue(options.minHeight);
+  const currentLoadingLabel = (): string | undefined => options.loadingLabel === undefined
+    ? undefined
+    : toValue(options.loadingLabel);
 
   const refresh = async (): Promise<void> => {
     const localGeneration = ++generation;
@@ -231,9 +239,13 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
     if (localGeneration !== generation || !container.value) {
       return;
     }
+    const loadingLabel = currentLoadingLabel();
     await manager.reconcile(container.value, blocks, toValue(options.registry), {
       theme: currentTheme(),
       minHeight: currentMinHeight(),
+      ...(loadingLabel !== undefined
+        ? { loadingLabel }
+        : {}),
       ...(options.onError ? { onError: options.onError } : {}),
     });
   };
@@ -246,6 +258,7 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
       currentTheme,
       currentStreaming,
       currentMinHeight,
+      currentLoadingLabel,
     ],
     () => { void refresh(); },
     { flush: 'post' },
@@ -278,6 +291,7 @@ export const MarkdownChart = defineComponent({
     echarts: { type: Object as PropType<CreateEChartsRendererOptions>, required: false },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
+    loadingLabel: { type: String, required: false },
     minHeight: {
       type: [String, Number] as PropType<string | number>,
       default: 360,
@@ -292,10 +306,15 @@ export const MarkdownChart = defineComponent({
       () => new ChartRendererRegistry().register(createEChartsRenderer(props.echarts)),
     );
     const registry = computed(() => props.registry ?? automaticRegistry.value);
-    const automaticMarkdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
-      registry: { has: (language) => registry.value.has(language) },
-    });
-    const markdownIt = computed(() => props.markdownIt ?? automaticMarkdownIt);
+    const automaticMarkdownIt = computed(
+      () => new MarkdownIt({ html: false }).use(markdownChartPlugin, {
+        registry: { has: (language) => registry.value.has(language) },
+        ...(props.loadingLabel !== undefined
+          ? { loadingLabel: props.loadingLabel }
+          : {}),
+      }),
+    );
+    const markdownIt = computed(() => props.markdownIt ?? automaticMarkdownIt.value);
     const state = useMarkdownChart({
       source: toRef(props, 'source'),
       markdownIt,
@@ -303,6 +322,7 @@ export const MarkdownChart = defineComponent({
       theme: toRef(props, 'theme'),
       streaming: toRef(props, 'streaming'),
       minHeight: toRef(props, 'minHeight'),
+      loadingLabel: toRef(props, 'loadingLabel'),
       onError: (error, block) => props.onError?.(error, block),
     });
     return () => h('div', {

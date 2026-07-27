@@ -948,7 +948,7 @@ describe('createEChartsRenderer', () => {
       });
       await render;
       expect(loadECharts).not.toHaveBeenCalled();
-      expect(container.childElementCount).toBe(0);
+      expect(container.querySelector('.markdown-chart-loading')).not.toBeNull();
       expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
       expect(listCalls).toBe(1);
     },
@@ -1003,7 +1003,7 @@ describe('createEChartsRenderer', () => {
     finishResolve?.('name,value\nA,10\n');
     await render;
     expect(loadECharts).not.toHaveBeenCalled();
-    expect(container.childElementCount).toBe(0);
+    expect(container.querySelector('.markdown-chart-loading')).not.toBeNull();
   });
 
   it('accepts legacySandbox CSV over 500 KB within ECharts row and cell limits', async () => {
@@ -1147,7 +1147,7 @@ describe('createEChartsRenderer', () => {
     finishResolve?.({ source: [['Jan', 100]] });
     await render;
     expect(loadECharts).not.toHaveBeenCalled();
-    expect(element.childElementCount).toBe(0);
+    expect(element.querySelector('.markdown-chart-loading')).not.toBeNull();
   });
 
   it('fails closed when a ref resolver is missing', async () => {
