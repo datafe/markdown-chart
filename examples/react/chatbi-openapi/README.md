@@ -1,8 +1,7 @@
 # React + ChatBI OpenAPI 示例
 
 本示例用于渲染 ChatBI 返回的流式 Markdown。宿主把既有的两个同源 OpenAPI
-代理路由适配为 `LegacySandboxTransport`，公共 client 负责文件匹配、重试、
-request scope 到 session-only 的 fallback 和成功缓存：
+代理路由适配为 `LegacySandboxTransport`：
 
 ```tsx
 const transport = useMemo(() => createChatBILegacySandboxTransport(), []);
@@ -27,8 +26,27 @@ const echarts = useMemo(() => ({ legacySandbox }), [legacySandbox]);
 <MarkdownChart source={markdown} streaming={streaming} echarts={echarts} />
 ```
 
-transport 与 host adapter 在组件生命周期内保持稳定；adapter 按认证主体私有管理
-active client/cache，`identity(context)` 变化时才重新 `bind` 并替换 renderer generation。
+### Transport 与 host adapter
+
+两者分别负责网络契约和宿主生命周期，调用链如下：
+
+```text
+MarkdownChart → ECharts renderer → legacySandbox binding
+              → shared resolver → transport → ChatBI OpenAPI
+```
+
+- `createChatBILegacySandboxTransport` 是宿主实现的网络层。它把公共 client 的
+  `listFiles` / `readFile` 请求转换为 ChatBI OpenAPI 调用，处理分页、响应映射、大小
+  限制和错误分类；它不知道 Markdown、artifact 匹配、重试、fallback 或缓存策略。
+- `createLegacySandboxHostAdapter` 是公共包提供的生命周期层。它把 transport 绑定到
+  当前 `cacheScopeKey`、`sessionId`、`requestId` 和 `phase`，按认证主体隔离
+  client/cache，并通过 `identity(context)` 让 React 在上下文变化时重新取得 binding；
+  它不关心具体 OpenAPI 端点和响应格式。
+- adapter 返回的 `legacySandbox` binding 才是 renderer 使用的接口。artifact 匹配、
+  重试、request scope 到 session-only fallback 和成功缓存由 binding 背后的 shared
+  client/resolver 统一完成。
+
+transport 与 host adapter 在组件生命周期内保持稳定。
 `cacheScopeKey` 是必填的非 secret 主体标识，推荐 `${tenantId}:${userId}`。不得使用
 token、cookie、session secret 的原文或 hash，也不得回退为 `sessionId`。登录身份变化
 时新的 binding/registry 会让既有 chart controller 取消旧请求；A → B → A 也不会复用
