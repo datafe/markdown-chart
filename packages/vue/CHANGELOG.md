@@ -1,5 +1,14 @@
 # @datafe-open/markdown-chart-vue
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [1765fec]
+  - @datafe-open/markdown-chart-echarts@0.1.10
+  - @datafe-open/markdown-chart@0.1.10
+  - @datafe-open/markdown-chart-markdown-it@0.1.10
+
 ## 0.1.9
 
 ### Patch Changes
