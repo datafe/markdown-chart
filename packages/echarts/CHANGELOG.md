@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.10
+
+### Patch Changes
+
+- 1765fec: Avoid injecting a redundant default legend for a single named Cartesian series while preserving explicit, multi-series, and item legends.
+  - @datafe-open/markdown-chart@0.1.10
+
 ## 0.1.9
 
 ### Patch Changes
