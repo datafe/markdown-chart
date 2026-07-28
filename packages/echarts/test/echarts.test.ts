@@ -105,6 +105,22 @@ function thirtyDayTrendOption(): Record<string, JsonValue> {
   };
 }
 
+function bottomLegendOverlapOption(): Record<string, JsonValue> {
+  return {
+    grid: { bottom: '3%', containLabel: true },
+    xAxis: { type: 'value' },
+    yAxis: {
+      type: 'category',
+      data: ['Canon imageCLASS 2200 Advanced Copier', 'Fellowes PB500 Electric Punch'],
+    },
+    series: [{
+      name: '销售额',
+      type: 'bar',
+      data: [61_599.83, 27_453.38],
+    }],
+  };
+}
+
 function thirtyDayTrendData(): JsonValue {
   return {
     kind: 'inline',
@@ -425,6 +441,89 @@ describe('createEChartsRenderer', () => {
     }
     expect(input).toEqual(original);
   });
+
+  it('omits a redundant default legend for the real single-series horizontal bar option', () => {
+    const input = bottomLegendOverlapOption();
+    const original = structuredClone(input);
+
+    const styled = applyEChartsDefaultStyle(input);
+
+    expect(styled).not.toHaveProperty('legend');
+    expect(styled.grid).toMatchObject({ bottom: '3%', containLabel: true });
+    expect(styled.series).toMatchObject([{ name: '销售额', type: 'bar' }]);
+    expect(input).toEqual(original);
+  });
+
+  it('preserves an explicit legend for a single named Cartesian series', () => {
+    const input = {
+      ...bottomLegendOverlapOption(),
+      legend: { show: true, bottom: 12 },
+    };
+
+    const styled = applyEChartsDefaultStyle(input);
+
+    expect(styled.legend).toMatchObject({
+      show: true,
+      bottom: 12,
+      type: 'scroll',
+      textStyle: { color: '#555555', fontSize: 12 },
+    });
+  });
+
+  it('keeps the default legend for multiple named series', () => {
+    const input: Record<string, JsonValue> = {
+      xAxis: { type: 'category', data: ['Jan', 'Feb'] },
+      yAxis: { type: 'value' },
+      series: [
+        { name: 'Revenue', type: 'bar', data: [10, 20] },
+        { name: 'Cost', type: 'bar', data: [7, 12] },
+      ],
+    };
+
+    const styled = applyEChartsDefaultStyle(input);
+
+    expect(styled.legend).toMatchObject({
+      type: 'scroll',
+      bottom: 8,
+      textStyle: { color: '#555555', fontSize: 12 },
+    });
+  });
+
+  it.each(['pie', 'funnel'] as const)(
+    'keeps the default item legend for a single %s series',
+    (type) => {
+      const styled = applyEChartsDefaultStyle({
+        series: [{
+          name: '销售额',
+          type,
+          data: [
+            { name: 'Furniture', value: 10 },
+            { name: 'Technology', value: 20 },
+          ],
+        }],
+      });
+
+      expect(styled.legend).toMatchObject({ type: 'scroll', bottom: 8 });
+    },
+  );
+
+  it.each(['graph', 'chord', 'themeRiver'] as const)(
+    'keeps the default item or category legend for a single %s series',
+    (type) => {
+      const styled = applyEChartsDefaultStyle({
+        series: [{
+          name: '销售额',
+          type,
+          data: [
+            { name: 'Furniture', value: 10 },
+            { name: 'Technology', value: 20 },
+          ],
+        }],
+      });
+
+      expect(styled.legend).toMatchObject({ type: 'scroll', bottom: 8 });
+    },
+  );
 
   it.each([
     [0, 40],
