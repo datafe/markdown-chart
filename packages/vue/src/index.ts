@@ -2,6 +2,8 @@ import MarkdownIt from 'markdown-it';
 import {
   ChartController,
   ChartRendererRegistry,
+  resolveMarkdownChartLabels,
+  type MarkdownChartLabelOverrides,
 } from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
@@ -42,6 +44,7 @@ export interface MountMarkdownChartBlocksOptions {
   readonly streaming?: boolean;
   readonly minHeight?: string | number | undefined;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -54,6 +57,7 @@ interface MountedMarkdownChartEntry {
   readonly block: MarkdownChartBlock;
   readonly registry: ChartRendererRegistry;
   readonly theme: unknown;
+  readonly labels: MarkdownChartLabelOverrides | undefined;
   readonly element: HTMLElement;
   readonly controller: ChartController;
   ready: Promise<void>;
@@ -115,6 +119,7 @@ class MarkdownChartMountManager {
       const reusable = existing
         && existing.registry === registry
         && Object.is(existing.theme, options.theme)
+        && existing.labels === options.labels
         && existing.block.language === block.language
         && existing.block.rawLanguage === block.rawLanguage
         && existing.block.source === block.source;
@@ -136,6 +141,7 @@ class MarkdownChartMountManager {
         block,
         registry,
         theme: options.theme,
+        labels: options.labels,
         element: placeholder,
         controller,
         ready: Promise.resolve(),
@@ -149,6 +155,7 @@ class MarkdownChartMountManager {
         ...(options.loadingLabel !== undefined
           ? { loadingLabel: options.loadingLabel }
           : {}),
+        ...(options.labels !== undefined ? { labels: options.labels } : {}),
       }).catch((error: unknown) => {
         if (this.#entries.get(block.id) !== entry) {
           return;
@@ -157,7 +164,7 @@ class MarkdownChartMountManager {
         controller.dispose();
         placeholder.classList.add('markdown-chart-error');
         placeholder.setAttribute('role', 'alert');
-        placeholder.textContent = 'Chart unavailable';
+        placeholder.textContent = resolveMarkdownChartLabels(options.labels).chartUnavailable;
         options.onError?.(error, block);
       });
       tasks.push(entry.ready);
@@ -200,6 +207,7 @@ export interface UseMarkdownChartOptions {
   readonly streaming?: MaybeRef<boolean>;
   readonly minHeight?: MaybeRef<string | number | undefined>;
   readonly loadingLabel?: MaybeRef<string | undefined>;
+  readonly labels?: MaybeRef<MarkdownChartLabelOverrides | undefined>;
   readonly onError?: MarkdownChartVueErrorHandler;
 }
 
@@ -226,6 +234,9 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
   const currentLoadingLabel = (): string | undefined => options.loadingLabel === undefined
     ? undefined
     : toValue(options.loadingLabel);
+  const currentLabels = (): MarkdownChartLabelOverrides | undefined => options.labels === undefined
+    ? undefined
+    : toValue(options.labels);
 
   const refresh = async (): Promise<void> => {
     const localGeneration = ++generation;
@@ -240,12 +251,14 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
       return;
     }
     const loadingLabel = currentLoadingLabel();
+    const labels = currentLabels();
     await manager.reconcile(container.value, blocks, toValue(options.registry), {
       theme: currentTheme(),
       minHeight: currentMinHeight(),
       ...(loadingLabel !== undefined
         ? { loadingLabel }
         : {}),
+      ...(labels !== undefined ? { labels } : {}),
       ...(options.onError ? { onError: options.onError } : {}),
     });
   };
@@ -259,6 +272,7 @@ export function useMarkdownChart(options: UseMarkdownChartOptions): UseMarkdownC
       currentStreaming,
       currentMinHeight,
       currentLoadingLabel,
+      currentLabels,
     ],
     () => { void refresh(); },
     { flush: 'post' },
@@ -292,6 +306,10 @@ export const MarkdownChart = defineComponent({
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
     loadingLabel: { type: String, required: false },
+    labels: {
+      type: Object as PropType<MarkdownChartLabelOverrides>,
+      required: false,
+    },
     minHeight: {
       type: [String, Number] as PropType<string | number>,
       default: 360,
@@ -312,6 +330,7 @@ export const MarkdownChart = defineComponent({
         ...(props.loadingLabel !== undefined
           ? { loadingLabel: props.loadingLabel }
           : {}),
+        ...(props.labels !== undefined ? { labels: props.labels } : {}),
       }),
     );
     const markdownIt = computed(() => props.markdownIt ?? automaticMarkdownIt.value);
@@ -323,6 +342,7 @@ export const MarkdownChart = defineComponent({
       streaming: toRef(props, 'streaming'),
       minHeight: toRef(props, 'minHeight'),
       loadingLabel: toRef(props, 'loadingLabel'),
+      labels: toRef(props, 'labels'),
       onError: (error, block) => props.onError?.(error, block),
     });
     return () => h('div', {

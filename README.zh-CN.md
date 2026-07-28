@@ -138,7 +138,30 @@ defineProps<{ source: string }>();
 <MarkdownChart :source="source" :streaming="isStreaming" />
 ```
 
-已经闭合的图表代码块会立即渲染；后续文本继续到达时，已挂载的图表实例会保持不变。只有末尾仍未闭合、正在输出的代码块会等待更多输入。等待中的代码块以及异步解析、取数和运行时挂载阶段会显示内置 loading，不再留下空白占位。可以用 `loadingLabel` 本地化文案，用 `--markdown-chart-loading-color` 对齐颜色。React 高级模式把相同状态传给 `MarkdownChartProvider`，Vue 高级模式则传给 `MarkdownChart`。
+已经闭合的图表代码块会立即渲染；后续文本继续到达时，已挂载的图表实例会保持不变。只有末尾仍未闭合、正在输出的代码块会等待更多输入；图表代码块位于引用块中时也遵循相同行为。等待中的代码块以及异步解析、取数和运行时挂载阶段会显示内置 loading，不再留下空白占位。可以用 `loadingLabel` 本地化文案，用 `--markdown-chart-loading-color` 对齐颜色。React 高级模式把相同状态传给 `MarkdownChartProvider`，Vue 高级模式则传给 `MarkdownChart`。
+
+## 界面文案本地化
+
+React 和 Vue 宿主可以传入部分 `labels`，本地化 Chart/Data 控件、无障碍标签、空数据提示、截断提示和图表错误兜底：
+
+```tsx
+<MarkdownChart
+  source={source}
+  labels={{
+    chartUnavailable: '图表不可用',
+    viewMode: '视图模式',
+    chart: '图表',
+    data: '数据',
+    showChart: '显示图表',
+    showData: '显示数据',
+    noData: '暂无数据',
+    tableNotice: ({ visibleRows, totalRows, visibleColumns, totalColumns }) =>
+      `显示 ${visibleRows}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`,
+  }}
+/>
+```
+
+`MarkdownChartProvider`、`MarkdownChartBlock`、Vue composable / 挂载工具和 markdown-it 插件都接受同一个 `MarkdownChartLabelOverrides` 类型；没有提供的文案继续使用英文默认值。
 
 ## 高级配置
 

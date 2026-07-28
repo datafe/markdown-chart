@@ -17,6 +17,8 @@ import {
   ChartRendererRegistry,
   isMarkdownFenceClosed,
   MARKDOWN_CHART_LANGUAGE,
+  resolveMarkdownChartLabels,
+  type MarkdownChartLabelOverrides,
 } from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
@@ -34,6 +36,7 @@ interface MarkdownChartContextValue {
   readonly streaming: boolean;
   readonly source: string | undefined;
   readonly loadingLabel: string | undefined;
+  readonly labels: MarkdownChartLabelOverrides | undefined;
   readonly onError: MarkdownChartReactErrorHandler | undefined;
 }
 
@@ -46,6 +49,7 @@ export interface MarkdownChartProviderProps {
   /** Optional when the direct child already receives the Markdown as children. */
   readonly source?: string;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly children: ReactNode;
 }
@@ -65,6 +69,7 @@ export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactE
     streaming: props.streaming ?? false,
     source,
     loadingLabel: props.loadingLabel,
+    labels: props.labels,
     onError: props.onError,
   }), [
     props.registry,
@@ -72,6 +77,7 @@ export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactE
     props.streaming,
     source,
     props.loadingLabel,
+    props.labels,
     props.onError,
   ]);
   return createElement(MarkdownChartContext.Provider, { value }, props.children);
@@ -82,6 +88,7 @@ export interface MarkdownChartBlockProps {
   readonly source: string;
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
   readonly className?: string;
   readonly style?: CSSProperties;
 }
@@ -94,6 +101,8 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   const containerRef = useRef<HTMLDivElement>(null);
   const streaming = props.streaming ?? configuration.streaming;
   const loadingLabel = props.loadingLabel ?? configuration.loadingLabel;
+  const labels = props.labels ?? configuration.labels;
+  const resolvedLabels = useMemo(() => resolveMarkdownChartLabels(labels), [labels]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -110,13 +119,14 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
       ...(loadingLabel !== undefined
         ? { loadingLabel }
         : {}),
+      ...(labels !== undefined ? { labels } : {}),
     }).catch((error: unknown) => {
       if (disposed) {
         return;
       }
       container.classList.add('markdown-chart-error');
       container.setAttribute('role', 'alert');
-      container.textContent = 'Chart unavailable';
+      container.textContent = resolvedLabels.chartUnavailable;
       configuration.onError?.(error, {
         language: props.language,
         source: props.source,
@@ -131,6 +141,8 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
     configuration.theme,
     configuration.onError,
     loadingLabel,
+    labels,
+    resolvedLabels,
     props.language,
     props.source,
     streaming,
@@ -145,7 +157,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
     ref: containerRef,
     className,
     style: props.style,
-    'aria-label': 'Chart',
+    'aria-label': resolvedLabels.chart,
     'aria-busy': streaming || undefined,
     'data-markdown-chart-complete': String(!streaming),
   });
@@ -174,7 +186,12 @@ function isCompleteChartNode(source: string | undefined, node: PositionedNode | 
   if (source === undefined || start === undefined || end === undefined) {
     return false;
   }
-  return isMarkdownFenceClosed(source.slice(start, end))
+  const lineStart = source.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+  const leadingContainer = source.slice(lineStart, start);
+  const fragmentStart = /^(?: {0,3}>[ \t]?)+$/.test(leadingContainer)
+    ? lineStart
+    : start;
+  return isMarkdownFenceClosed(source.slice(fragmentStart, end))
     || source.slice(end).trim().length > 0;
 }
 
@@ -226,6 +243,7 @@ export interface MarkdownChartProps {
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly chartClassName?: string;
   readonly chartStyle?: CSSProperties;
@@ -251,6 +269,7 @@ export function MarkdownChart(props: MarkdownChartProps): ReactElement {
       ...(props.theme !== undefined ? { theme: props.theme } : {}),
       ...(props.streaming !== undefined ? { streaming: props.streaming } : {}),
       ...(props.loadingLabel !== undefined ? { loadingLabel: props.loadingLabel } : {}),
+      ...(props.labels !== undefined ? { labels: props.labels } : {}),
       ...(props.onError ? { onError: props.onError } : {}),
     },
   );

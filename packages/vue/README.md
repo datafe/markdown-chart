@@ -27,6 +27,10 @@ immediately, and their existing DOM and chart controller are reused as later
 Markdown is appended. Only the active unterminated tail fence waits. Pending and
 asynchronously mounting charts show the package loading state; pass
 `:loading-label="..."` to localize its text.
+Pass `:labels="labels"` to localize the Chart/Data controls, accessibility
+labels, empty/truncated data messages, and the `Chart unavailable` error
+fallback. The same option is available on `useMarkdownChart()` and
+`mountMarkdownChartBlocks()`.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, compute a binding from `{ sessionId,
