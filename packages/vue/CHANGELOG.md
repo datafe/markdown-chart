@@ -1,5 +1,15 @@
 # @datafe-open/markdown-chart-vue
 
+## 0.1.11
+
+### Patch Changes
+
+- c636228: Allow hosts to localize chart UI labels and render closed streaming chart fences inside blockquotes.
+- Updated dependencies [c636228]
+  - @datafe-open/markdown-chart@0.1.11
+  - @datafe-open/markdown-chart-markdown-it@0.1.11
+  - @datafe-open/markdown-chart-echarts@0.1.11
+
 ## 0.1.10
 
 ### Patch Changes

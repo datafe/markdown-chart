@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.1.11
+
+### Patch Changes
+
+- c636228: Allow hosts to localize chart UI labels and render closed streaming chart fences inside blockquotes.
+
 ## 0.1.10
 
 ## 0.1.9
