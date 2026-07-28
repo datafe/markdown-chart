@@ -821,17 +821,45 @@ function styleSeriesEntry(
   return mergeObjectDefaults(defaults, series);
 }
 
+const ITEM_ONLY_SERIES_TYPES = new Set(['pie', 'funnel', 'gauge', 'radar', 'treemap']);
+const SINGLE_SERIES_DEFAULT_LEGEND_TYPES = new Set([
+  ...ITEM_ONLY_SERIES_TYPES,
+  'graph',
+  'chord',
+  'themeRiver',
+]);
+
+function seriesEntries(option: Record<string, JsonValue>): Record<string, JsonValue>[] {
+  return Array.isArray(option.series)
+    ? option.series.filter(isJsonObject)
+    : isJsonObject(option.series) ? [option.series] : [];
+}
+
+function shouldApplyDefaultLegend(option: Record<string, JsonValue>): boolean {
+  if (Object.prototype.hasOwnProperty.call(option, 'legend')) {
+    return true;
+  }
+  const series = seriesEntries(option);
+  if (series.some((entry) => (
+    typeof entry.type === 'string' && SINGLE_SERIES_DEFAULT_LEGEND_TYPES.has(entry.type)
+  ))) {
+    return true;
+  }
+  return series.filter((entry) => (
+    typeof entry.name === 'string' && entry.name.trim().length > 0
+  )).length > 1;
+}
+
 function defaultTooltipTrigger(option: Record<string, JsonValue>): 'axis' | 'item' {
   if (!Object.prototype.hasOwnProperty.call(option, 'xAxis')
     && !Object.prototype.hasOwnProperty.call(option, 'yAxis')) {
     return 'item';
   }
-  const series = Array.isArray(option.series)
-    ? option.series.filter(isJsonObject)
-    : isJsonObject(option.series) ? [option.series] : [];
-  const itemOnlyTypes = new Set(['pie', 'funnel', 'gauge', 'radar', 'treemap']);
+  const series = seriesEntries(option);
   return series.length > 0
-    && series.every((entry) => typeof entry.type === 'string' && itemOnlyTypes.has(entry.type))
+    && series.every((entry) => (
+      typeof entry.type === 'string' && ITEM_ONLY_SERIES_TYPES.has(entry.type)
+    ))
     ? 'item'
     : 'axis';
 }
@@ -876,15 +904,17 @@ export function applyEChartsDefaultStyle(
       crossStyle: { color: tokens.pointer, width: 1 },
     },
   });
-  styled.legend = styleVerticallyPositionedComponent(styled.legend, {
-    type: 'scroll',
-    bottom: 8,
-    padding: [4, 16],
-    textStyle: { color: tokens.legendText, fontSize: 12 },
-    pageIconColor: tokens.primary,
-    pageIconInactiveColor: tokens.splitLine,
-    pageTextStyle: { color: tokens.legendText },
-  });
+  if (shouldApplyDefaultLegend(option)) {
+    styled.legend = styleVerticallyPositionedComponent(styled.legend, {
+      type: 'scroll',
+      bottom: 8,
+      padding: [4, 16],
+      textStyle: { color: tokens.legendText, fontSize: 12 },
+      pageIconColor: tokens.primary,
+      pageIconInactiveColor: tokens.splitLine,
+      pageTextStyle: { color: tokens.legendText },
+    });
+  }
   styled.grid = styleComponent(styled.grid, {
     top: defaultGridTop(styled.title, styled.legend),
     right: 36,
