@@ -489,6 +489,45 @@ describe('createEChartsRenderer', () => {
     });
   });
 
+  it('forces tooltip safety invariants after applying explicit values', () => {
+    const styled = applyEChartsDefaultStyle({
+      tooltip: {
+        appendToBody: true,
+        confine: false,
+        enterable: true,
+        renderMode: 'html',
+        trigger: 'item',
+      },
+      series: [{
+        type: 'bar',
+        tooltip: {
+          appendToBody: true,
+          confine: false,
+          enterable: true,
+          renderMode: 'html',
+          trigger: 'axis',
+        },
+      }],
+    });
+
+    expect(styled.tooltip).toMatchObject({
+      appendToBody: false,
+      confine: true,
+      enterable: false,
+      renderMode: 'richText',
+      trigger: 'item',
+    });
+    expect(styled.series).toMatchObject([{
+      tooltip: {
+        appendToBody: false,
+        confine: true,
+        enterable: false,
+        renderMode: 'richText',
+        trigger: 'axis',
+      },
+    }]);
+  });
+
   it.each(['pie', 'funnel'] as const)(
     'keeps the default item legend for a single %s series',
     (type) => {
