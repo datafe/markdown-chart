@@ -2,8 +2,7 @@
 
 本示例保留宿主的 markdown-it 处理链路，同时把既有两个同源 OpenAPI 代理路由
 适配为 `LegacySandboxTransport`。`ChatBIChartMessage.vue` 与测试共用
-`useChatBIChartMessageLifecycle`：transport 与 host adapter 在 setup 生命周期内稳定，
-adapter 以 `identity(context)` / `bind(context)` 管理 principal/session/request/phase：
+`useChatBIChartMessageLifecycle`：
 
 ```ts
 const transport = createChatBILegacySandboxTransport();
@@ -16,8 +15,27 @@ const { chartContext } = useChatBIChartMessageLifecycle({
 }, hostAdapter);
 ```
 
-模板把 `chartContext.markdownIt` 和 `chartContext.registry` 交给 `<MarkdownChart>`。公共 client
-负责唯一匹配、重试、request → session-only fallback 和成功缓存；
+### Transport 与 host adapter
+
+两者分别负责网络契约和宿主生命周期，调用链如下：
+
+```text
+MarkdownChart → ECharts renderer → legacySandbox binding
+              → shared resolver → transport → ChatBI OpenAPI
+```
+
+- `createChatBILegacySandboxTransport` 是宿主实现的网络层。它把公共 client 的
+  `listFiles` / `readFile` 请求转换为 ChatBI OpenAPI 调用，处理分页、响应映射、大小
+  限制和错误分类；它不知道 Markdown、artifact 匹配、重试、fallback 或缓存策略。
+- `createLegacySandboxHostAdapter` 是公共包提供的生命周期层。它把 transport 绑定到
+  当前 `cacheScopeKey`、`sessionId`、`requestId` 和 `phase`，按认证主体隔离
+  client/cache，并通过 `identity(context)` 让 Vue 在上下文变化时重新计算 binding；
+  它不关心具体 OpenAPI 端点和响应格式。
+- adapter 返回的 `legacySandbox` binding 才是 renderer 使用的接口。artifact 匹配、
+  重试、request scope 到 session-only fallback 和成功缓存由 binding 背后的 shared
+  client/resolver 统一完成。
+
+模板把 `chartContext.markdownIt` 和 `chartContext.registry` 交给 `<MarkdownChart>`；
 example 的 `data.ts` 只负责 OpenAPI transport。
 
 本示例要求宿主在渲染流式正文前提供服务端下发的非空 `requestId`。不要传入前端生成的
