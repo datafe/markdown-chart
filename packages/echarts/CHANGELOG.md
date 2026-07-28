@@ -1,5 +1,13 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.12
+
+### Patch Changes
+
+- 2bdeb57: Force ECharts tooltip containment and rich-text rendering safety settings after
+  applying model-provided chart options.
+  - @datafe-open/markdown-chart@0.1.12
+
 ## 0.1.11
 
 ### Patch Changes
