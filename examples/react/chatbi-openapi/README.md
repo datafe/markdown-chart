@@ -2,7 +2,7 @@
 
 本示例用于渲染 ChatBI 返回的流式 Markdown。宿主把既有的两个同源 OpenAPI
 代理路由适配为 `LegacySandboxTransport`，公共 client 负责文件匹配、重试、
-request scope 到 session-only 的 fallback、成功缓存和 live waiting：
+request scope 到 session-only 的 fallback 和成功缓存：
 
 ```tsx
 const transport = useMemo(() => createChatBILegacySandboxTransport(), []);
@@ -12,7 +12,7 @@ const hostAdapter = useMemo(
 );
 const hostContext = useMemo(() => ({
   sessionId,
-  ...(requestId ? { requestId } : {}),
+  requestId,
   phase: streaming ? 'live' : 'final',
   cacheScopeKey,
 }), [sessionId, requestId, streaming, cacheScopeKey]);
@@ -23,12 +23,8 @@ const legacySandbox = useMemo(
 );
 if (!legacySandbox) throw new Error('sessionId and cacheScopeKey are required');
 const echarts = useMemo(() => ({ legacySandbox }), [legacySandbox]);
-const deferredMarkdown = useMemo(
-  () => replaceDeferredLegacyFences(markdown, legacySandbox.shouldDefer),
-  [markdown, legacySandbox],
-);
 
-<MarkdownChart source={deferredMarkdown.source} streaming={streaming} echarts={echarts} />
+<MarkdownChart source={markdown} streaming={streaming} echarts={echarts} />
 ```
 
 transport 与 host adapter 在组件生命周期内保持稳定；adapter 按认证主体私有管理
@@ -38,14 +34,9 @@ token、cookie、session secret 的原文或 hash，也不得回退为 `sessionI
 时新的 binding/registry 会让既有 chart controller 取消旧请求；A → B → A 也不会复用
 第一次 A 的 success cache。
 
-live 阶段尚无 `requestId` 时，组件只对 Markdown 中实际出现的 query / sandbox-filepath
-legacy fence 调用 `binding.shouldDefer(rawLanguage)`。每个已闭合的命中 fence 单独替换为
-中性 waiting Markdown，并在消息容器标记 `aria-busy=true`；同一消息的正文、普通代码、
-canonical/compact chart 和其他非命中 block 继续渲染，且不发 legacy List/Get 请求。
-`requestId` 到达后 source 恢复原始 fence 并正常 mount。真实 transport/renderer 错误
-仍按框架错误路径上报。predicate 使用与 core 一致的 lowercase language；顶层、
-blockquote、bullet / ordered-list container 的合法 fence 都按 block 处理，未闭合 fence
-保持原文并继续使用框架既有 streaming 语义。
+本示例要求宿主在渲染流式正文前提供服务端下发的非空 `requestId`。不要传入前端生成的
+UI fallback；`requestId` 会直接用于当前轮次的 artifact 查询，不再由示例扫描或改写
+Markdown 等待后续补齐。
 
 临时 query / sandbox-file fence 只通过
 `createLegacySandboxHostAdapter` + `legacySandbox` 接入；renderer 和 React
@@ -57,7 +48,7 @@ blockquote、bullet / ordered-list container 的合法 fence 都按 block 处理
 
 | 浏览器端点 | 请求参数 | 后端职责 |
 | --- | --- | --- |
-| `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、可选 `RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
+| `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、`RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
 | `POST /api/dataworks/get-agent-session-artifact-meta` | `SessionId`、`ArtifactPath` | 完成鉴权/签名并调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，转发 JSON-RPC 响应。 |
 
 `data.ts` 只遍历 List 分页、映射 descriptor、读取 raw `ArtifactContent`，并通过

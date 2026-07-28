@@ -8,8 +8,7 @@ adapter 以 `identity(context)` / `bind(context)` 管理 principal/session/reque
 ```ts
 const transport = createChatBILegacySandboxTransport();
 const hostAdapter = createLegacySandboxHostAdapter({ transport });
-const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifecycle({
-  markdown: () => props.markdown,
+const { chartContext } = useChatBIChartMessageLifecycle({
   sessionId: () => props.sessionId,
   requestId: () => props.requestId,
   streaming: () => props.streaming,
@@ -18,23 +17,18 @@ const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifec
 ```
 
 模板把 `chartContext.markdownIt` 和 `chartContext.registry` 交给 `<MarkdownChart>`。公共 client
-负责唯一匹配、重试、request → session-only fallback、成功缓存和 live waiting；
+负责唯一匹配、重试、request → session-only fallback 和成功缓存；
 example 的 `data.ts` 只负责 OpenAPI transport。
+
+本示例要求宿主在渲染流式正文前提供服务端下发的非空 `requestId`。不要传入前端生成的
+UI fallback；`requestId` 会直接用于当前轮次的 artifact 查询，不再由示例扫描或改写
+Markdown 等待后续补齐。
 
 `cacheScopeKey` 是调用方显式传入的必填非 secret 主体标识，推荐
 `${tenantId}:${userId}`。不得使用 token/cookie/session secret 的原文或 hash，也不得
 回退为 `sessionId`。认证主体变化会创建新的 client/registry，让旧 chart controller
 按既有 Abort 生命周期取消；A → B → A 的第三次 A 会重新 List/Get，不会复用第一次
 A 的 success cache。
-
-live 阶段尚无 `requestId` 时，lifecycle 对每个已闭合 query / sandbox-filepath legacy
-fence 消费 `binding.shouldDefer(rawLanguage)`，只把命中 fence 替换为中性 waiting
-Markdown，并用 `deferredCount` 在消息容器标记 `aria-busy=true`。同一消息中的正文、
-普通代码、canonical/compact chart 和其他非命中 block 继续由 `<MarkdownChart>` 渲染，
-legacy List/Get 保持零网络且无 error UI；`requestId` 到达后 `renderSource` 恢复原文。
-真实 resolver/transport 错误不会被这个 gate 吞掉。predicate 使用与 core 一致的
-lowercase language；顶层、blockquote、bullet / ordered-list container 的合法 fence
-都按 block 处理，未闭合 fence 保持原文并继续使用框架既有 streaming 语义。
 
 新接入应使用 `createLegacySandboxHostAdapter` +
 `createEChartsRenderer({ legacySandbox })`。
@@ -44,7 +38,7 @@ renderer 和 Vue `<MarkdownChart>` 不再提供 standalone legacy callback 配�
 
 | 浏览器端点 | 请求参数 | 后端职责 |
 | --- | --- | --- |
-| `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、可选 `RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
+| `POST /api/dataworks/list-agent-session-artifacts` | `SessionId`、`RequestId`、`MaxResults`、可选 `NextToken` | 完成鉴权/签名并调用 [`ListAgentSessionArtifacts`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-listagentsessionartifacts)，转发 JSON-RPC 响应。 |
 | `POST /api/dataworks/get-agent-session-artifact-meta` | `SessionId`、`ArtifactPath` | 完成鉴权/签名并调用 [`GetAgentSessionArtifactMeta`](https://help.aliyun.com/zh/dataworks/developer-reference/api-dataworks-public-2024-05-18-getagentsessionartifactmeta)，转发 JSON-RPC 响应。 |
 
 端点和 BFF 参数名保持不变。`data.ts` 遍历全部分页并返回 descriptor，Get 返回 raw
