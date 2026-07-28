@@ -7,7 +7,7 @@ import { createChatBILegacySandboxTransport } from './data';
 const props = withDefaults(defineProps<{
   markdown: string;
   sessionId: string;
-  requestId?: string;
+  requestId: string;
   streaming?: boolean;
   cacheScopeKey: string;
 }>(), {
@@ -16,8 +16,7 @@ const props = withDefaults(defineProps<{
 
 const transport = createChatBILegacySandboxTransport();
 const hostAdapter = createLegacySandboxHostAdapter({ transport });
-const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifecycle({
-  markdown: () => props.markdown,
+const { chartContext } = useChatBIChartMessageLifecycle({
   sessionId: () => props.sessionId,
   requestId: () => props.requestId,
   streaming: () => props.streaming,
@@ -26,15 +25,10 @@ const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifec
 </script>
 
 <template>
-  <div
-    :aria-busy="deferredCount > 0 || undefined"
-    :data-chatbi-legacy-chart-pending="deferredCount > 0 ? 'true' : undefined"
-  >
-    <MarkdownChart
-      :source="renderSource"
-      :streaming="streaming ?? false"
-      :markdown-it="chartContext.markdownIt"
-      :registry="chartContext.registry"
-    />
-  </div>
+  <MarkdownChart
+    :source="markdown"
+    :streaming="streaming ?? false"
+    :markdown-it="chartContext.markdownIt"
+    :registry="chartContext.registry"
+  />
 </template>

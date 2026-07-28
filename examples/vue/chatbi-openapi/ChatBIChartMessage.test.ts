@@ -68,43 +68,6 @@ var option = {
 //#end
 \`\`\``;
 
-const closedFilepathChart = `\`\`\`echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv
-var option = { series: [{ type: 'bar' }] };
-//#end
-\`\`\``;
-
-function mixedMarkdown(legacyFence: string): string {
-  return `# Mixed analysis
-
-Visible narrative before the charts.
-
-\`\`\`text
-ordinary-code-stays
-\`\`\`
-
-${legacyFence}
-
-Visible narrative after the charts.`;
-}
-
-const orderedUppercaseMixedMarkdown = `# List-contained chart
-
-1. \`\`\`ECHARTS-CHATBI_QUERY_42-0
-   var option = { series: [{ type: 'bar' }] };
-   //#end
-   \`\`\`
-2. \`\`\`text
-   list-nonlegacy-stays
-   \`\`\`
-3. list-sibling-stays
-
-> ~~~text
-> quoted-tilde-stays
-> ~~~
-
-\`\`\`echarts-chatbi_query_99-0
-var option = { series: [{ type: 'line' }] };`;
-
 async function answerLegacySandbox(option: Record<string, unknown>): Promise<void> {
   await vi.waitFor(() => {
     expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
@@ -129,7 +92,7 @@ function countEndpoint(fetcher: ReturnType<typeof vi.fn>, suffix: string): numbe
 interface ChatBIChartMessageHarnessState {
   markdown: string;
   sessionId: string;
-  requestId?: string;
+  requestId: string;
   streaming: boolean;
   cacheScopeKey: string;
 }
@@ -139,8 +102,7 @@ function mountChatBIChartMessageLifecycle(
 ): { app: ReturnType<typeof createApp>; root: HTMLDivElement } {
   const app = createApp(defineComponent({
     setup() {
-      const { chartContext, renderSource, deferredCount } = useChatBIChartMessageLifecycle({
-        markdown: () => state.markdown,
+      const { chartContext } = useChatBIChartMessageLifecycle({
         sessionId: () => state.sessionId,
         requestId: () => state.requestId,
         streaming: () => state.streaming,
@@ -148,17 +110,12 @@ function mountChatBIChartMessageLifecycle(
       }, createLegacySandboxHostAdapter({
         transport: createChatBILegacySandboxTransport(),
       }));
-      return () => h('div', {
-        'aria-busy': deferredCount.value > 0 ? 'true' : undefined,
-        'data-chatbi-legacy-chart-pending': deferredCount.value > 0 ? 'true' : undefined,
-      }, [
-        h(MarkdownChart, {
-            source: renderSource.value,
-            streaming: state.streaming,
-            markdownIt: chartContext.value.markdownIt,
-            registry: chartContext.value.registry,
-        }),
-      ]);
+      return () => h(MarkdownChart, {
+        source: state.markdown,
+        streaming: state.streaming,
+        markdownIt: chartContext.value.markdownIt,
+        registry: chartContext.value.registry,
+      });
     },
   }));
   const root = document.createElement('div');
@@ -167,122 +124,7 @@ function mountChatBIChartMessageLifecycle(
 }
 
 describe('Vue + markdown-it ChatBI message integration', () => {
-  it.each([
-    {
-      kind: 'query',
-      markdown: closedChart,
-      artifactName: 'chatbi_query_42.csv',
-      artifactPath: 'artifacts/chatbi_query_42.csv',
-    },
-    {
-      kind: 'sandbox filepath',
-      markdown: closedFilepathChart,
-      artifactName: 'Foo.csv',
-      artifactPath: 'sandbox/App/CSV/Foo.csv',
-    },
-  ])('keeps only a closed live $kind fence pending until requestId arrives', async ({
-    markdown,
-    artifactName,
-    artifactPath,
-  }) => {
-    const source = mixedMarkdown(markdown);
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => (
-      String(input).endsWith('/list-agent-session-artifacts')
-        ? rpcResult({
-            NextToken: null,
-            Artifacts: [{ ArtifactName: artifactName, ArtifactPath: artifactPath }],
-          })
-        : rpcResult({ ArtifactContent: 'name,value\nA,10\n' })
-    ));
-    vi.stubGlobal('fetch', fetcher);
-    const state = reactive<{
-      markdown: string;
-      sessionId: string;
-      requestId?: string;
-      streaming: boolean;
-      cacheScopeKey: string;
-    }>({
-      markdown: source,
-      sessionId: 'session-1',
-      streaming: true,
-      cacheScopeKey: 'tenant-1:user-1',
-    });
-    const { app, root } = mountChatBIChartMessageLifecycle(state);
-    await nextTick();
-
-    expect(fetcher).not.toHaveBeenCalled();
-    expect(root.querySelector('[data-chatbi-legacy-chart-pending]')).not.toBeNull();
-    expect(root.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(root.querySelector('.markdown-chart-error, [role="alert"]')).toBeNull();
-    expect(root.textContent).not.toContain('Chart unavailable');
-    expect(root.textContent).toContain('Visible narrative before the charts.');
-    expect(root.textContent).toContain('ordinary-code-stays');
-    expect(root.textContent).toContain('Visible narrative after the charts.');
-    expect(root.textContent).toContain('Chart data is still being prepared.');
-    expect(root.querySelector('pre code')?.textContent).toContain('ordinary-code-stays');
-
-    state.requestId = 'request-1';
-    await nextTick();
-    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    await answerLegacySandbox({ series: [{ type: 'bar', data: [10] }] });
-    await vi.waitFor(() => expect(echartsRuntime.init).toHaveBeenCalledOnce());
-    expect(root.querySelector('[data-chatbi-legacy-chart-pending]')).toBeNull();
-    expect(root.querySelector('.markdown-chart-error, [role="alert"]')).toBeNull();
-    expect(root.textContent).toContain('Visible narrative before the charts.');
-    expect(root.textContent).toContain('ordinary-code-stays');
-    expect(root.textContent).toContain('Visible narrative after the charts.');
-    expect(root.textContent).not.toContain('Chart data is still being prepared.');
-
-    app.unmount();
-  });
-
-  it('defers an uppercase query fence inside an ordered list without replacing sibling blocks', async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => (
-      String(input).endsWith('/list-agent-session-artifacts')
-        ? rpcResult({
-            NextToken: null,
-            Artifacts: [{
-              ArtifactName: 'chatbi_query_42.csv',
-              ArtifactPath: 'artifacts/chatbi_query_42.csv',
-            }],
-          })
-        : rpcResult({ ArtifactContent: 'name,value\nA,10\n' })
-    ));
-    vi.stubGlobal('fetch', fetcher);
-    const state = reactive<ChatBIChartMessageHarnessState>({
-      markdown: orderedUppercaseMixedMarkdown,
-      sessionId: 'session-1',
-      streaming: true,
-      cacheScopeKey: 'tenant-1:user-1',
-    });
-    const { app, root } = mountChatBIChartMessageLifecycle(state);
-    await nextTick();
-
-    expect(fetcher).not.toHaveBeenCalled();
-    expect(root.querySelector('[data-chatbi-legacy-chart-pending]')).not.toBeNull();
-    expect(root.querySelector('.markdown-chart-error, [role="alert"]')).toBeNull();
-    expect(root.textContent).toContain('list-nonlegacy-stays');
-    expect(root.textContent).toContain('list-sibling-stays');
-    expect(root.textContent).toContain('quoted-tilde-stays');
-    expect(root.querySelectorAll('li').length).toBeGreaterThanOrEqual(3);
-    expect(root.textContent?.match(/Chart data is still being prepared\./g)).toHaveLength(1);
-
-    state.requestId = 'request-1';
-    await nextTick();
-    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    await answerLegacySandbox({ series: [{ type: 'bar', data: [10] }] });
-    await vi.waitFor(() => expect(echartsRuntime.init).toHaveBeenCalledOnce());
-    expect(root.querySelector('[data-chatbi-legacy-chart-pending]')).toBeNull();
-    expect(root.querySelector('.markdown-chart-error, [role="alert"]')).toBeNull();
-    expect(root.textContent).toContain('list-nonlegacy-stays');
-    expect(root.textContent).toContain('list-sibling-stays');
-    expect(root.textContent).toContain('quoted-tilde-stays');
-    expect(root.textContent).not.toContain('Chart data is still being prepared.');
-
-    app.unmount();
-  });
-
-  it('reuses completed charts while streaming and rebuilds artifact context for session/request changes', async () => {
+  it('renders with the required requestId, reuses completed charts, and rebuilds artifact context', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const endpoint = String(input);
       if (endpoint.endsWith('/list-agent-session-artifacts')) {
@@ -441,50 +283,5 @@ describe('Vue + markdown-it ChatBI message integration', () => {
     const { registry, markdownIt } = createChatBIChartContext({ legacySandbox });
     expect(markdownIt).toBeInstanceOf(MarkdownIt);
     expect(registry).toBeInstanceOf(ChartRendererRegistry);
-  });
-
-  it('uses final session-only lookup and exposes live no-request deferral', async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (
-      String(input).endsWith('/list-agent-session-artifacts')
-        ? rpcResult({
-            NextToken: null,
-            Artifacts: [{ ArtifactName: 'Foo.csv', ArtifactPath: 'App/CSV/Foo.csv' }],
-          })
-        : rpcResult({ ArtifactContent: 'name,value\nA,10\n' })
-    ));
-    const hostAdapter = createLegacySandboxHostAdapter({
-      transport: createChatBILegacySandboxTransport({
-        fetch: fetcher as unknown as typeof fetch,
-      }),
-    });
-    const finalBinding = hostAdapter.bind({
-      sessionId: 'session-1',
-      requestId: 'request-is-not-sent',
-      phase: 'final',
-      cacheScopeKey: 'tenant-1:user-1',
-    });
-    if (!finalBinding) throw new Error('Expected a complete final host context');
-    await expect(finalBinding.resolveLegacySandboxFileContent({
-      language: 'echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv',
-      filePath: 'App/CSV/Foo.csv',
-      signal: new AbortController().signal,
-    })).resolves.toContain('A,10');
-    const params = (
-      JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string) as {
-        Params: Record<string, unknown>;
-      }
-    ).Params;
-    expect(params).toEqual({ SessionId: 'session-1', MaxResults: 50 });
-
-    fetcher.mockClear();
-    const deferred = hostAdapter.bind({
-      sessionId: 'session-1',
-      phase: 'live',
-      cacheScopeKey: 'tenant-1:user-1',
-    });
-    if (!deferred) throw new Error('Expected a complete live host context');
-    expect(deferred.shouldDefer('echarts-chatbi_query_42-0')).toBe(true);
-    expect(deferred.shouldDefer('echarts-chatbi_sandbox_filepath_App/CSV/Foo.csv')).toBe(true);
-    expect(fetcher).not.toHaveBeenCalled();
   });
 });
