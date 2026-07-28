@@ -26,6 +26,14 @@ describe('markdownChartPlugin', () => {
     }]);
   });
 
+  it('uses and escapes the host-provided chart label', () => {
+    const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
+      labels: { chart: '图表 "预览"' },
+    });
+    const html = md.render('```markdown-chart\n{}\n```', {});
+    expect(html).toContain('aria-label="图表 &quot;预览&quot;"');
+  });
+
   it('marks only an unterminated chart fence as incomplete while streaming', () => {
     const md = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
       loadingLabel: '绘制图表中…',

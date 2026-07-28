@@ -2,7 +2,9 @@ import type MarkdownIt from 'markdown-it';
 import {
   createMarkdownChartLoadingMarkup,
   MARKDOWN_CHART_LANGUAGE,
+  resolveMarkdownChartLabels,
   type ChartRendererRegistry,
+  type MarkdownChartLabelOverrides,
 } from '@datafe-open/markdown-chart';
 
 export const MARKDOWN_CHART_ENV_KEY = 'markdownChart' as const;
@@ -32,6 +34,7 @@ export interface MarkdownChartPluginOptions {
   readonly idPrefix?: string;
   readonly placeholderClass?: string;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
 }
 
 export interface CreateMarkdownChartEnvironmentOptions {
@@ -89,6 +92,7 @@ function fenceTokenIsClosed(token: { readonly content: string; readonly map: [nu
 export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPluginOptions = {}): void {
   const idPrefix = options.idPrefix ?? 'markdown-chart';
   const placeholderClass = options.placeholderClass ?? 'markdown-chart-placeholder';
+  const chartLabel = md.utils.escapeHtml(resolveMarkdownChartLabels(options.labels).chart);
   if (!SAFE_TOKEN.test(idPrefix)) {
     throw new TypeError('idPrefix must contain only letters, numbers, underscores, and hyphens');
   }
@@ -133,6 +137,6 @@ export function markdownChartPlugin(md: MarkdownIt, options: MarkdownChartPlugin
     const loading = complete
       ? ''
       : createMarkdownChartLoadingMarkup(options.loadingLabel);
-    return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="Chart"${busy}>${loading}</div>\n`;
+    return `<div class="${placeholderClass}${streamingClass}" data-markdown-chart-id="${id}" data-markdown-chart-complete="${complete}" aria-label="${chartLabel}"${busy}>${loading}</div>\n`;
   };
 }

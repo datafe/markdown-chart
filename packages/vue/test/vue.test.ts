@@ -99,6 +99,38 @@ describe('MarkdownChart reactive object props', () => {
     app.unmount();
   });
 
+  it('passes host-provided labels through Vue and markdown-it', async () => {
+    const source = '```markdown-chart\n{"version":1,"renderer":"test","data":{"kind":"inline","source":[["A",1]]},"spec":{}}\n```';
+    const registry = new ChartRendererRegistry().register(testRenderer(() => {}));
+    const labels = {
+      chart: '图表',
+      data: '数据',
+      viewMode: '视图模式',
+      showChart: '显示图表',
+      showData: '显示数据',
+    };
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, registry, labels });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+
+    await vi.waitFor(() => {
+      expect(root.querySelector('button[aria-label="显示数据"]')).not.toBeNull();
+    });
+    expect(root.querySelector('.markdown-chart-toggle')?.getAttribute('aria-label'))
+      .toBe('视图模式');
+    expect(root.querySelector('button[aria-label="显示图表"]')?.getAttribute('title'))
+      .toBe('图表');
+    expect(root.querySelector('button[aria-label="显示数据"]')?.getAttribute('title'))
+      .toBe('数据');
+    expect(root.querySelector('.markdown-chart-placeholder')?.getAttribute('aria-label'))
+      .toBe('图表');
+    app.unmount();
+  });
+
   it('leaves the removed echarts shorthand as code', async () => {
     const language = 'echarts';
     const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;
@@ -270,10 +302,11 @@ describe('MarkdownChart reactive object props', () => {
     });
     const markdownIt = new MarkdownIt().use(markdownChartPlugin, { registry });
     const source = '```test\n{}\n```';
+    const labels = { chartUnavailable: '图表不可用' };
     let state: UseMarkdownChartResult | undefined;
     const app = createApp(defineComponent({
       setup() {
-        const chartState = useMarkdownChart({ source, markdownIt, registry });
+        const chartState = useMarkdownChart({ source, markdownIt, registry, labels });
         state = chartState;
         return () => h('div', {
           ref: chartState.container,
@@ -289,7 +322,7 @@ describe('MarkdownChart reactive object props', () => {
       expect(mount).toHaveBeenCalledOnce();
       expect(placeholder?.classList.contains('markdown-chart-error')).toBe(true);
       expect(placeholder?.getAttribute('role')).toBe('alert');
-      expect(placeholder?.textContent).toBe('Chart unavailable');
+      expect(placeholder?.textContent).toBe('图表不可用');
     });
 
     await state?.refresh();
@@ -299,7 +332,7 @@ describe('MarkdownChart reactive object props', () => {
       expect(placeholder?.dataset.mounted).toBe('true');
       expect(placeholder?.classList.contains('markdown-chart-error')).toBe(false);
       expect(placeholder?.hasAttribute('role')).toBe(false);
-      expect(placeholder?.textContent).not.toContain('Chart unavailable');
+      expect(placeholder?.textContent).not.toContain('图表不可用');
     });
     app.unmount();
   });

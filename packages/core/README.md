@@ -34,3 +34,9 @@ materialization, or runtime mounting is in flight. Set
 `ChartRenderRequest.loadingLabel` to localize the default text. Custom Markdown
 adapters that render isolated blocks can use `findUnclosedMarkdownFence` to
 identify the active tail fence without duplicating fence parsing.
+
+Set `ChartRenderRequest.labels` to localize chart accessibility labels, the
+Chart/Data controls, empty-data text, truncation notice, and adapter error
+fallbacks. `MarkdownChartLabelOverrides` is partial; omitted entries retain
+the exported `DEFAULT_MARKDOWN_CHART_LABELS`. Framework adapters expose the
+same `labels` object.

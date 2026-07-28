@@ -169,12 +169,40 @@ Pass the outer document streaming state to the framework component:
 
 Closed chart fences render immediately and keep their mounted chart instance as
 later text arrives. Only the active unterminated tail fence waits for more
-input. Pending fences and asynchronous parsing, data resolution, and runtime
+input, including when a chart fence is nested in a blockquote. Pending fences
+and asynchronous parsing, data resolution, and runtime
 mounting show a built-in loading indicator instead of a blank placeholder.
 Use `loadingLabel` to localize its text and
 `--markdown-chart-loading-color` to align its color. Advanced React applications
 pass the same state to
 `MarkdownChartProvider`; advanced Vue applications pass it to `MarkdownChart`.
+
+## Localized labels
+
+React and Vue hosts can pass a partial `labels` object to localize the
+Chart/Data controls, accessibility labels, empty-data text, truncation notice,
+and chart error fallback:
+
+```tsx
+<MarkdownChart
+  source={source}
+  labels={{
+    chartUnavailable: '图表不可用',
+    viewMode: '视图模式',
+    chart: '图表',
+    data: '数据',
+    showChart: '显示图表',
+    showData: '显示数据',
+    noData: '暂无数据',
+    tableNotice: ({ visibleRows, totalRows, visibleColumns, totalColumns }) =>
+      `显示 ${visibleRows}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`,
+  }}
+/>
+```
+
+The same `MarkdownChartLabelOverrides` type is accepted by
+`MarkdownChartProvider`, `MarkdownChartBlock`, the Vue composable/mounting
+utility, and the markdown-it plugin. Omitted labels use the English defaults.
 
 ## Advanced setup
 

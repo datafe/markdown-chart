@@ -25,4 +25,5 @@ Streaming hosts can create the render environment with
 block then reports `complete`; closed blocks can mount immediately while an
 unterminated tail block remains pending. Pending placeholders include the
 package loading indicator; set the plugin `loadingLabel` option to localize its
-text.
+text. Set the shared `labels` option to localize the placeholder's chart
+accessibility label.

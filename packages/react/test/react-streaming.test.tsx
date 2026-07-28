@@ -176,6 +176,62 @@ describe('MarkdownChart streaming lifecycle', () => {
     await act(async () => root.unmount());
   });
 
+  it('renders a closed chart fence inside a streaming blockquote', async () => {
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount() {
+        mount();
+      },
+    });
+    const source = closedChart()
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<MarkdownChart source={source} registry={registry} streaming />);
+    });
+
+    await vi.waitFor(() => expect(mount).toHaveBeenCalledOnce());
+    expect(container.querySelector('.markdown-chart-streaming')).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it('uses host-provided labels for React placeholders and errors', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse() {
+        throw new Error('invalid');
+      },
+      mount() {},
+    });
+    const source = '```test\n{}\n```';
+    const labels = {
+      chart: '图表',
+      chartUnavailable: '图表不可用',
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MarkdownChartProvider registry={registry} labels={labels}>
+          <ReactMarkdown components={createMarkdownChartComponents()}>{source}</ReactMarkdown>
+        </MarkdownChartProvider>,
+      );
+    });
+
+    const placeholder = container.querySelector('.markdown-chart-placeholder');
+    await vi.waitFor(() => expect(placeholder?.textContent).toBe('图表不可用'));
+    expect(placeholder?.getAttribute('aria-label')).toBe('图表');
+    await act(async () => root.unmount());
+  });
+
   it('shows materialized legacy data in simple and advanced integrations', async () => {
     const source = '```echarts-chatbi_query_8660210443288600709-0\nvar option = {};\n//#end\n```';
     const resolveLegacyArtifactContent = async () => 'name,value\nA,10\nB,20\n';

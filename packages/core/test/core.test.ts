@@ -517,6 +517,73 @@ describe('ChartController', () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
+  it('uses host-provided labels for chart and data UI', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      mount() {},
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    const dimensions = Array.from({ length: 51 }, (_, index) => `column-${index}`);
+    const source = Array.from({ length: 501 }, (_, rowIndex) => (
+      dimensions.map((_, columnIndex) => `${rowIndex}:${columnIndex}`)
+    ));
+    const labels = {
+      chartUnavailable: '图表不可用',
+      viewMode: '视图模式',
+      chart: '图表',
+      data: '数据',
+      showChart: '显示图表',
+      showData: '显示数据',
+      noData: '暂无数据',
+      tableNotice: ({
+        visibleRows,
+        totalRows,
+        visibleColumns,
+        totalColumns,
+      }: {
+        visibleRows: number;
+        totalRows: number;
+        visibleColumns: number;
+        totalColumns: number;
+      }) => `显示 ${visibleRows}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`,
+    };
+
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', dimensions, source },
+        spec: {},
+      }),
+      labels,
+    });
+
+    expect(element.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('视图模式');
+    expect(element.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('图表');
+    expect(element.querySelector<HTMLButtonElement>('button[aria-label="显示图表"]')?.title)
+      .toBe('图表');
+    expect(element.querySelector<HTMLButtonElement>('button[aria-label="显示数据"]')?.title)
+      .toBe('数据');
+    expect(element.querySelector('.markdown-chart-data-notice')?.textContent)
+      .toBe('显示 500/501 行，50/51 列');
+
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', source: [] },
+        spec: {},
+      }),
+      labels,
+    });
+    expect(element.querySelector('.markdown-chart-data-view')?.textContent).toBe('暂无数据');
+    controller.dispose();
+  });
+
   it('reads the card title after materialization and omits empty titles', async () => {
     const registry = new ChartRendererRegistry().register({
       id: 'test',
@@ -657,6 +724,14 @@ describe('isMarkdownFenceClosed', () => {
   it('rejects unterminated or too-short closing fences', () => {
     expect(isMarkdownFenceClosed('```markdown-chart\n{}')).toBe(false);
     expect(isMarkdownFenceClosed('````markdown-chart\n{}\n```')).toBe(false);
+  });
+
+  it('recognizes closed fences inside blockquotes', () => {
+    expect(isMarkdownFenceClosed('> ```markdown-chart\n> {}\n> ```')).toBe(true);
+    expect(isMarkdownFenceClosed('> > ~~~markdown-chart\n> > {}\n> > ~~~')).toBe(true);
+    expect(isMarkdownFenceClosed('> ```markdown-chart\n> {}')).toBe(false);
+    expect(isMarkdownFenceClosed('> ```markdown-chart\n> {}\n```')).toBe(false);
+    expect(isMarkdownFenceClosed('> > ```markdown-chart\n> > {}\n> ```')).toBe(false);
   });
 });
 

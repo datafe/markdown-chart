@@ -506,11 +506,70 @@ export interface ChartRenderRequest {
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
+  readonly labels?: MarkdownChartLabelOverrides;
 }
 
 export const DEFAULT_MARKDOWN_CHART_LOADING_LABEL = 'Rendering chart…';
 
+export interface MarkdownChartTableNoticeContext {
+  readonly visibleRows: number;
+  readonly totalRows: number;
+  readonly visibleColumns: number;
+  readonly totalColumns: number;
+}
+
+export interface MarkdownChartLabels {
+  readonly chartUnavailable: string;
+  readonly viewMode: string;
+  readonly chart: string;
+  readonly data: string;
+  readonly showChart: string;
+  readonly showData: string;
+  readonly noData: string;
+  readonly tableNotice: (context: MarkdownChartTableNoticeContext) => string;
+}
+
+export type MarkdownChartLabelOverrides = Partial<MarkdownChartLabels>;
+
+export const DEFAULT_MARKDOWN_CHART_LABELS: Readonly<MarkdownChartLabels> = Object.freeze({
+  chartUnavailable: 'Chart unavailable',
+  viewMode: 'View mode',
+  chart: 'Chart',
+  data: 'Data',
+  showChart: 'Show chart',
+  showData: 'Show data',
+  noData: 'No data',
+  tableNotice: ({
+    visibleRows,
+    totalRows,
+    visibleColumns,
+    totalColumns,
+  }: MarkdownChartTableNoticeContext) =>
+    `Showing ${visibleRows} of ${totalRows} rows and ${visibleColumns} of ${totalColumns} columns.`,
+});
+
+export function resolveMarkdownChartLabels(
+  overrides?: MarkdownChartLabelOverrides,
+): Readonly<MarkdownChartLabels> {
+  return overrides
+    ? Object.freeze({ ...DEFAULT_MARKDOWN_CHART_LABELS, ...overrides })
+    : DEFAULT_MARKDOWN_CHART_LABELS;
+}
+
 const MARKDOWN_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+const MARKDOWN_BLOCKQUOTE_MARKER = /^ {0,3}>[ \t]?/;
+
+function stripMarkdownBlockquoteDepth(line: string, depth: number): string | undefined {
+  let remainder = line;
+  for (let index = 0; index < depth; index += 1) {
+    const marker = MARKDOWN_BLOCKQUOTE_MARKER.exec(remainder)?.[0];
+    if (!marker) {
+      return undefined;
+    }
+    remainder = remainder.slice(marker.length);
+  }
+  return remainder;
+}
 
 /**
  * Returns whether a Markdown fragment that starts with a fenced code block
@@ -521,7 +580,17 @@ const MARKDOWN_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
  */
 export function isMarkdownFenceClosed(source: string): boolean {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
-  const opening = MARKDOWN_FENCE_OPEN.exec(lines[0] ?? '');
+  let openingLine = lines[0] ?? '';
+  let blockquoteDepth = 0;
+  while (true) {
+    const marker = MARKDOWN_BLOCKQUOTE_MARKER.exec(openingLine)?.[0];
+    if (!marker) {
+      break;
+    }
+    blockquoteDepth += 1;
+    openingLine = openingLine.slice(marker.length);
+  }
+  const opening = MARKDOWN_FENCE_OPEN.exec(openingLine);
   const marker = opening?.[1];
   if (!marker) {
     return false;
@@ -534,7 +603,10 @@ export function isMarkdownFenceClosed(source: string): boolean {
   const closing = new RegExp(
     `^ {0,3}${markerCharacter === '`' ? '`' : '~'}{${marker.length},}[\\t ]*$`,
   );
-  return lines.slice(1).some((line) => closing.test(line));
+  return lines.slice(1).some((line) => {
+    const normalized = stripMarkdownBlockquoteDepth(line, blockquoteDepth);
+    return normalized !== undefined && closing.test(normalized);
+  });
 }
 
 export interface UnclosedMarkdownFence {
@@ -834,10 +906,14 @@ function removeChartLoading(container: HTMLElement): void {
   container.removeAttribute('aria-busy');
 }
 
-function createViewButton(label: string, icon: SVGSVGElement): HTMLButtonElement {
+function createViewButton(
+  label: string,
+  ariaLabel: string,
+  icon: SVGSVGElement,
+): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
-  button.setAttribute('aria-label', `Show ${label.toLowerCase()}`);
+  button.setAttribute('aria-label', ariaLabel);
   button.setAttribute('title', label);
   button.className = 'markdown-chart-toggle-button';
   button.append(icon);
@@ -870,7 +946,11 @@ function chartViewColors(theme: unknown): ChartViewColors {
   };
 }
 
-function createInlineDataTable(data: InlineChartData, colors: ChartViewColors): HTMLElement {
+function createInlineDataTable(
+  data: InlineChartData,
+  colors: ChartViewColors,
+  labels: Readonly<MarkdownChartLabels>,
+): HTMLElement {
   const columns = inlineDataColumns(data);
   const visibleColumns = columns.slice(0, MAX_VISIBLE_DATA_COLUMNS);
   const visibleRows = data.source.slice(0, MAX_VISIBLE_DATA_ROWS);
@@ -887,7 +967,7 @@ function createInlineDataTable(data: InlineChartData, colors: ChartViewColors): 
 
   if (columns.length === 0 || data.source.length === 0) {
     const empty = document.createElement('div');
-    empty.textContent = 'No data';
+    empty.textContent = labels.noData;
     setStyles(empty, { padding: '24px', textAlign: 'center', opacity: '0.68' });
     wrapper.append(empty);
     return wrapper;
@@ -896,7 +976,12 @@ function createInlineDataTable(data: InlineChartData, colors: ChartViewColors): 
   if (visibleColumns.length < columns.length || visibleRows.length < data.source.length) {
     const notice = document.createElement('div');
     notice.className = 'markdown-chart-data-notice';
-    notice.textContent = `Showing ${visibleRows.length} of ${data.source.length} rows and ${visibleColumns.length} of ${columns.length} columns.`;
+    notice.textContent = labels.tableNotice({
+      visibleRows: visibleRows.length,
+      totalRows: data.source.length,
+      visibleColumns: visibleColumns.length,
+      totalColumns: columns.length,
+    });
     setStyles(notice, {
       position: 'sticky',
       top: '0',
@@ -983,6 +1068,7 @@ function createChartView(
   chartTitle: string | undefined,
   onShowChart: () => void,
   theme: unknown,
+  labels: Readonly<MarkdownChartLabels>,
 ): ChartView {
   const colors = chartViewColors(theme);
   const hadCardClass = container.classList.contains('markdown-chart-card');
@@ -1040,7 +1126,7 @@ function createChartView(
   const toggle = document.createElement('div');
   toggle.className = 'markdown-chart-toggle';
   toggle.setAttribute('role', 'group');
-  toggle.setAttribute('aria-label', 'View mode');
+  toggle.setAttribute('aria-label', labels.viewMode);
   setStyles(toggle, {
     display: 'inline-grid',
     flex: '0 0 auto',
@@ -1053,20 +1139,20 @@ function createChartView(
     borderRadius: '6px',
     background: colors.background,
   });
-  const chartButton = createViewButton('Chart', createChartIcon());
-  const dataButton = createViewButton('Data', createDataIcon());
+  const chartButton = createViewButton(labels.chart, labels.showChart, createChartIcon());
+  const dataButton = createViewButton(labels.data, labels.showData, createDataIcon());
   const chartContainer = document.createElement('div');
   chartContainer.className = 'markdown-chart-chart-view';
   chartContainer.dataset.markdownChartChartView = 'true';
   chartContainer.setAttribute('role', 'img');
-  chartContainer.setAttribute('aria-label', 'Chart');
+  chartContainer.setAttribute('aria-label', labels.chart);
   setStyles(chartContainer, {
     width: 'calc(100% - 20px)',
     minHeight: 'inherit',
     margin: '8px 10px',
     background: colors.background,
   });
-  const dataContainer = createInlineDataTable(data, colors);
+  const dataContainer = createInlineDataTable(data, colors, labels);
   dataContainer.hidden = true;
   const selectedBackground = 'var(--markdown-chart-accent, #0033ff)';
   const selectedForeground = 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
@@ -1187,6 +1273,7 @@ export class ChartController {
 
       const inlineData = materialized.data?.kind === 'inline' ? materialized.data : undefined;
       const chartTitle = prepared.renderer.getTitle?.(materialized.parsed)?.trim() || undefined;
+      const labels = resolveMarkdownChartLabels(request.labels);
       const view = inlineData
         ? createChartView(
             container,
@@ -1194,6 +1281,7 @@ export class ChartController {
             chartTitle,
             () => this.#handle?.resize?.(),
             request.theme,
+            labels,
           )
         : undefined;
       this.#view = view;
