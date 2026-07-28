@@ -673,6 +673,19 @@ function styleComponent(
   return value === undefined || value === null ? cloneJson(defaults) : value;
 }
 
+function forceTooltipSafety(value: JsonValue): JsonValue {
+  const force = (entry: JsonValue): JsonValue => isJsonObject(entry)
+    ? {
+        ...entry,
+        appendToBody: false,
+        confine: true,
+        enterable: false,
+        renderMode: 'richText',
+      }
+    : entry;
+  return Array.isArray(value) ? value.map(force) : force(value);
+}
+
 function hasOwnPosition(
   value: Record<string, JsonValue>,
   position: 'top' | 'bottom',
@@ -818,7 +831,16 @@ function styleSeriesEntry(
       itemStyle: { borderColor: tokens.seriesBorder, borderWidth: 2 },
     });
   }
-  return mergeObjectDefaults(defaults, series);
+  const styled = mergeObjectDefaults(defaults, series);
+  if (Object.prototype.hasOwnProperty.call(series, 'tooltip')) {
+    styled.tooltip = forceTooltipSafety(styleComponent(series.tooltip, {
+      appendToBody: false,
+      confine: true,
+      enterable: false,
+      renderMode: 'richText',
+    }));
+  }
+  return styled;
 }
 
 const ITEM_ONLY_SERIES_TYPES = new Set(['pie', 'funnel', 'gauge', 'radar', 'treemap']);
@@ -889,21 +911,24 @@ export function applyEChartsDefaultStyle(
       subtextStyle: { color: tokens.subtext },
     });
   }
-  styled.tooltip = styleComponent(styled.tooltip, {
-    trigger: defaultTooltipTrigger(option),
-    confine: true,
-    enterable: false,
-    renderMode: 'richText',
-    backgroundColor: tokens.tooltipBg,
-    borderColor: tokens.splitLine,
-    borderWidth: 1,
-    padding: [8, 10],
-    textStyle: { color: tokens.titleText, fontSize: 12 },
-    axisPointer: {
-      lineStyle: { color: tokens.pointer, width: 1 },
-      crossStyle: { color: tokens.pointer, width: 1 },
-    },
-  });
+  styled.tooltip = forceTooltipSafety(
+    styleComponent(styled.tooltip, {
+      trigger: defaultTooltipTrigger(option),
+      appendToBody: false,
+      confine: true,
+      enterable: false,
+      renderMode: 'richText',
+      backgroundColor: tokens.tooltipBg,
+      borderColor: tokens.splitLine,
+      borderWidth: 1,
+      padding: [8, 10],
+      textStyle: { color: tokens.titleText, fontSize: 12 },
+      axisPointer: {
+        lineStyle: { color: tokens.pointer, width: 1 },
+        crossStyle: { color: tokens.pointer, width: 1 },
+      },
+    }),
+  );
   if (shouldApplyDefaultLegend(option)) {
     styled.legend = styleVerticallyPositionedComponent(styled.legend, {
       type: 'scroll',
