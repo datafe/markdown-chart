@@ -1,5 +1,14 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.13
+
+### Patch Changes
+
+- 35fd108: Use a dedicated transferable `MessagePort` for legacy iframe sandbox replies so
+  rendering works when micro-frontends separate the JavaScript Window from the DOM
+  parent Window.
+  - @datafe-open/markdown-chart@0.1.13
+
 ## 0.1.12
 
 ### Patch Changes
