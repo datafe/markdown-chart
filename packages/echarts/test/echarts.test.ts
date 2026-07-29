@@ -135,20 +135,69 @@ function thirtyDayTrendData(): JsonValue {
 }
 
 async function answerLegacySandbox(option: Record<string, JsonValue>): Promise<void> {
-  await vi.waitFor(() => {
-    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
+  let iframe: HTMLIFrameElement | null = null;
+  let postMessage: ReturnType<typeof vi.spyOn> | undefined;
+  let responsePort: MessagePort | undefined;
+  const NativeMessageChannel = globalThis.MessageChannel;
+  class TrackingMessageChannel {
+    readonly port1: MessagePort;
+    readonly port2: MessagePort;
+
+    constructor() {
+      const channel = new NativeMessageChannel();
+      this.port1 = channel.port1;
+      this.port2 = channel.port2;
+      responsePort = this.port1;
+    }
+  }
+  globalThis.MessageChannel = TrackingMessageChannel as typeof MessageChannel;
+  const append = document.body.append.bind(document.body);
+  const appendSpy = vi.spyOn(document.body, 'append').mockImplementation((...nodes) => {
+    append(...nodes);
+    const sandbox = nodes.find((node): node is HTMLIFrameElement => (
+      node instanceof HTMLIFrameElement
+      && node.title === 'Temporary chart sandbox'
+    ));
+    if (sandbox?.contentWindow) {
+      iframe = sandbox;
+      postMessage = vi.spyOn(sandbox.contentWindow, 'postMessage').mockImplementation(() => undefined);
+    }
   });
-  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
-  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
-  window.dispatchEvent(new MessageEvent('message', {
-    source: iframe.contentWindow,
-    data: {
-      channel: LEGACY_CHANNEL,
-      type: 'result',
-      requestId: LEGACY_REQUEST_ID,
-      option,
-    },
-  }));
+  try {
+    await vi.waitFor(() => {
+      iframe ??= document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
+      if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
+      postMessage ??= vi.spyOn(iframe.contentWindow, 'postMessage').mockImplementation(() => undefined);
+      if (!postMessage.mock.calls.length) {
+        iframe.onload?.call(iframe, new Event('load'));
+      }
+      expect(postMessage).toHaveBeenCalledOnce();
+    });
+  } finally {
+    appendSpy.mockRestore();
+    globalThis.MessageChannel = NativeMessageChannel;
+  }
+  const calls = postMessage?.mock.calls as unknown as [
+    { readonly channel: string; readonly requestId: string },
+    string,
+    MessagePort[],
+  ][] | undefined;
+  const request = calls?.[0]?.[0];
+  const replyPort = calls?.[0]?.[2]?.[0];
+  if (!request || !replyPort || !responsePort) {
+    throw new Error('temporary sandbox reply port is missing');
+  }
+  const response = {
+    channel: request.channel,
+    type: 'result',
+    requestId: request.requestId,
+    option,
+  };
+  if (Object.getPrototypeOf(option) === Object.prototype) {
+    replyPort.postMessage(response);
+  } else {
+    responsePort.onmessage?.(new MessageEvent('message', { data: response }));
+  }
 }
 
 function legacySandboxBinding(

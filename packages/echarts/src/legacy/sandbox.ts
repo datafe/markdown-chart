@@ -101,34 +101,34 @@ function scriptLiteral(value: string): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
-const SANDBOX_SCRIPT = `
+function createSandboxScript(expectedRequestId: string): string {
+  return `
 (function () {
   'use strict';
   var CHANNEL = ${scriptLiteral(SANDBOX_CHANNEL)};
   var WORKER_SCRIPT = ${scriptLiteral(LEGACY_SANDBOX_WORKER_SCRIPT)};
+  var EXPECTED_REQUEST_ID = ${scriptLiteral(expectedRequestId)};
   var handled = false;
   var activeWorker;
 
-  function fixedError(requestId) {
-    parent.postMessage({
-      channel: CHANNEL,
-      type: 'error',
-      requestId: requestId,
-      code: 'EXECUTION_FAILED'
-    }, '*');
+  function closePort(port) {
+    if (!port) return;
+    try { port.close(); } catch (_) {}
   }
 
   window.addEventListener('message', function (event) {
     var request = event.data;
+    var replyPort = event.ports && event.ports[0];
     if (
       handled
-      || event.source !== parent
+      || !replyPort
       || !request
       || request.channel !== CHANNEL
       || request.type !== 'execute'
-      || typeof request.requestId !== 'string'
+      || request.requestId !== EXPECTED_REQUEST_ID
       || typeof request.source !== 'string'
     ) {
+      closePort(replyPort);
       return;
     }
     handled = true;
@@ -136,6 +136,7 @@ const SANDBOX_SCRIPT = `
     var blobUrl;
     var port1;
     var done = false;
+    var send = MessagePort.prototype.postMessage.bind(replyPort);
     function cleanup() {
       if (activeWorker) {
         activeWorker.terminate();
@@ -154,7 +155,8 @@ const SANDBOX_SCRIPT = `
       if (done) return;
       done = true;
       cleanup();
-      parent.postMessage(payload, '*');
+      try { send(payload); } catch (_) {}
+      closePort(replyPort);
     }
 
     try {
@@ -197,15 +199,22 @@ const SANDBOX_SCRIPT = `
         inputData: request.inputData
       }, [messageChannel.port2]);
     } catch (_) {
-      cleanup();
-      fixedError(request.requestId);
+      settle({
+        channel: CHANNEL,
+        type: 'error',
+        requestId: request.requestId,
+        code: 'EXECUTION_FAILED'
+      });
     }
   });
 })();`;
+}
 
-export const LEGACY_SANDBOX_SRCDOC = `<!doctype html>
+function createLegacySandboxSrcdoc(expectedRequestId: string): string {
+  return `<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${LEGACY_SANDBOX_CSP}"></head>
-<body><script>${SANDBOX_SCRIPT}<\/script></body></html>`;
+<body><script>${createSandboxScript(expectedRequestId)}<\/script></body></html>`;
+}
 
 export interface ExecuteLegacyChartSourceRequest {
   readonly source: string;
@@ -260,15 +269,25 @@ export function executeLegacyChartSource(
   iframe.setAttribute('aria-hidden', 'true');
   iframe.setAttribute('title', 'Temporary chart sandbox');
   iframe.setAttribute('sandbox', 'allow-scripts');
-  iframe.srcdoc = LEGACY_SANDBOX_SRCDOC;
+  iframe.srcdoc = createLegacySandboxSrcdoc(requestId);
 
   return new Promise((resolve, reject) => {
+    const messageChannel = new MessageChannel();
+    const responsePort = messageChannel.port1;
+    const requestPort = messageChannel.port2;
     let settled = false;
     let loaded = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
     const cleanup = (): void => {
-      window.removeEventListener('message', onMessage);
+      responsePort.onmessage = null;
+      responsePort.onmessageerror = null;
+      try {
+        responsePort.close();
+      } catch {}
+      try {
+        requestPort.close();
+      } catch {}
       request.signal.removeEventListener('abort', onAbort);
       iframe.onload = null;
       iframe.onerror = null;
@@ -294,7 +313,7 @@ export function executeLegacyChartSource(
     };
     const onAbort = (): void => fail(abortedError());
     const onMessage = (event: MessageEvent): void => {
-      if (event.source !== iframe.contentWindow || !isJsonObject(event.data)) {
+      if (!isJsonObject(event.data)) {
         return;
       }
       if (
@@ -327,7 +346,11 @@ export function executeLegacyChartSource(
       }
     };
 
-    window.addEventListener('message', onMessage);
+    responsePort.onmessage = onMessage;
+    responsePort.onmessageerror = () => fail(new MarkdownChartError(
+      'LEGACY_SANDBOX_EXECUTION_FAILED',
+      'Temporary legacy chart sandbox returned an unreadable response',
+    ));
     request.signal.addEventListener('abort', onAbort, { once: true });
     iframe.onerror = () => fail(new MarkdownChartError(
       'LEGACY_SANDBOX_EXECUTION_FAILED',
@@ -341,13 +364,20 @@ export function executeLegacyChartSource(
         onAbort();
         return;
       }
-      iframe.contentWindow?.postMessage({
-        channel: SANDBOX_CHANNEL,
-        type: 'execute',
-        requestId,
-        source: request.source,
-        inputData: request.inputData,
-      }, '*');
+      try {
+        iframe.contentWindow?.postMessage({
+          channel: SANDBOX_CHANNEL,
+          type: 'execute',
+          requestId,
+          source: request.source,
+          inputData: request.inputData,
+        }, '*', [requestPort]);
+      } catch {
+        fail(new MarkdownChartError(
+          'LEGACY_SANDBOX_EXECUTION_FAILED',
+          'Temporary legacy chart sandbox failed to initialize',
+        ));
+      }
     };
     timeout = setTimeout(() => fail(new MarkdownChartError(
       'LEGACY_SANDBOX_TIMEOUT',
