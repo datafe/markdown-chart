@@ -68,22 +68,49 @@ var option = {
 //#end
 \`\`\``;
 
-async function answerLegacySandbox(option: Record<string, unknown>): Promise<void> {
-  await vi.waitFor(() => {
-    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).not.toBeNull();
-  });
-  const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="Temporary chart sandbox"]');
-  if (!iframe?.contentWindow) throw new Error('temporary sandbox is missing');
-  window.dispatchEvent(new MessageEvent('message', {
-    source: iframe.contentWindow,
-    data: {
+const answerLegacySandbox = (() => {
+  interface PendingReply {
+    readonly iframe: HTMLIFrameElement;
+    readonly request: { readonly channel: string; readonly requestId: string };
+    readonly replyPort: MessagePort;
+  }
+  const pending: PendingReply[] = [];
+  const append = document.body.append.bind(document.body);
+  document.body.append = (...nodes) => {
+    append(...nodes);
+    const iframe = nodes.find((node): node is HTMLIFrameElement => (
+      node instanceof HTMLIFrameElement
+      && node.title === 'Temporary chart sandbox'
+    ));
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage = ((
+      request: PendingReply['request'],
+      _targetOrigin: string,
+      transfer?: Transferable[],
+    ) => {
+      const replyPort = transfer?.[0];
+      if (replyPort instanceof MessagePort) pending.push({ iframe, request, replyPort });
+    }) as typeof iframe.contentWindow.postMessage;
+  };
+  return async (option: Record<string, unknown>): Promise<void> => {
+    await vi.waitFor(() => {
+      expect(pending.some(({ iframe }) => iframe.isConnected)).toBe(true);
+    });
+    const index = pending.findIndex(({ iframe }) => iframe.isConnected);
+    const entry = pending.splice(index, 1)[0];
+    if (!entry) throw new Error('temporary sandbox reply port is missing');
+    expect(entry.request).toMatchObject({
       channel: LEGACY_CHANNEL,
-      type: 'result',
       requestId: LEGACY_REQUEST_ID,
+    });
+    entry.replyPort.postMessage({
+      channel: entry.request.channel,
+      type: 'result',
+      requestId: entry.request.requestId,
       option,
-    },
-  }));
-}
+    });
+  };
+})();
 
 function countEndpoint(fetcher: ReturnType<typeof vi.fn>, suffix: string): number {
   return fetcher.mock.calls.filter(([input]) => String(input).endsWith(suffix)).length;

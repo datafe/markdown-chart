@@ -74,15 +74,24 @@ WebSocket, EventSource, `importScripts`, `Worker`, and `SharedWorker`. This is a
 defense-in-depth restriction in addition to the iframe CSP, not a source-regex
 security boundary. The compatibility sanitizer is not treated as isolation.
 
-The parent accepts a response only from the created iframe's `contentWindow`
-and only for an unpredictable per-execution request id. Abort, result, error,
-load failure, and timeout paths remove listeners, timers, and the iframe; the
-bootstrap also terminates the Worker on result or error. Removing the iframe
-terminates a still-running dedicated Worker, so the timeout can stop a
-synchronous loop without blocking the parent Window. Worker and iframe errors
-cross the boundary only as fixed categories without exception messages or
-stacks. The Worker serializes only the generated `option` through JSON; the
-parent then applies the normal JSON and ECharts safety validation.
+The host transfers a fresh `MessagePort` to the created iframe for each
+execution. Before iframe navigation, the host pre-binds its unpredictable
+per-execution request id into the trusted bootstrap (but never embeds source or
+input data). The bootstrap accepts only one request carrying that exact id, the
+dedicated port, the expected channel, and string source. A mismatched request
+closes its transferred port without consuming the legitimate request. Results
+and fixed errors return only through the dedicated port. This avoids depending
+on the iframe's DOM `parent` being the same Window that runs the host JavaScript,
+while keeping responses off the global Window message channel. The host also
+checks the request id on every response.
+Abort, result, error, load failure, and timeout paths close ports, remove
+listeners and timers, and remove the iframe; the bootstrap also terminates the
+Worker on result or error. Removing the iframe terminates a still-running
+dedicated Worker, so the timeout can stop a synchronous loop without blocking
+the host Window. Worker and iframe errors cross the boundary only as fixed
+categories without exception messages or stacks. The Worker serializes only
+the generated `option` through JSON; the host then applies the normal JSON and
+ECharts safety validation.
 
 This is defense in depth for a temporary browser compatibility path, not a
 proof that arbitrary JavaScript is safe. Termination does not prevent transient
