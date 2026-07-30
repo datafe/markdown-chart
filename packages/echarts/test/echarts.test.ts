@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { runInNewContext } from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
@@ -925,6 +926,178 @@ describe('createEChartsRenderer', () => {
         option: { series: [{ type: 'bar' }] },
       },
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  it('renders a strict JSON option envelope from a ChatBI query fence without legacy resolution', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const resolveLegacyArtifactContent = vi.fn(async () => (
+      'signal_value,frequency\n1,363\n2,141\n0,1\n'
+    ));
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      legacySandbox: legacySandboxBinding({ resolveLegacyArtifactContent }),
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    const container = document.createElement('div');
+    await new ChartController(registry).render(container, {
+      language: 'echarts-chatbi_query_5826032011078359597-0',
+      source: JSON.stringify({
+        option: {
+          title: {
+            text: 'HandsOnDetectionHandsOnStatus 枚举分布',
+            left: 'center',
+          },
+          tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} ({d}%)',
+          },
+          legend: {
+            orient: 'vertical',
+            left: 'left',
+          },
+          series: [{
+            name: '方向盘手握状态',
+            type: 'pie',
+            radius: '55%',
+            center: ['50%', '55%'],
+            data: [
+              { value: 363, name: 'Hands_ON (1)' },
+              { value: 141, name: 'Hands_OFF (2)' },
+              { value: 1, name: 'Init_Class (0)' },
+            ],
+            label: {
+              formatter: '{b}\n{c} ({d}%)',
+            },
+          }],
+        },
+      }),
+    });
+
+    expect(resolveLegacyArtifactContent).not.toHaveBeenCalled();
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
+    expect(container.querySelector('.markdown-chart-title')).toBeNull();
+    expect(rendered).toMatchObject({
+      title: {
+        text: 'HandsOnDetectionHandsOnStatus 枚举分布',
+        left: 'center',
+      },
+      tooltip: { formatter: '{b}: {c} ({d}%)' },
+      series: [{
+        type: 'pie',
+        data: [
+          { value: 363, name: 'Hands_ON (1)' },
+          { value: 141, name: 'Hands_OFF (2)' },
+          { value: 1, name: 'Init_Class (0)' },
+        ],
+        label: { formatter: '{b}\n{c} ({d}%)' },
+      }],
+    });
+  });
+
+  it('renders a direct strict JSON option from a ChatBI query fence without legacySandbox', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+
+    await new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source: JSON.stringify({
+        xAxis: { type: 'category', data: ['A'] },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: [10] }],
+      }),
+    });
+
+    expect(rendered).toEqual({
+      xAxis: { type: 'category', data: ['A'] },
+      yAxis: { type: 'value' },
+      series: [{ type: 'bar', data: [10] }],
+    });
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
+  });
+
+  it.each([
+    {
+      label: 'schema-invalid option envelope',
+      source: JSON.stringify({ option: [] }),
+      limits: undefined,
+      code: 'SCHEMA_INVALID',
+    },
+    {
+      label: 'unsafe formatter',
+      source: JSON.stringify({
+        option: {
+          tooltip: { formatter: { unsafe: true } },
+          series: [],
+        },
+      }),
+      limits: undefined,
+      code: 'UNSAFE_SPEC',
+    },
+    {
+      label: 'non-finite parsed number',
+      source: '{"option":{"series":[{"type":"bar","data":[1e999]}]}}',
+      limits: undefined,
+      code: 'INVALID_JSON',
+    },
+    {
+      label: 'JSON node limit',
+      source: JSON.stringify({ option: { series: [] } }),
+      limits: { maxNodes: 2 },
+      code: 'LIMIT_EXCEEDED',
+    },
+  ])('fails closed for valid JSON with $label', async ({ source, limits, code }) => {
+    const resolveLegacyArtifactContent = vi.fn(async () => 'name,value\nA,10\n');
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      legacySandbox: legacySandboxBinding({ resolveLegacyArtifactContent }),
+      ...(limits ? { limits } : {}),
+    }));
+
+    await expect(new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_42-0',
+      source,
+    })).rejects.toMatchObject({ code });
+    expect(resolveLegacyArtifactContent).not.toHaveBeenCalled();
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(document.querySelector('iframe[title="Temporary chart sandbox"]')).toBeNull();
+  });
+
+  it('falls back to legacy parsing for a JSON SyntaxError from another realm', async () => {
+    const foreignParse = runInNewContext('JSON.parse') as typeof JSON.parse;
+    vi.spyOn(JSON, 'parse').mockImplementation(foreignParse);
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+
+    const prepared = await registry.prepare(
+      'echarts-chatbi_query_42-0',
+      'var option = { series: [{ type: "bar" }] };\n//#end',
+    );
+
+    expect((prepared.parsed as ParsedEChartsSpec).legacyEChartQuery).toMatchObject({
+      language: 'echarts-chatbi_query_42-0',
+      jobId: 'chatbi_query_42',
+      index: 0,
+    });
+  });
+
+  it('rethrows plain objects spoofing a JSON SyntaxError', async () => {
+    const spoofed = { name: 'SyntaxError', message: 'spoofed' };
+    vi.spyOn(JSON, 'parse').mockImplementation(() => {
+      throw spoofed;
+    });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+
+    await expect(registry.prepare(
+      'echarts-chatbi_query_42-0',
+      'var option = {};',
+    )).rejects.toBe(spoofed);
   });
 
   it('owns CSV parsing and sandbox conversion for the legacySandbox binding', async () => {

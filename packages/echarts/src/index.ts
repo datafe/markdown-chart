@@ -527,6 +527,47 @@ function parseSpec(
   return { option, data };
 }
 
+function isJsonSyntaxError(cause: unknown): boolean {
+  if (cause instanceof SyntaxError) return true;
+  if (!cause || typeof cause !== 'object') return false;
+  try {
+    if (Object.prototype.hasOwnProperty.call(cause, Symbol.toStringTag)) return false;
+    return Object.prototype.toString.call(cause) === '[object Error]'
+      && Reflect.get(cause, 'name') === 'SyntaxError'
+      && typeof Reflect.get(cause, 'message') === 'string';
+  } catch {
+    return false;
+  }
+}
+
+function parseLegacyQueryJsonOption(
+  source: string,
+  limits: EChartsLimits,
+): ParsedEChartsSpec | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source) as unknown;
+  } catch (cause) {
+    if (isJsonSyntaxError(cause)) {
+      return undefined;
+    }
+    throw cause;
+  }
+
+  const normalized = validateChartJsonValue(parsed, {
+    maxDepth: limits.maxDepth,
+    maxNodes: limits.maxNodes,
+  });
+  if (
+    isJsonObject(normalized)
+    && Object.prototype.hasOwnProperty.call(normalized, 'option')
+  ) {
+    assertOwnKeys(normalized, new Set(['option']), 'Temporary ChatBI JSON chart');
+    return parseSpec(normalized.option as JsonValue, undefined, limits);
+  }
+  return parseSpec(normalized, undefined, limits);
+}
+
 function parseCompactEnvelope(
   value: JsonValue,
   limits: EChartsLimits,
@@ -1058,6 +1099,10 @@ export function createEChartsRenderer(
             source,
           ),
         };
+      }
+      const parsedJsonOption = parseLegacyQueryJsonOption(source, limits);
+      if (parsedJsonOption) {
+        return parsedJsonOption;
       }
       return {
         option: {},
