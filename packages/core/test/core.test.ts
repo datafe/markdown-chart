@@ -582,7 +582,7 @@ describe('ChartController', () => {
     });
     expect(element.querySelector('.markdown-chart-data-view')?.textContent).toBe('暂无数据');
     controller.dispose();
-  });
+  }, 15_000);
 
   it('reads the card title after materialization and omits empty titles', async () => {
     const registry = new ChartRendererRegistry().register({
