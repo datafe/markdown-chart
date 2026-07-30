@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.14
+
+### Patch Changes
+
+- 6293428: Render strict JSON option bodies in temporary ChatBI query fences without artifact lookup or legacy JavaScript sandboxing, while keeping unsafe JSON fail-closed and legacy JavaScript fallback behavior unchanged.
+  - @datafe-open/markdown-chart@0.1.14
+
 ## 0.1.13
 
 ### Patch Changes
