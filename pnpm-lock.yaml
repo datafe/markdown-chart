@@ -106,6 +106,9 @@ importers:
 
   examples/react/simple:
     dependencies:
+      '@datafe-open/markdown-chart':
+        specifier: workspace:*
+        version: link:../../../packages/core
       '@datafe-open/markdown-chart-react':
         specifier: workspace:*
         version: link:../../../packages/react
