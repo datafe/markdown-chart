@@ -83,6 +83,13 @@ function applyMinHeight(element: HTMLElement, minHeight: string | number | undef
   }
 }
 
+function referenceActionsAreEquivalent(
+  left: ChartReferenceActions | undefined,
+  right: ChartReferenceActions | undefined,
+): boolean {
+  return left?.canOpen === right?.canOpen && left?.open === right?.open;
+}
+
 class MarkdownChartMountManager {
   readonly #entries = new Map<string, MountedMarkdownChartEntry>();
 
@@ -124,7 +131,7 @@ class MarkdownChartMountManager {
         && existing.registry === registry
         && Object.is(existing.theme, options.theme)
         && existing.labels === options.labels
-        && existing.referenceActions === options.referenceActions
+        && referenceActionsAreEquivalent(existing.referenceActions, options.referenceActions)
         && existing.block.language === block.language
         && existing.block.rawLanguage === block.rawLanguage
         && existing.block.source === block.source;

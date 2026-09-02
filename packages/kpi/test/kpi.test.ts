@@ -51,6 +51,12 @@ function envelope(spec: unknown = kpiSpec(), data?: unknown): string {
   });
 }
 
+function singleItem(overrides: Record<string, unknown> = {}) {
+  return {
+    items: [{ id: 'metric', title: 'Metric', value: '1', ...overrides }],
+  };
+}
+
 describe('KPI schema', () => {
   it('accepts 1-12 items and preserves formatted display strings', () => {
     const parsed = parseKpiSpec(kpiSpec());
@@ -99,6 +105,52 @@ describe('KPI schema', () => {
         })),
       }],
     })).toThrowError('1-3');
+  });
+
+  it('accepts every declared string and identifier boundary', () => {
+    const parsed = parseKpiSpec(singleItem({
+      id: `a${'b'.repeat(63)}`,
+      title: '😀'.repeat(120),
+      value: '😀'.repeat(80),
+      prefix: '😀'.repeat(16),
+      suffix: '😀'.repeat(16),
+      status: { text: '😀'.repeat(120) },
+      references: [{ ref: 'r'.repeat(16_384), label: '😀'.repeat(120) }],
+    }));
+    expect(parsed.items[0]?.id).toHaveLength(64);
+    expect(parsed.items[0]?.status?.tone).toBe('neutral');
+  });
+
+  it.each([
+    ['title', singleItem({ title: 'x'.repeat(121) }), 'title'],
+    ['value', singleItem({ value: 'x'.repeat(81) }), 'value'],
+    ['prefix', singleItem({ prefix: 'x'.repeat(17) }), 'prefix'],
+    ['suffix', singleItem({ suffix: 'x'.repeat(17) }), 'suffix'],
+    ['status text', singleItem({ status: { text: 'x'.repeat(121) } }), 'status.text'],
+    ['reference', singleItem({ references: [{ ref: 'r'.repeat(16_385), label: 'Reference' }] }), 'ref'],
+    ['reference label', singleItem({ references: [{ ref: 'docs://metric', label: 'x'.repeat(121) }] }), 'label'],
+  ])('rejects %s beyond its maximum length', (_label, spec, message) => {
+    expect(() => parseKpiSpec(spec)).toThrowError(message);
+  });
+
+  it.each([
+    ['title', singleItem({ title: 'Bad\nTitle' })],
+    ['value', singleItem({ value: 'Bad\tValue' })],
+    ['prefix', singleItem({ prefix: '\u0000' })],
+    ['suffix', singleItem({ suffix: '\u007f' })],
+    ['status text', singleItem({ status: { text: 'Bad\rStatus' } })],
+    ['reference label', singleItem({ references: [{ ref: 'docs://metric', label: 'Bad\nLabel' }] })],
+  ])('rejects display control characters in %s', (_label, spec) => {
+    expect(() => parseKpiSpec(spec)).toThrowError('display string');
+  });
+
+  it.each([
+    ['', 'empty'],
+    ['1metric', 'leading digit'],
+    ['metric.dot', 'unsupported punctuation'],
+    [`a${'b'.repeat(64)}`, 'overlength'],
+  ])('rejects invalid KPI id %s (%s)', (id) => {
+    expect(() => parseKpiSpec(singleItem({ id }))).toThrowError('id must match');
   });
 });
 
@@ -156,6 +208,32 @@ describe('KPI mount and opaque references', () => {
     await controller.render(container, { language: 'markdown-chart', source: envelope() });
     expect(container.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(4);
     expect(container.querySelector('[data-markdown-chart-kpi-reference]')).toBeNull();
+    controller.dispose();
+  });
+
+  it('defaults omitted status tone to neutral and allows open-only actions', async () => {
+    const open = vi.fn();
+    const controller = new ChartController(
+      new ChartRendererRegistry().register(createKpiRenderer()),
+    );
+    const container = document.createElement('div');
+    await controller.render(container, {
+      language: 'markdown-chart',
+      source: envelope(singleItem({
+        status: { text: 'Stable' },
+        references: [{ ref: 'docs://metric', label: 'Metric definition' }],
+      })),
+      referenceActions: { open },
+    });
+    expect(container.querySelector<HTMLElement>('.markdown-chart-kpi-status')?.dataset.tone)
+      .toBe('neutral');
+    const button = container.querySelector<HTMLButtonElement>('[data-markdown-chart-kpi-reference]');
+    expect(button).not.toBeNull();
+    button?.click();
+    expect(open).toHaveBeenCalledWith({
+      rendererId: 'kpi',
+      reference: { ref: 'docs://metric', label: 'Metric definition' },
+    });
     controller.dispose();
   });
 

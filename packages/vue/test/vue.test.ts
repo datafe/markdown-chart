@@ -133,16 +133,13 @@ describe('MarkdownChart reactive object props', () => {
     const complete = `\`\`\`markdown-chart\n${body}\n\`\`\``;
     const source = ref(complete);
     const open = vi.fn();
-    const referenceActions = {
-      canOpen: vi.fn(() => true),
-      open,
-    };
+    const canOpen = vi.fn(() => true);
     const app = createApp(defineComponent({
       setup() {
         return () => h(MarkdownChart, {
           source: source.value,
           streaming: true,
-          referenceActions,
+          referenceActions: { canOpen, open },
         });
       },
     }));
@@ -153,6 +150,7 @@ describe('MarkdownChart reactive object props', () => {
       expect(root.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(2);
     });
     const original = root.querySelector('.markdown-chart-placeholder');
+    const originalCard = root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]');
     const buttons = root.querySelectorAll<HTMLButtonElement>(
       '[data-markdown-chart-kpi-reference]',
     );
@@ -170,6 +168,7 @@ describe('MarkdownChart reactive object props', () => {
     await nextTick();
     await vi.waitFor(() => expect(root.textContent).toContain('The analysis continues.'));
     expect(root.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
 
     app.unmount();
   });

@@ -144,10 +144,7 @@ function legacySandboxBinding(
 describe('MarkdownChart streaming lifecycle', () => {
   it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
     const open = vi.fn();
-    const referenceActions = {
-      canOpen: vi.fn(() => true),
-      open,
-    };
+    const canOpen = vi.fn(() => true);
     const container = document.createElement('div');
     const root = createRoot(container);
 
@@ -156,7 +153,7 @@ describe('MarkdownChart streaming lifecycle', () => {
         <MarkdownChart
           source={closedKpi()}
           streaming
-          referenceActions={referenceActions}
+          referenceActions={{ canOpen, open }}
         />,
       );
     });
@@ -164,6 +161,7 @@ describe('MarkdownChart streaming lifecycle', () => {
       expect(container.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(2);
     });
     const original = container.querySelector('.markdown-chart-placeholder');
+    const originalCard = container.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]');
     const buttons = container.querySelectorAll<HTMLButtonElement>(
       '[data-markdown-chart-kpi-reference]',
     );
@@ -182,11 +180,12 @@ describe('MarkdownChart streaming lifecycle', () => {
         <MarkdownChart
           source={closedKpi('\n\nThe analysis continues.')}
           streaming
-          referenceActions={referenceActions}
+          referenceActions={{ canOpen, open }}
         />,
       );
     });
     expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(container.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
     expect(container.textContent).toContain('The analysis continues.');
 
     await act(async () => root.unmount());

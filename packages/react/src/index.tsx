@@ -109,6 +109,16 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   const loadingLabel = props.loadingLabel ?? configuration.loadingLabel;
   const labels = props.labels ?? configuration.labels;
   const resolvedLabels = useMemo(() => resolveMarkdownChartLabels(labels), [labels]);
+  const referenceCanOpen = configuration.referenceActions?.canOpen;
+  const referenceOpen = configuration.referenceActions?.open;
+  const referenceActions = useMemo<ChartReferenceActions | undefined>(() => (
+    referenceOpen
+      ? {
+        ...(referenceCanOpen ? { canOpen: referenceCanOpen } : {}),
+        open: referenceOpen,
+      }
+      : undefined
+  ), [referenceCanOpen, referenceOpen]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -126,8 +136,8 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
         ? { loadingLabel }
         : {}),
       ...(labels !== undefined ? { labels } : {}),
-      ...(configuration.referenceActions !== undefined
-        ? { referenceActions: configuration.referenceActions }
+      ...(referenceActions !== undefined
+        ? { referenceActions }
         : {}),
     }).catch((error: unknown) => {
       if (disposed) {
@@ -148,8 +158,8 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   }, [
     configuration.registry,
     configuration.theme,
-    configuration.referenceActions,
     configuration.onError,
+    referenceActions,
     loadingLabel,
     labels,
     resolvedLabels,
