@@ -6,12 +6,88 @@ import {
   createMarkdownChartLoadingMarkup,
   findUnclosedMarkdownFence,
   isMarkdownFenceClosed,
+  materializeChartData,
   MarkdownChartError,
   parseChartJson,
   parseMarkdownChartEnvelope,
   validateChartJsonValue,
   type ChartRenderer,
 } from '../src/index';
+
+describe('materializeChartData', () => {
+  it('materializes inline data without invoking a resolver', async () => {
+    const resolveDataRef = vi.fn();
+    const result = await materializeChartData({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    }, { signal: new AbortController().signal, resolveDataRef });
+    expect(result).toEqual({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    });
+    expect(resolveDataRef).not.toHaveBeenCalled();
+  });
+
+  it('keeps ref opaque, inherits declared dimensions, and calls the host once', async () => {
+    const signal = new AbortController().signal;
+    const resolveDataRef = vi.fn(async () => ({ source: [['A', 1]] }));
+    const result = await materializeChartData({
+      kind: 'ref',
+      ref: 'opaque:data',
+      format: 'json',
+      dimensions: ['name', 'value'],
+    }, { signal, resolveDataRef, validateDataRef: (ref) => ref === 'opaque:data' });
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    expect(resolveDataRef).toHaveBeenCalledWith('opaque:data', {
+      format: 'json',
+      dimensions: ['name', 'value'],
+      signal,
+    });
+    expect(result).toEqual({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    });
+  });
+
+  it('rejects duplicate dimensions and materialization limits', async () => {
+    await expect(materializeChartData({
+      kind: 'inline',
+      dimensions: ['value', 'value'],
+      source: [[1, 2]],
+    }, { signal: new AbortController().signal })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+    await expect(materializeChartData({
+      kind: 'inline',
+      source: [[1], [2]],
+    }, {
+      signal: new AbortController().signal,
+      limits: { maxRows: 1 },
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => ({ source: [[Number.NaN]] }),
+    })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  it('maps resolver failures and quietly abandons aborted work', async () => {
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => { throw new Error('network'); },
+    })).rejects.toMatchObject({ code: 'REF_RESOLUTION_FAILED' });
+
+    const abort = new AbortController();
+    const pending = materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: abort.signal,
+      resolveDataRef: async () => {
+        abort.abort();
+        throw new Error('aborted');
+      },
+    });
+    await expect(pending).resolves.toBeUndefined();
+  });
+});
 
 describe('ChartRendererRegistry', () => {
   it('routes canonical markdown-chart envelopes without renderer-specific core switches', async () => {

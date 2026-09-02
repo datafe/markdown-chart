@@ -22,6 +22,41 @@ export interface RefChartData {
 
 export type ChartData = InlineChartData | RefChartData;
 
+/** A host-materialized dataset. It intentionally contains no transport metadata. */
+export interface ResolvedChartData {
+  readonly dimensions?: readonly string[];
+  readonly source: readonly ChartDataRow[];
+}
+
+export interface ResolveChartDataRefContext {
+  readonly format: 'csv' | 'json' | undefined;
+  readonly dimensions: readonly string[] | undefined;
+  readonly signal: AbortSignal;
+}
+
+/** Host-owned resolver boundary. Core never interprets or fetches `ref`. */
+export type ResolveChartDataRef = (
+  ref: string,
+  context: ResolveChartDataRefContext,
+) => ResolvedChartData | Promise<ResolvedChartData>;
+
+export interface ChartDataMaterializationLimits {
+  readonly maxRows: number;
+  readonly maxCells: number;
+}
+
+export const DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS: Readonly<ChartDataMaterializationLimits> = Object.freeze({
+  maxRows: 2_000,
+  maxCells: 40_000,
+});
+
+export interface MaterializeChartDataOptions {
+  readonly signal: AbortSignal;
+  readonly resolveDataRef?: ResolveChartDataRef;
+  readonly validateDataRef?: (ref: string) => boolean;
+  readonly limits?: Partial<ChartDataMaterializationLimits>;
+}
+
 export type ChartErrorCode =
   | 'INVALID_JSON'
   | 'LIMIT_EXCEEDED'
@@ -268,6 +303,147 @@ export function parseChartData(value: unknown): ChartData {
     'SCHEMA_INVALID',
     `Unsupported markdown-chart.data.kind: ${value.kind}`,
   );
+}
+
+function validateMaterializedDimensions(
+  dimensions: readonly string[] | undefined,
+): string[] | undefined {
+  if (dimensions === undefined) return undefined;
+  if (
+    !Array.isArray(dimensions)
+    || dimensions.some((item) => typeof item !== 'string' || item.length === 0)
+  ) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'resolvedChartData.dimensions must be an array of non-empty strings',
+    );
+  }
+  if (new Set(dimensions).size !== dimensions.length) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'resolvedChartData.dimensions must be unique',
+    );
+  }
+  return [...dimensions];
+}
+
+function validateMaterializedRows(
+  source: readonly ChartDataRow[],
+  limits: ChartDataMaterializationLimits,
+): ChartDataRow[] {
+  if (!Array.isArray(source)) {
+    throw new MarkdownChartError('SCHEMA_INVALID', 'resolvedChartData.source must be an array');
+  }
+  if (source.length > limits.maxRows) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `resolvedChartData.source exceeds the ${limits.maxRows} row limit`,
+    );
+  }
+  let cells = 0;
+  const rows = source.map((row, rowIndex): ChartDataRow => {
+    if (Array.isArray(row)) {
+      const result = row.map((cell, cellIndex) => {
+        if (cell !== null && !['string', 'number', 'boolean'].includes(typeof cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}][${cellIndex}] must be a JSON scalar`,
+          );
+        }
+        if (typeof cell === 'number' && !Number.isFinite(cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}][${cellIndex}] must contain only finite numbers`,
+          );
+        }
+        return cell as JsonPrimitive;
+      });
+      cells += result.length;
+      return result;
+    }
+    if (isJsonObject(row)) {
+      const result: Record<string, JsonPrimitive> = {};
+      for (const [key, cell] of Object.entries(row)) {
+        if (cell !== null && !['string', 'number', 'boolean'].includes(typeof cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}].${key} must be a JSON scalar`,
+          );
+        }
+        if (typeof cell === 'number' && !Number.isFinite(cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}].${key} must contain only finite numbers`,
+          );
+        }
+        result[key] = cell as JsonPrimitive;
+        cells += 1;
+      }
+      return result;
+    }
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      `resolvedChartData.source[${rowIndex}] must be an array or object`,
+    );
+  });
+  if (cells > limits.maxCells) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `resolvedChartData.source exceeds the ${limits.maxCells} cell limit`,
+    );
+  }
+  return rows;
+}
+
+/**
+ * Materialize canonical chart data exactly once at the renderer boundary.
+ *
+ * Reference validation, authorization and transport remain host-owned. An
+ * aborted resolution returns undefined so the lifecycle controller can quietly
+ * discard stale work.
+ */
+export async function materializeChartData(
+  data: ChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineChartData | undefined> {
+  const limits: ChartDataMaterializationLimits = {
+    ...DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS,
+    ...options.limits,
+  };
+  let resolved: ResolvedChartData;
+  if (data.kind === 'inline') {
+    resolved = data;
+  } else {
+    if (options.validateDataRef && !options.validateDataRef(data.ref)) {
+      throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
+    }
+    if (!options.resolveDataRef) {
+      throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
+    }
+    try {
+      resolved = await options.resolveDataRef(data.ref, {
+        format: data.format,
+        dimensions: data.dimensions,
+        signal: options.signal,
+      });
+    } catch (cause) {
+      if (options.signal.aborted) return undefined;
+      throw new MarkdownChartError(
+        'REF_RESOLUTION_FAILED',
+        'The chart dataset could not be resolved',
+        { cause },
+      );
+    }
+    if (options.signal.aborted) return undefined;
+  }
+
+  const dimensions = validateMaterializedDimensions(
+    resolved.dimensions ?? (data.kind === 'ref' ? data.dimensions : undefined),
+  );
+  const source = validateMaterializedRows(resolved.source, limits);
+  return dimensions
+    ? { kind: 'inline', dimensions, source }
+    : { kind: 'inline', source };
 }
 
 export interface ChartParseContext {
