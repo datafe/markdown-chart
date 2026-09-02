@@ -197,7 +197,9 @@ function createNumberFormatter(format: KpiValueFormat): Intl.NumberFormat {
     ...(format.notation ? { notation: format.notation } : {}),
     ...(format.minimumFractionDigits !== undefined
       ? { minimumFractionDigits: format.minimumFractionDigits }
-      : {}),
+      : format.maximumFractionDigits !== undefined
+        ? { minimumFractionDigits: 0 }
+        : {}),
     ...(format.maximumFractionDigits !== undefined
       ? { maximumFractionDigits: format.maximumFractionDigits }
       : {}),

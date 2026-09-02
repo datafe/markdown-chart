@@ -93,7 +93,7 @@ describe('KPI data/config contract', () => {
     const values = [...container.querySelectorAll<HTMLElement>('[data-markdown-chart-kpi-value]')]
       .map((element) => element.textContent);
 
-    expect(values).toEqual(['¥18.0M', '40%', '23/48']);
+    expect(values).toEqual(['¥18M', '40%', '23/48']);
     expect(container.querySelectorAll('[data-markdown-chart-kpi-trend="area"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-markdown-chart-kpi-trend="line"]')).toHaveLength(1);
     expect(container.querySelector('[data-markdown-chart-kpi-id="inventory"] svg')).toBeNull();
