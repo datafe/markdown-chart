@@ -3,7 +3,7 @@
 English | [简体中文](./README.zh-CN.md)
 
 > [!NOTE]
-> All five `@datafe-open/markdown-chart*` packages are published on npm. The
+> All six `@datafe-open/markdown-chart*` packages are published on npm. The
 > install commands below use the public packages. Maintainers should follow
 > [RELEASING.md](./RELEASING.md) for subsequent releases.
 
@@ -11,9 +11,10 @@ English | [简体中文](./README.zh-CN.md)
 inspectable data and pluggable renderers. Its core is framework-neutral and
 independent of any chat product.
 
-The project starts with an ECharts renderer and adapters for markdown-it, Vue 3,
-and react-markdown. The registry-based core can accept future Plotly, Vega, or
-other renderer packages without adding chart-specific switches to the core.
+The project includes independent ECharts and KPI renderers plus adapters for
+markdown-it, Vue 3, and react-markdown. The registry-based core can accept
+future Plotly, Vega, or other renderer packages without adding chart-specific
+switches to the core.
 
 ## Packages
 
@@ -21,6 +22,7 @@ other renderer packages without adding chart-specific switches to the core.
 | --- | --- |
 | [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
 | [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON-only canonical ECharts renderer and deprecated ChatBI legacy adapter |
+| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | Strict responsive multi-KPI cards with optional host-owned reference actions |
 | [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | Safe placeholder plugin and environment side channel |
 | [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 component and composable |
 | [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown `code`/`pre` adapter |
@@ -56,6 +58,49 @@ For ECharts, the shared card title comes only from `spec.title.text`, which is
 the ECharts option's `title.text`. If it is absent or blank, the title element
 is omitted instead of showing a fallback. The Chart/Data controls remain
 right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
+
+## KPI renderer
+
+KPI cards use the same canonical fence but intentionally omit `data`. Display
+values are strings so the producer owns exact formatting:
+
+````markdown
+```markdown-chart
+{
+  "version": 1,
+  "renderer": "kpi",
+  "spec": {
+    "items": [
+      {
+        "id": "unmet_demand",
+        "title": "Unmet demand",
+        "value": "40",
+        "suffix": "%",
+        "status": { "text": "At risk", "tone": "negative" },
+        "references": [
+          { "ref": "docs://metrics/unmet-demand", "label": "Metric definition" }
+        ]
+      },
+      { "id": "lost_revenue", "title": "Lost revenue", "value": "720", "suffix": "K" }
+    ]
+  }
+}
+```
+````
+
+The renderer supports 1–12 items and up to three references per item. It treats
+every reference as an opaque string and never fetches or navigates. A host can
+select allowed references and handle clicks through the generic action API:
+
+```tsx
+<MarkdownChart
+  source={source}
+  referenceActions={{
+    canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
+    open: ({ reference }) => openDocumentation(reference.ref),
+  }}
+/>
+```
 
 Hosts can inspect canonical data without loading a chart runtime:
 
@@ -134,8 +179,9 @@ defineProps<{ source: string }>();
 </template>
 ```
 
-Both components register ECharts, load it on first chart mount, and apply a
-360px minimum height automatically. Canonical inline data and referenced data
+Both components register ECharts and KPI automatically. They load ECharts on
+its first chart mount and apply a 360px minimum height to chart placeholders;
+the KPI renderer uses its compact content height. Canonical inline data and referenced data
 returned by `resolveDataRef` also enable a built-in icon-based Chart/Data switch
 with a bounded, scrollable data table.
 The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series

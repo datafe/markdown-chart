@@ -18,12 +18,14 @@ import {
   isMarkdownFenceClosed,
   MARKDOWN_CHART_LANGUAGE,
   resolveMarkdownChartLabels,
+  type ChartReferenceActions,
   type MarkdownChartLabelOverrides,
 } from '@datafe-open/markdown-chart';
 import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
 } from '@datafe-open/markdown-chart-echarts';
+import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';
 
 export type MarkdownChartReactErrorHandler = (
   error: unknown,
@@ -37,6 +39,7 @@ interface MarkdownChartContextValue {
   readonly source: string | undefined;
   readonly loadingLabel: string | undefined;
   readonly labels: MarkdownChartLabelOverrides | undefined;
+  readonly referenceActions: ChartReferenceActions | undefined;
   readonly onError: MarkdownChartReactErrorHandler | undefined;
 }
 
@@ -50,6 +53,7 @@ export interface MarkdownChartProviderProps {
   readonly source?: string;
   readonly loadingLabel?: string;
   readonly labels?: MarkdownChartLabelOverrides;
+  readonly referenceActions?: ChartReferenceActions;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly children: ReactNode;
 }
@@ -70,6 +74,7 @@ export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactE
     source,
     loadingLabel: props.loadingLabel,
     labels: props.labels,
+    referenceActions: props.referenceActions,
     onError: props.onError,
   }), [
     props.registry,
@@ -78,6 +83,7 @@ export function MarkdownChartProvider(props: MarkdownChartProviderProps): ReactE
     source,
     props.loadingLabel,
     props.labels,
+    props.referenceActions,
     props.onError,
   ]);
   return createElement(MarkdownChartContext.Provider, { value }, props.children);
@@ -120,6 +126,9 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
         ? { loadingLabel }
         : {}),
       ...(labels !== undefined ? { labels } : {}),
+      ...(configuration.referenceActions !== undefined
+        ? { referenceActions: configuration.referenceActions }
+        : {}),
     }).catch((error: unknown) => {
       if (disposed) {
         return;
@@ -139,6 +148,7 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
   }, [
     configuration.registry,
     configuration.theme,
+    configuration.referenceActions,
     configuration.onError,
     loadingLabel,
     labels,
@@ -244,6 +254,7 @@ export interface MarkdownChartProps {
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
   readonly labels?: MarkdownChartLabelOverrides;
+  readonly referenceActions?: ChartReferenceActions;
   readonly onError?: MarkdownChartReactErrorHandler;
   readonly chartClassName?: string;
   readonly chartStyle?: CSSProperties;
@@ -251,7 +262,9 @@ export interface MarkdownChartProps {
 
 export function MarkdownChart(props: MarkdownChartProps): ReactElement {
   const automaticRegistry = useMemo(
-    () => new ChartRendererRegistry().register(createEChartsRenderer(props.echarts)),
+    () => new ChartRendererRegistry()
+      .register(createEChartsRenderer(props.echarts))
+      .register(createKpiRenderer()),
     [props.echarts],
   );
   const registry = props.registry ?? automaticRegistry;
@@ -270,6 +283,9 @@ export function MarkdownChart(props: MarkdownChartProps): ReactElement {
       ...(props.streaming !== undefined ? { streaming: props.streaming } : {}),
       ...(props.loadingLabel !== undefined ? { loadingLabel: props.loadingLabel } : {}),
       ...(props.labels !== undefined ? { labels: props.labels } : {}),
+      ...(props.referenceActions !== undefined
+        ? { referenceActions: props.referenceActions }
+        : {}),
       ...(props.onError ? { onError: props.onError } : {}),
     },
   );

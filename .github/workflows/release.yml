@@ -58,6 +58,7 @@ jobs:
           packages=(
             "@datafe-open/markdown-chart"
             "@datafe-open/markdown-chart-echarts"
+            "@datafe-open/markdown-chart-kpi"
             "@datafe-open/markdown-chart-markdown-it"
             "@datafe-open/markdown-chart-react"
             "@datafe-open/markdown-chart-vue"

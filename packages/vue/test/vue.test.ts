@@ -110,6 +110,70 @@ function legacySandboxBinding(
 }
 
 describe('MarkdownChart reactive object props', () => {
+  it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
+    const body = JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      spec: {
+        items: [
+          {
+            id: 'unmet_demand',
+            title: '未满足需求',
+            value: '40',
+            suffix: '%',
+            references: [
+              { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
+              { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
+            ],
+          },
+          { id: 'lost_revenue', title: '累计流失营收', value: '720', suffix: '万' },
+        ],
+      },
+    });
+    const complete = `\`\`\`markdown-chart\n${body}\n\`\`\``;
+    const source = ref(complete);
+    const open = vi.fn();
+    const referenceActions = {
+      canOpen: vi.fn(() => true),
+      open,
+    };
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source: source.value,
+          streaming: true,
+          referenceActions,
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+
+    await vi.waitFor(() => {
+      expect(root.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(2);
+    });
+    const original = root.querySelector('.markdown-chart-placeholder');
+    const buttons = root.querySelectorAll<HTMLButtonElement>(
+      '[data-markdown-chart-kpi-reference]',
+    );
+    expect(buttons).toHaveLength(2);
+    buttons[1]?.click();
+    expect(open).toHaveBeenCalledWith({
+      rendererId: 'kpi',
+      reference: {
+        ref: 'docs://metrics/unmet-demand-trend',
+        label: '未满足需求趋势说明',
+      },
+    });
+
+    source.value = `${complete}\n\nThe analysis continues.`;
+    await nextTick();
+    await vi.waitFor(() => expect(root.textContent).toContain('The analysis continues.'));
+    expect(root.querySelector('.markdown-chart-placeholder')).toBe(original);
+
+    app.unmount();
+  });
+
   it('provides zero-config parsing, registry, and chart height defaults', async () => {
     const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
     const app = createApp(defineComponent({

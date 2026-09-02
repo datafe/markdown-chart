@@ -25,6 +25,9 @@ untrusted model.
   `dataset.transform.config.reg` values never reach the ECharts transform
   engine, avoiding attacker-controlled regular-expression execution.
 - The ECharts renderer itself performs no `fetch`, XHR, or dynamic URL loading.
+- The KPI renderer strictly bounds item, string, status, and reference counts;
+  it inserts all display content with DOM text APIs and performs no fetch or
+  navigation. KPI references remain opaque to the package.
 - Referenced datasets require an explicit host resolver and an optional host
   reference validator.
 - Markdown-it placeholders contain only generated identifiers. Raw chart JSON
@@ -38,6 +41,9 @@ untrusted model.
   enabling raw HTML. This is separate from chart placeholder safety.
 - Treat `resolveDataRef` as a privileged boundary. Validate schemes and
   authorization, honor its `AbortSignal`, and avoid returning secrets in errors.
+- Treat `ChartReferenceActions` as a privileged UI boundary. `canOpen` and
+  `open` must validate the reference scheme and current principal authorization
+  before opening host content. Do not place secrets in `ref` or `label`.
 - Prefer the shared `createLegacySandboxClient` for new legacy integrations.
   Its host-owned `LegacySandboxTransport` is a privileged authenticated data
   boundary: preserve `AbortSignal`, authorize every list/read operation, bound

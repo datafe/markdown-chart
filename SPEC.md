@@ -86,6 +86,44 @@ For the canonical fence, `spec` is the ECharts option object directly:
 When canonical `data` is present, `spec.dataset` is reserved and MUST NOT also
 be set. The renderer inserts the resolved dataset before calling ECharts.
 
+## KPI specification
+
+The independent KPI renderer uses `renderer: "kpi"`. Canonical `data` MUST be
+absent. Its `spec` contains an `items` array with 1–12 entries. Each item has a
+unique ASCII `id`, non-empty `title` and `value` display strings, and MAY have
+`prefix`, `suffix`, `status`, and `references`:
+
+```json
+{
+  "items": [{
+    "id": "conversion_rate",
+    "title": "Conversion rate",
+    "value": "40",
+    "suffix": "%",
+    "status": { "text": "Below target", "tone": "warning" },
+    "references": [{
+      "ref": "docs://metrics/conversion-rate",
+      "label": "Metric definition"
+    }]
+  }]
+}
+```
+
+`status.tone` is `neutral`, `positive`, `warning`, or `negative`. Each item MAY
+contain 1–3 references, with no duplicate `ref` in one item. `ref` is opaque to
+the renderer; `label` is the accessible, user-facing description. Unknown
+fields and canonical `data` are rejected.
+
+## Renderer reference actions
+
+A renderer MAY expose reference controls only through host-supplied generic
+actions. The core forwards `{ rendererId, reference: { ref, label } }` without
+interpreting the reference. `canOpen`, when supplied, determines whether a
+control is available; `open` handles an accepted click. Renderers MUST NOT
+navigate, fetch reference content, infer authorization, or expose raw refs as
+user-facing labels. The host owns scheme validation, authorization, and the
+resulting UI.
+
 ## Streaming
 
 Hosts pass the outer document streaming state to a Markdown adapter. The adapter

@@ -285,6 +285,9 @@ importers:
       '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../echarts
+      '@datafe-open/markdown-chart-kpi':
+        specifier: workspace:*
+        version: link:../kpi
       echarts:
         specifier: '>=5.5 <7'
         version: 6.1.0
@@ -313,6 +316,9 @@ importers:
       '@datafe-open/markdown-chart-echarts':
         specifier: workspace:*
         version: link:../echarts
+      '@datafe-open/markdown-chart-kpi':
+        specifier: workspace:*
+        version: link:../kpi
       '@datafe-open/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../markdown-it

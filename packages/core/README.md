@@ -40,3 +40,9 @@ Chart/Data controls, empty-data text, truncation notice, and adapter error
 fallbacks. `MarkdownChartLabelOverrides` is partial; omitted entries retain
 the exported `DEFAULT_MARKDOWN_CHART_LABELS`. Framework adapters expose the
 same `labels` object.
+
+`ChartRenderRequest.referenceActions` is a renderer-neutral host boundary for
+clickable references. Core only forwards `{ rendererId, reference: { ref,
+label } }`; it does not parse refs, authorize access, fetch content, navigate,
+or create a panel. Hosts can hide unsupported references with `canOpen` and
+handle accepted clicks with `open`.

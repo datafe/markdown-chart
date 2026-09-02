@@ -3,11 +3,11 @@
 [English](./README.md) | 简体中文
 
 > [!NOTE]
-> 5 个 `@datafe-open/markdown-chart*` 包均已公开发布到 npm，下文安装命令会直接使用公开包。后续版本发布请参阅[发布流程](./RELEASING.md)。
+> 6 个 `@datafe-open/markdown-chart*` 包均已公开发布到 npm，下文安装命令会直接使用公开包。后续版本发布请参阅[发布流程](./RELEASING.md)。
 
 `markdown-chart` 为流式 Markdown 提供可移植的图表代码块，支持查看原始数据和接入不同的图表渲染器。核心包与框架无关，也不依赖任何聊天产品。
 
-项目首先提供 ECharts 渲染器，以及 markdown-it、Vue 3 和 react-markdown 适配器。基于注册表的核心设计可以继续接入 Plotly、Vega 或其他渲染器包，无需在核心包中添加针对具体图表库的分支判断。
+项目提供相互独立的 ECharts、KPI 渲染器，以及 markdown-it、Vue 3 和 react-markdown 适配器。基于注册表的核心设计可以继续接入 Plotly、Vega 或其他渲染器包，无需在核心包中添加针对具体图表库的分支判断。
 
 ## 包
 
@@ -15,6 +15,7 @@
 | --- | --- |
 | [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
 | [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | 仅接受严格 JSON 的标准 ECharts 渲染器，以及已弃用的 ChatBI legacy 适配器 |
+| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | 严格校验的响应式多 KPI 卡片，以及可选的宿主引用操作 |
 | [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
 | [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 组件和 composable |
 | [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown 的 `code`/`pre` 适配器 |
@@ -44,6 +45,46 @@
 协议只有一个 `version`，位于最外层的 `markdown-chart` 协议对象中。`data` 与渲染器无关，因此宿主应用可以独立展示 inline 数据，例如提供“查看数据”操作。`spec` 属于选定的渲染器，不再重复保存数据或版本号。
 
 对于 ECharts，公共卡片标题只取 `spec.title.text`，也就是 ECharts option 的 `title.text`。该值缺失或为空时不会展示标题元素，也不会使用兜底文本。`Chart / Data` 按钮仍保持右对齐，图表与工具栏之间保留 8px 的垂直间距。
+
+## KPI 渲染器
+
+KPI 卡片使用同一套 canonical fence，但刻意不包含 `data`。展示值采用字符串，精确格式由产出方控制：
+
+````markdown
+```markdown-chart
+{
+  "version": 1,
+  "renderer": "kpi",
+  "spec": {
+    "items": [
+      {
+        "id": "unmet_demand",
+        "title": "未满足需求",
+        "value": "40",
+        "suffix": "%",
+        "status": { "text": "流失中", "tone": "negative" },
+        "references": [
+          { "ref": "docs://metrics/unmet-demand", "label": "指标口径" }
+        ]
+      },
+      { "id": "lost_revenue", "title": "累计流失营收", "value": "720", "suffix": "万" }
+    ]
+  }
+}
+```
+````
+
+渲染器支持 1–12 个指标，每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击：
+
+```tsx
+<MarkdownChart
+  source={source}
+  referenceActions={{
+    canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
+    open: ({ reference }) => openDocumentation(reference.ref),
+  }}
+/>
+```
 
 宿主应用无需加载图表运行时，也可以读取标准格式中的数据：
 
@@ -122,7 +163,7 @@ defineProps<{ source: string }>();
 </template>
 ```
 
-两个组件都会自动注册 ECharts，在首次挂载图表时加载运行时，并自动设置 360px 的最小高度。标准格式中的 inline 数据，以及由 `resolveDataRef` 返回的 ref 数据，都会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均改编自 [Qwen Code WebShell 实现](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx)；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。归因信息见[第三方声明](./THIRD_PARTY_NOTICES.md)。
+两个组件都会自动注册 ECharts 和 KPI；ECharts 在首次挂载时加载运行时并使用 360px 的默认最小高度，KPI 则采用紧凑的内容高度。标准格式中的 inline 数据，以及由 `resolveDataRef` 返回的 ref 数据，都会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均改编自 [Qwen Code WebShell 实现](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx)；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。归因信息见[第三方声明](./THIRD_PARTY_NOTICES.md)。
 
 宿主应用可以通过 `--markdown-chart-background`、`--markdown-chart-subtle-background` 和 `--markdown-chart-accent` 对齐卡片颜色。高级模式可以设置 `createEChartsRenderer({ defaultStyle: false })` 关闭展示样式默认值；安全校验、标准 data 注入和 data ref 解析仍然会执行。
 

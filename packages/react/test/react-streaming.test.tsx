@@ -50,6 +50,30 @@ function closedChart(trailing = ''): string {
   return `\`\`\`markdown-chart\n${canonicalBody}\n\`\`\`${trailing}`;
 }
 
+const kpiBody = JSON.stringify({
+  version: 1,
+  renderer: 'kpi',
+  spec: {
+    items: [
+      {
+        id: 'unmet_demand',
+        title: '未满足需求',
+        value: '40',
+        suffix: '%',
+        references: [
+          { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
+          { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
+        ],
+      },
+      { id: 'lost_revenue', title: '累计流失营收', value: '720', suffix: '万' },
+    ],
+  },
+});
+
+function closedKpi(trailing = ''): string {
+  return `\`\`\`markdown-chart\n${kpiBody}\n\`\`\`${trailing}`;
+}
+
 function fakeEChartsRuntime(): EChartsRuntime {
   return {
     init() {
@@ -118,6 +142,56 @@ function legacySandboxBinding(
 }
 
 describe('MarkdownChart streaming lifecycle', () => {
+  it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
+    const open = vi.fn();
+    const referenceActions = {
+      canOpen: vi.fn(() => true),
+      open,
+    };
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MarkdownChart
+          source={closedKpi()}
+          streaming
+          referenceActions={referenceActions}
+        />,
+      );
+    });
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(2);
+    });
+    const original = container.querySelector('.markdown-chart-placeholder');
+    const buttons = container.querySelectorAll<HTMLButtonElement>(
+      '[data-markdown-chart-kpi-reference]',
+    );
+    expect(buttons).toHaveLength(2);
+    buttons[1]?.click();
+    expect(open).toHaveBeenCalledWith({
+      rendererId: 'kpi',
+      reference: {
+        ref: 'docs://metrics/unmet-demand-trend',
+        label: '未满足需求趋势说明',
+      },
+    });
+
+    await act(async () => {
+      root.render(
+        <MarkdownChart
+          source={closedKpi('\n\nThe analysis continues.')}
+          streaming
+          referenceActions={referenceActions}
+        />,
+      );
+    });
+    expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(container.textContent).toContain('The analysis continues.');
+
+    await act(async () => root.unmount());
+  });
+
   it('renders a closed fence during streaming and preserves it as text is appended', async () => {
     const mount = vi.fn();
     const dispose = vi.fn();
