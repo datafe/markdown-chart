@@ -1,272 +1,275 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { ChartController, ChartRendererRegistry, MarkdownChartError } from '@datafe-open/markdown-chart';
+import {
+  ChartController,
+  ChartRendererRegistry,
+  type ChartReferenceActions,
+} from '@datafe-open/markdown-chart';
 import { createKpiRenderer, parseKpiSpec } from '../src/index';
 
-function kpiSpec() {
-  return {
-    items: [
+function envelope(data: unknown, spec: unknown): string {
+  return JSON.stringify({ version: 1, renderer: 'kpi', data, spec });
+}
+
+async function render(
+  source: string,
+  options: Parameters<typeof createKpiRenderer>[0] = {},
+  referenceActions?: ChartReferenceActions,
+): Promise<{ container: HTMLDivElement; controller: ChartController }> {
+  const registry = new ChartRendererRegistry().register(createKpiRenderer(options));
+  const controller = new ChartController(registry);
+  const container = document.createElement('div');
+  await controller.render(container, {
+    language: 'markdown-chart',
+    source,
+    ...(referenceActions ? { referenceActions } : {}),
+  });
+  return { container, controller };
+}
+
+async function renderFailure(
+  source: string,
+  options: Parameters<typeof createKpiRenderer>[0] = {},
+  expectedCode = 'SCHEMA_INVALID',
+): Promise<void> {
+  const registry = new ChartRendererRegistry().register(createKpiRenderer(options));
+  const controller = new ChartController(registry);
+  const container = document.createElement('div');
+  await expect(controller.render(container, { language: 'markdown-chart', source })).rejects
+    .toMatchObject({ code: expectedCode });
+}
+
+const wideData = {
+  kind: 'inline',
+  dimensions: ['day', 'revenue', 'conversion', 'inventory', 'status', 'tone'],
+  source: [
+    ['2026-08-29', 15_200_000, 0.32, 31, '安全', 'positive'],
+    ['2026-08-30', 16_100_000, 0.36, 28, '关注', 'warning'],
+    ['2026-08-31', 17_000_000, 0.38, 25, '关注', 'warning'],
+    ['2026-09-01', 18_000_000, 0.4, 23, '低于安全水位', 'negative'],
+  ],
+};
+
+const mixedSpec = {
+  timeField: 'day',
+  items: [
+    {
+      id: 'revenue',
+      title: '预计增量营收',
+      value: {
+        field: 'revenue',
+        reduce: 'lastNonNull',
+        format: { style: 'currency', currency: 'CNY', notation: 'compact', maximumFractionDigits: 1 },
+      },
+      trend: {
+        type: 'area',
+        compare: { lag: 1, mode: 'relative', label: '较昨日', polarity: 'higher-is-better' },
+      },
+      references: [{ ref: 'opaque:revenue', label: '营收口径' }],
+    },
+    {
+      id: 'conversion',
+      title: '未满足需求',
+      value: { field: 'conversion', format: { style: 'percent', maximumFractionDigits: 0 } },
+      trend: {
+        type: 'line',
+        compare: { lag: 1, mode: 'absolute', label: '日变化', polarity: 'lower-is-better' },
+        yScale: { includeZero: true },
+      },
+    },
+    {
+      id: 'inventory',
+      title: '门店库存',
+      value: { field: 'inventory', format: { style: 'decimal', suffix: '/48' } },
+      status: { text: { field: 'status' }, tone: { field: 'tone' } },
+      references: [{ ref: 'opaque:inventory', label: '库存说明' }],
+    },
+  ],
+};
+
+describe('KPI data/config contract', () => {
+  it('renders mixed area, line, and no-trend cards from one wide inline dataset', async () => {
+    const { container } = await render(envelope(wideData, mixedSpec));
+    const values = [...container.querySelectorAll<HTMLElement>('[data-markdown-chart-kpi-value]')]
+      .map((element) => element.textContent);
+
+    expect(values).toEqual(['¥18.0M', '40%', '23/48']);
+    expect(container.querySelectorAll('[data-markdown-chart-kpi-trend="area"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-markdown-chart-kpi-trend="line"]')).toHaveLength(1);
+    expect(container.querySelector('[data-markdown-chart-kpi-id="inventory"] svg')).toBeNull();
+    expect(container.querySelector('[data-markdown-chart-kpi-id="inventory"] [data-markdown-chart-kpi-tone="negative"]')?.textContent)
+      .toBe('低于安全水位');
+    expect(container.querySelector('[data-markdown-chart-kpi-id="revenue"] .markdown-chart-kpi-compare')?.textContent)
+      .toContain('较昨日');
+  });
+
+  it('uses one ref resolution for values, trend, compare, and the core Data view', async () => {
+    const resolveDataRef = vi.fn(async () => ({
+      dimensions: wideData.dimensions,
+      source: wideData.source,
+    }));
+    const { container } = await render(
+      envelope({ kind: 'ref', ref: 'dataset:weekly', format: 'json' }, mixedSpec),
+      { resolveDataRef },
+    );
+
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    expect(resolveDataRef).toHaveBeenCalledWith('dataset:weekly', expect.objectContaining({ format: 'json' }));
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>('.markdown-chart-toggle button')];
+    expect(buttons).toHaveLength(2);
+    buttons[1]?.click();
+    expect(container.querySelector('.markdown-chart-data-view')?.textContent).toContain('2026-09-01');
+    expect(container.querySelector('.markdown-chart-data-view')?.textContent).toContain('18000000');
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+  });
+
+  it('inherits declared ref dimensions when the resolver omits them', async () => {
+    const { container } = await render(
+      envelope({ kind: 'ref', ref: 'dataset:one', dimensions: ['name', 'value'] }, {
+        items: [{ id: 'value', title: 'Value', value: { field: 'value' } }],
+      }),
+      { resolveDataRef: async () => ({ source: [['A', 42]] }) },
+    );
+    expect(container.querySelector('[data-markdown-chart-kpi-value]')?.textContent).toBe('42');
+  });
+
+  it('degrades a one-point trend to a plain KPI without failing the group', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ day: '2026-09-01', value: 7 }] },
       {
-        id: 'unmet_demand',
-        title: '未满足需求',
-        value: '40',
-        suffix: '%',
-        status: { text: '流失中', tone: 'negative' },
-        references: [
-          { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
-          { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
+        timeField: 'day',
+        items: [{ id: 'single', title: 'Single', value: { field: 'value' }, trend: { type: 'line' } }],
+      },
+    ));
+    expect(container.querySelector('[data-markdown-chart-kpi-value]')?.textContent).toBe('7');
+    expect(container.querySelector('.markdown-chart-kpi-trend')).toBeNull();
+    expect(container.textContent).not.toContain('Chart unavailable');
+  });
+
+  it('maps identical positive deltas through opposite polarity semantics', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ t: 1, a: 10, b: 10 }, { t: 2, a: 12, b: 12 }] },
+      {
+        timeField: 't',
+        items: [
+          {
+            id: 'higher', title: 'Higher', value: { field: 'a' },
+            trend: { type: 'line', compare: { lag: 1, mode: 'absolute', polarity: 'higher-is-better' } },
+          },
+          {
+            id: 'lower', title: 'Lower', value: { field: 'b' },
+            trend: { type: 'line', compare: { lag: 1, mode: 'absolute', polarity: 'lower-is-better' } },
+          },
         ],
       },
+    ));
+    expect(container.querySelector('[data-markdown-chart-kpi-id="higher"] .markdown-chart-kpi-compare')?.getAttribute('data-markdown-chart-kpi-tone'))
+      .toBe('positive');
+    expect(container.querySelector('[data-markdown-chart-kpi-id="lower"] .markdown-chart-kpi-compare')?.getAttribute('data-markdown-chart-kpi-tone'))
+      .toBe('negative');
+  });
+
+  it('uses exact source-row lag and does not skip a null comparison row', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ t: 1, value: 10 }, { t: 2, value: null }, { t: 3, value: 15 }] },
       {
-        id: 'lost_revenue',
-        title: '累计流失营收',
-        value: '720',
-        suffix: '万',
-        references: [{ ref: 'docs://metrics/lost-revenue', label: '累计流失营收口径' }],
+        timeField: 't',
+        items: [{
+          id: 'value', title: 'Value', value: { field: 'value' },
+          trend: { type: 'line', compare: { lag: 1, mode: 'absolute', polarity: 'neutral' } },
+        }],
       },
+    ));
+    expect(container.querySelector('.markdown-chart-kpi-sparkline')).not.toBeNull();
+    expect(container.querySelector('.markdown-chart-kpi-compare')).toBeNull();
+  });
+
+  it('supports literal and field status bindings', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ value: 3, dynamicText: 'Ready', dynamicTone: 'positive' }] },
       {
-        id: 'incremental_revenue',
-        title: 'Estimated incremental revenue with a deliberately long title',
-        prefix: '¥',
-        value: '1,800',
-        suffix: '万',
-        status: { text: '预计可挽回', tone: 'positive' },
+        items: [
+          { id: 'field', title: 'Field', value: { field: 'value' }, status: { text: { field: 'dynamicText' }, tone: { field: 'dynamicTone' } } },
+          { id: 'literal', title: 'Literal', value: { field: 'value' }, status: { text: { literal: 'Stable' }, tone: { literal: 'neutral' } } },
+        ],
       },
-      {
-        id: 'store_inventory',
-        title: '门店库存',
-        value: '23/48',
-        status: { text: '家庭低于安全水平', tone: 'warning' },
-      },
-    ],
-  };
-}
-
-function envelope(spec: unknown = kpiSpec(), data?: unknown): string {
-  return JSON.stringify({
-    version: 1,
-    renderer: 'kpi',
-    ...(data === undefined ? {} : { data }),
-    spec,
-  });
-}
-
-function singleItem(overrides: Record<string, unknown> = {}) {
-  return {
-    items: [{ id: 'metric', title: 'Metric', value: '1', ...overrides }],
-  };
-}
-
-describe('KPI schema', () => {
-  it('accepts 1-12 items and preserves formatted display strings', () => {
-    const parsed = parseKpiSpec(kpiSpec());
-    expect(parsed.items).toHaveLength(4);
-    expect(parsed.items[2]).toMatchObject({ prefix: '¥', value: '1,800', suffix: '万' });
-    expect(parseKpiSpec({ items: [{ id: 'only', title: 'Only', value: '23/48' }] }).items)
-      .toHaveLength(1);
-  });
-
-  it.each([
-    [{ items: [] }, 'items'],
-    [{ items: [{ id: 'bad id', title: 'Title', value: '1' }] }, 'id'],
-    [{ items: [{ id: 'a', title: 'Title', value: '1' }, { id: 'a', title: 'Again', value: '2' }] }, 'unique'],
-    [{ items: [{ id: 'a', title: ' Title', value: '1' }] }, 'trimmed'],
-    [{ items: [{ id: 'a', title: 'Title', value: '1', extra: true }] }, 'not allowed'],
-    [{ items: [{ id: 'a', title: 'Title', value: '1', status: { text: 'Bad', tone: 'critical' } }] }, 'tone'],
-    [{ items: [{ id: 'a', title: 'Title', value: '1', references: [] }] }, 'references'],
-    [{ items: [{ id: 'a', title: 'Title', value: '1', references: [
-      { ref: 'docs://same', label: 'First' },
-      { ref: 'docs://same', label: 'Second' },
-    ] }] }, 'duplicate'],
-  ])('rejects an invalid renderer spec %#', (spec, message) => {
-    expect(() => parseKpiSpec(spec)).toThrowError(message);
-  });
-
-  it('rejects canonical data instead of creating shared Chart/Data chrome', () => {
-    expect(() => parseKpiSpec(kpiSpec(), true)).toThrowError(MarkdownChartError);
-  });
-
-  it('enforces item and per-item reference bounds', () => {
-    expect(() => parseKpiSpec({
-      items: Array.from({ length: 13 }, (_, index) => ({
-        id: `metric_${index}`,
-        title: `Metric ${index}`,
-        value: String(index),
-      })),
-    })).toThrowError('1-12');
-    expect(() => parseKpiSpec({
-      items: [{
-        id: 'metric',
-        title: 'Metric',
-        value: '1',
-        references: Array.from({ length: 4 }, (_, index) => ({
-          ref: `docs://metric/${index}`,
-          label: `Reference ${index}`,
-        })),
-      }],
-    })).toThrowError('1-3');
-  });
-
-  it('accepts every declared string and identifier boundary', () => {
-    const parsed = parseKpiSpec(singleItem({
-      id: `a${'b'.repeat(63)}`,
-      title: '😀'.repeat(120),
-      value: '😀'.repeat(80),
-      prefix: '😀'.repeat(16),
-      suffix: '😀'.repeat(16),
-      status: { text: '😀'.repeat(120) },
-      references: [{ ref: 'r'.repeat(16_384), label: '😀'.repeat(120) }],
-    }));
-    expect(parsed.items[0]?.id).toHaveLength(64);
-    expect(parsed.items[0]?.status?.tone).toBe('neutral');
-  });
-
-  it.each([
-    ['title', singleItem({ title: 'x'.repeat(121) }), 'title'],
-    ['value', singleItem({ value: 'x'.repeat(81) }), 'value'],
-    ['prefix', singleItem({ prefix: 'x'.repeat(17) }), 'prefix'],
-    ['suffix', singleItem({ suffix: 'x'.repeat(17) }), 'suffix'],
-    ['status text', singleItem({ status: { text: 'x'.repeat(121) } }), 'status.text'],
-    ['reference', singleItem({ references: [{ ref: 'r'.repeat(16_385), label: 'Reference' }] }), 'ref'],
-    ['reference label', singleItem({ references: [{ ref: 'docs://metric', label: 'x'.repeat(121) }] }), 'label'],
-  ])('rejects %s beyond its maximum length', (_label, spec, message) => {
-    expect(() => parseKpiSpec(spec)).toThrowError(message);
-  });
-
-  it.each([
-    ['title', singleItem({ title: 'Bad\nTitle' })],
-    ['value', singleItem({ value: 'Bad\tValue' })],
-    ['prefix', singleItem({ prefix: '\u0000' })],
-    ['suffix', singleItem({ suffix: '\u007f' })],
-    ['status text', singleItem({ status: { text: 'Bad\rStatus' } })],
-    ['reference label', singleItem({ references: [{ ref: 'docs://metric', label: 'Bad\nLabel' }] })],
-  ])('rejects display control characters in %s', (_label, spec) => {
-    expect(() => parseKpiSpec(spec)).toThrowError('display string');
-  });
-
-  it.each([
-    ['', 'empty'],
-    ['1metric', 'leading digit'],
-    ['metric.dot', 'unsupported punctuation'],
-    [`a${'b'.repeat(64)}`, 'overlength'],
-  ])('rejects invalid KPI id %s (%s)', (id) => {
-    expect(() => parseKpiSpec(singleItem({ id }))).toThrowError('id must match');
+    ));
+    expect([...container.querySelectorAll('.markdown-chart-kpi-status')].map((node) => node.textContent))
+      .toEqual(['Ready', 'Stable']);
   });
 });
 
-describe('KPI mount and opaque references', () => {
-  it('renders four responsive cards and dispatches only independently approved references', async () => {
-    const canOpen = vi.fn(({ reference }) => reference.ref !== 'docs://metrics/lost-revenue');
+describe('KPI validation and security boundaries', () => {
+  it('rejects the removed literal-value schema and top-level item affixes', () => {
+    expect(() => parseKpiSpec({ items: [{ id: 'old', title: 'Old', value: '40%' }] }))
+      .toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({ items: [{ id: 'old', title: 'Old', value: { field: 'value' }, prefix: '¥' }] }))
+      .toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+  });
+
+  it('requires canonical data', async () => {
+    await renderFailure(JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      spec: { items: [{ id: 'x', title: 'X', value: { field: 'x' } }] },
+    }));
+  });
+
+  it('rejects missing fields, invalid Intl configurations, and nonnumeric trend columns', async () => {
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ present: 1 }] },
+      { items: [{ id: 'x', title: 'X', value: { field: 'missing' } }] },
+    ));
+
+    expect(() => parseKpiSpec({
+      items: [{ id: 'x', title: 'X', value: { field: 'x', format: { style: 'currency', currency: 'rmb' } } }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ t: 1, value: 'bad' }, { t: 2, value: 'worse' }] },
+      { timeField: 't', items: [{ id: 'x', title: 'X', value: { field: 'value' }, trend: { type: 'line' } }] },
+    ));
+  });
+
+  it('fails closed when a host rejects a data ref or no resolver is provided', async () => {
+    const source = envelope(
+      { kind: 'ref', ref: 'private:data' },
+      { items: [{ id: 'x', title: 'X', value: { field: 'x' } }] },
+    );
+    await renderFailure(
+      source,
+      { validateDataRef: () => false, resolveDataRef: async () => ({ source: [] }) },
+      'REF_REJECTED',
+    );
+    await renderFailure(source, {}, 'REF_RESOLVER_MISSING');
+  });
+
+  it('enforces the trend point limit without silently truncating', async () => {
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ t: 1, x: 1 }, { t: 2, x: 2 }, { t: 3, x: 3 }] },
+      { timeField: 't', items: [{ id: 'x', title: 'X', value: { field: 'x' }, trend: { type: 'line' } }] },
+    ), { limits: { maxTrendPoints: 2 } }, 'LIMIT_EXCEEDED');
+  });
+});
+
+describe('KPI opaque references', () => {
+  it('opens only host-approved references and rechecks approval on click', async () => {
+    let allowed = true;
     const open = vi.fn();
-    const registry = new ChartRendererRegistry().register(createKpiRenderer());
-    const controller = new ChartController(registry);
-    const container = document.createElement('div');
-    container.style.minHeight = '360px';
-
-    await controller.render(container, {
-      language: 'markdown-chart',
-      source: envelope(),
-      theme: 'dark',
-      referenceActions: { canOpen, open },
-    });
-
-    const cards = container.querySelectorAll('[data-markdown-chart-kpi-id]');
-    expect(cards).toHaveLength(4);
-    expect(container.style.minHeight).toBe('0');
-    expect(container.querySelector<HTMLElement>('.markdown-chart-kpi-grid')?.style.gridTemplateColumns)
-      .toContain('auto-fit');
-    expect(container.querySelector('[data-markdown-chart-kpi-id="incremental_revenue"]')?.textContent)
-      .toContain('¥1,800万');
-    const buttons = container.querySelectorAll<HTMLButtonElement>('[data-markdown-chart-kpi-reference]');
-    expect(buttons).toHaveLength(2);
-    expect(buttons[0]?.title).toBe('未满足需求口径');
-    expect(buttons[0]?.dataset.markdownChartKpiReference).toBe('1');
-    expect(buttons[1]?.dataset.markdownChartKpiReference).toBe('2');
+    const actions: ChartReferenceActions = {
+      canOpen: ({ reference }) => allowed && reference.ref === 'opaque:revenue',
+      open,
+    };
+    const { container } = await render(envelope(wideData, mixedSpec), {}, actions);
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>('.markdown-chart-kpi-reference')];
+    expect(buttons).toHaveLength(1);
     buttons[0]?.click();
-    buttons[1]?.click();
-    expect(open).toHaveBeenCalledTimes(2);
-    expect(open).toHaveBeenNthCalledWith(1, {
-      rendererId: 'kpi',
-      reference: { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
-    });
-    expect(open).toHaveBeenNthCalledWith(2, {
-      rendererId: 'kpi',
-      reference: { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
-    });
-    expect(canOpen).toHaveBeenCalledTimes(5);
-
-    controller.dispose();
-    expect(container.querySelector('.markdown-chart-kpi-grid')).toBeNull();
-    expect(container.style.minHeight).toBe('360px');
-  });
-
-  it('renders content without controls when a host does not provide actions', async () => {
-    const controller = new ChartController(
-      new ChartRendererRegistry().register(createKpiRenderer()),
-    );
-    const container = document.createElement('div');
-    await controller.render(container, { language: 'markdown-chart', source: envelope() });
-    expect(container.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(4);
-    expect(container.querySelector('[data-markdown-chart-kpi-reference]')).toBeNull();
-    controller.dispose();
-  });
-
-  it('defaults omitted status tone to neutral and allows open-only actions', async () => {
-    const open = vi.fn();
-    const controller = new ChartController(
-      new ChartRendererRegistry().register(createKpiRenderer()),
-    );
-    const container = document.createElement('div');
-    await controller.render(container, {
-      language: 'markdown-chart',
-      source: envelope(singleItem({
-        status: { text: 'Stable' },
-        references: [{ ref: 'docs://metric', label: 'Metric definition' }],
-      })),
-      referenceActions: { open },
-    });
-    expect(container.querySelector<HTMLElement>('.markdown-chart-kpi-status')?.dataset.tone)
-      .toBe('neutral');
-    const button = container.querySelector<HTMLButtonElement>('[data-markdown-chart-kpi-reference]');
-    expect(button).not.toBeNull();
-    button?.click();
     expect(open).toHaveBeenCalledWith({
       rendererId: 'kpi',
-      reference: { ref: 'docs://metric', label: 'Metric definition' },
+      reference: { ref: 'opaque:revenue', label: '营收口径' },
     });
-    controller.dispose();
-  });
-
-  it('fails closed when host predicates or open handlers throw', async () => {
-    const source = envelope({
-      items: [{
-        id: 'metric',
-        title: 'Metric',
-        value: '1',
-        references: [
-          { ref: 'docs://predicate-error', label: 'Predicate error' },
-          { ref: 'docs://open-error', label: 'Open error' },
-        ],
-      }],
-    });
-    const controller = new ChartController(
-      new ChartRendererRegistry().register(createKpiRenderer()),
-    );
-    const container = document.createElement('div');
-    await controller.render(container, {
-      language: 'markdown-chart',
-      source,
-      referenceActions: {
-        canOpen: ({ reference }) => {
-          if (reference.ref.endsWith('predicate-error')) throw new Error('predicate');
-          return true;
-        },
-        open: () => { throw new Error('open'); },
-      },
-    });
-    const button = container.querySelector<HTMLButtonElement>('[data-markdown-chart-kpi-reference]');
-    expect(button).not.toBeNull();
-    expect(() => button?.click()).not.toThrow();
-    controller.dispose();
+    allowed = false;
+    buttons[0]?.click();
+    expect(open).toHaveBeenCalledOnce();
   });
 });
