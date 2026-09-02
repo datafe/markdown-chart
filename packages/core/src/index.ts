@@ -256,7 +256,12 @@ function parseChartDataRows(value: JsonValue | undefined): ChartDataRow[] {
             `markdown-chart.data.source[${rowIndex}].${key} must be a JSON scalar`,
           );
         }
-        result[key] = cell as JsonPrimitive;
+        Object.defineProperty(result, key, {
+          value: cell as JsonPrimitive,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
       }
       return result;
     }
@@ -376,7 +381,12 @@ function validateMaterializedRows(
             `resolvedChartData.source[${rowIndex}].${key} must contain only finite numbers`,
           );
         }
-        result[key] = cell as JsonPrimitive;
+        Object.defineProperty(result, key, {
+          value: cell as JsonPrimitive,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
         cells += 1;
       }
       return result;
@@ -435,6 +445,12 @@ export async function materializeChartData(
       );
     }
     if (options.signal.aborted) return undefined;
+    if (resolved === null || typeof resolved !== 'object') {
+      throw new MarkdownChartError(
+        'REF_RESOLUTION_FAILED',
+        `Chart data reference ${data.ref} resolved to an invalid dataset`,
+      );
+    }
   }
 
   const dimensions = validateMaterializedDimensions(
@@ -481,6 +497,8 @@ export interface ChartReferenceActions {
 export interface ChartMountContext {
   readonly signal: AbortSignal;
   readonly theme: unknown;
+  /** Outer chart host when the renderer mounts into an inner chart-view node. */
+  readonly hostContainer?: HTMLElement;
   /** Non-empty title already rendered by host-provided chart chrome. */
   readonly externalizedTitle?: string;
   readonly referenceActions?: ChartReferenceActions;
@@ -1495,6 +1513,7 @@ export class ChartController {
       const handle = await prepared.renderer.mount(mountContainer, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
+        hostContainer: container,
         ...(request.referenceActions
           ? { referenceActions: request.referenceActions }
           : {}),

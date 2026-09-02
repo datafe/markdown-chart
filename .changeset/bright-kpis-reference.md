@@ -1,5 +1,6 @@
 ---
 '@datafe-open/markdown-chart': patch
+'@datafe-open/markdown-chart-echarts': patch
 '@datafe-open/markdown-chart-kpi': patch
 '@datafe-open/markdown-chart-react': patch
 '@datafe-open/markdown-chart-vue': patch

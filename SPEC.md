@@ -116,24 +116,24 @@ references. `spec.items` contains 1–12 entries:
     "items": [{
       "id": "conversion_rate",
       "title": "Conversion rate",
-        "value": {
-          "field": "conversion",
-          "reduce": "lastNonNull",
-          "format": { "style": "percent", "maximumFractionDigits": 0 }
+      "value": {
+        "field": "conversion",
+        "reduce": "lastNonNull",
+        "format": { "style": "percent", "maximumFractionDigits": 0 }
+      },
+      "status": {
+        "text": { "literal": "Below target" },
+        "tone": { "field": "tone" }
+      },
+      "trend": {
+        "type": "area",
+        "compare": {
+          "lag": 1,
+          "mode": "absolute",
+          "polarity": "higher-is-better"
         },
-        "status": {
-          "text": { "literal": "Below target" },
-          "tone": { "field": "tone" }
-        },
-        "trend": {
-          "type": "area",
-          "compare": {
-            "lag": 1,
-            "mode": "absolute",
-            "polarity": "higher-is-better"
-          },
-          "yScale": { "includeZero": true }
-        },
+        "yScale": { "includeZero": true }
+      },
       "references": [{
         "ref": "docs://metrics/conversion-rate",
         "label": "Metric definition"

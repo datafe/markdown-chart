@@ -184,6 +184,22 @@ describe('KPI data/config contract', () => {
     expect(container.querySelector('.markdown-chart-kpi-compare')).toBeNull();
   });
 
+  it('omits an undefined relative comparison when the lagged value is zero', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ t: 1, value: 0 }, { t: 2, value: 5 }] },
+      {
+        timeField: 't',
+        items: [{
+          id: 'value', title: 'Value', value: { field: 'value' },
+          trend: { type: 'line', compare: { lag: 1, mode: 'relative' } },
+        }],
+      },
+    ));
+    expect(container.querySelector('.markdown-chart-kpi-sparkline')).not.toBeNull();
+    expect(container.querySelector('.markdown-chart-kpi-compare')).toBeNull();
+    expect(container.textContent).not.toContain('∞');
+  });
+
   it('supports literal and field status bindings', async () => {
     const { container } = await render(envelope(
       { kind: 'inline', source: [{ value: 3, dynamicText: 'Ready', dynamicTone: 'positive' }] },
@@ -271,6 +287,36 @@ describe('KPI validation and security boundaries', () => {
       { kind: 'inline', source: [{ t: 1, x: 1 }, { t: 2, x: 2 }, { t: 3, x: 3 }] },
       { timeField: 't', items: [{ id: 'x', title: 'X', value: { field: 'x' }, trend: { type: 'line' } }] },
     ), { limits: { maxTrendPoints: 2 } }, 'LIMIT_EXCEEDED');
+  });
+
+  it('enforces item, id, reference, and comparison boundaries', () => {
+    const item = (id: string) => ({ id, title: id, value: { field: 'value' } });
+    expect(() => parseKpiSpec({
+      items: Array.from({ length: 13 }, (_, index) => item(`item_${index}`)),
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({ items: [item('duplicate'), item('duplicate')] }))
+      .toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({
+      items: [{
+        ...item('references'),
+        references: Array.from({ length: 4 }, (_, index) => ({ ref: `opaque:${index}`, label: `Ref ${index}` })),
+      }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({
+      items: [{
+        ...item('duplicate_refs'),
+        references: [
+          { ref: 'opaque:same', label: 'One' },
+          { ref: 'opaque:same', label: 'Two' },
+        ],
+      }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({
+      items: [{
+        ...item('lag'),
+        trend: { type: 'line', compare: { lag: 10_001, mode: 'absolute' } },
+      }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
   });
 });
 

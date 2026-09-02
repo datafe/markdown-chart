@@ -201,6 +201,8 @@ describe('MarkdownChart streaming lifecycle', () => {
     });
     const original = container.querySelector('.markdown-chart-placeholder');
     const originalCard = container.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]');
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
+    expect((original as HTMLElement | null)?.dataset.markdownChartIntrinsicHeight).toBe('true');
     const buttons = container.querySelectorAll<HTMLButtonElement>(
       '[data-markdown-chart-kpi-reference]',
     );
@@ -225,6 +227,7 @@ describe('MarkdownChart streaming lifecycle', () => {
     });
     expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
     expect(container.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
     expect(container.textContent).toContain('The analysis continues.');
 
     await act(async () => root.unmount());

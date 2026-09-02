@@ -191,6 +191,8 @@ describe('MarkdownChart reactive object props', () => {
     });
     const original = root.querySelector('.markdown-chart-placeholder');
     const originalCard = root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]');
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
+    expect((original as HTMLElement | null)?.dataset.markdownChartIntrinsicHeight).toBe('true');
     const buttons = root.querySelectorAll<HTMLButtonElement>(
       '[data-markdown-chart-kpi-reference]',
     );
@@ -209,6 +211,7 @@ describe('MarkdownChart reactive object props', () => {
     await vi.waitFor(() => expect(root.textContent).toContain('The analysis continues.'));
     expect(root.querySelector('.markdown-chart-placeholder')).toBe(original);
     expect(root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
 
     app.unmount();
   });

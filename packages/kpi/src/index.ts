@@ -849,10 +849,15 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
     },
     mount(container, parsed, context) {
       if (!parsed.items) return schemaError('KPI data must be materialized before mounting');
+      const hostContainer = context.hostContainer ?? container;
       const previousMinHeight = container.style.minHeight;
       const previousOverflow = container.style.overflow;
+      const previousHostMinHeight = hostContainer.style.minHeight;
+      const previousIntrinsicHeight = hostContainer.dataset.markdownChartIntrinsicHeight;
       container.style.minHeight = '0';
       container.style.overflow = 'hidden';
+      hostContainer.style.minHeight = '0';
+      hostContainer.dataset.markdownChartIntrinsicHeight = 'true';
       const grid = document.createElement('div');
       grid.className = 'markdown-chart-kpi-grid';
       grid.dataset.markdownChartKpi = 'true';
@@ -879,6 +884,12 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
           if (grid.parentNode === container) container.replaceChildren();
           container.style.minHeight = previousMinHeight;
           container.style.overflow = previousOverflow;
+          hostContainer.style.minHeight = previousHostMinHeight;
+          if (previousIntrinsicHeight === undefined) {
+            delete hostContainer.dataset.markdownChartIntrinsicHeight;
+          } else {
+            hostContainer.dataset.markdownChartIntrinsicHeight = previousIntrinsicHeight;
+          }
         },
       };
       return handle;

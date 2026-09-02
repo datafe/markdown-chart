@@ -71,6 +71,18 @@ describe('materializeChartData', () => {
     })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
+  it('preserves object-row keys that overlap Object.prototype', async () => {
+    const source = JSON.parse('[{"__proto__":7,"constructor":8,"value":9}]') as Array<Record<string, number>>;
+    const result = await materializeChartData({ kind: 'inline', source }, {
+      signal: new AbortController().signal,
+    });
+    const row = result?.source[0] as Record<string, number>;
+    expect(Object.prototype.hasOwnProperty.call(row, '__proto__')).toBe(true);
+    expect(row.__proto__).toBe(7);
+    expect(row.constructor).toBe(8);
+    expect(row.value).toBe(9);
+  });
+
   it('maps resolver failures and quietly abandons aborted work', async () => {
     await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
       signal: new AbortController().signal,
@@ -86,6 +98,20 @@ describe('materializeChartData', () => {
       },
     });
     await expect(pending).resolves.toBeUndefined();
+
+    const successfulAbort = new AbortController();
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: successfulAbort.signal,
+      resolveDataRef: async () => {
+        successfulAbort.abort();
+        return { source: [['stale', 1]] };
+      },
+    })).resolves.toBeUndefined();
+
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:missing' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => undefined as never,
+    })).rejects.toMatchObject({ code: 'REF_RESOLUTION_FAILED' });
   });
 });
 

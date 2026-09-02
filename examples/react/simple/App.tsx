@@ -135,7 +135,10 @@ export function App() {
   }, []);
   const validateDataRef = useCallback((ref: string) => ref === 'demo://经营风险日报', []);
   const kpi = useMemo(() => ({ resolveDataRef, validateDataRef }), [resolveDataRef, validateDataRef]);
-  const canOpenReference = useCallback((event: ChartReferenceEvent) => event.reference.ref in wikiContent, []);
+  const canOpenReference = useCallback(
+    (event: ChartReferenceEvent) => Object.prototype.hasOwnProperty.call(wikiContent, event.reference.ref),
+    [],
+  );
   const referenceActions = useMemo(
     () => ({ canOpen: canOpenReference, open: openReference }),
     [canOpenReference, openReference],

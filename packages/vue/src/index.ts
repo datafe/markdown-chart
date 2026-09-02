@@ -78,6 +78,10 @@ function blockIsComplete(
 }
 
 function applyMinHeight(element: HTMLElement, minHeight: string | number | undefined): void {
+  if (element.dataset.markdownChartIntrinsicHeight === 'true') {
+    element.style.minHeight = '0';
+    return;
+  }
   const value = typeof minHeight === 'number' ? `${minHeight}px` : minHeight;
   if (value) {
     element.style.minHeight = value;
