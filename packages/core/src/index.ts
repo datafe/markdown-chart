@@ -278,11 +278,36 @@ export interface ChartParseContext {
   readonly data: ChartData | undefined;
 }
 
+/** An opaque renderer-owned reference that a host may choose to open. */
+export interface ChartReference {
+  readonly ref: string;
+  readonly label: string;
+}
+
+/** Host interaction payload. The core never interprets `reference.ref`. */
+export interface ChartReferenceEvent {
+  readonly rendererId: string;
+  readonly reference: ChartReference;
+}
+
+/**
+ * Optional host boundary for renderer-owned reference controls.
+ *
+ * Renderers must treat `canOpen` as advisory and invoke it again immediately
+ * before `open`. Hosts remain responsible for validating and authorizing the
+ * opaque reference.
+ */
+export interface ChartReferenceActions {
+  readonly canOpen?: (event: ChartReferenceEvent) => boolean;
+  readonly open: (event: ChartReferenceEvent) => void | Promise<void>;
+}
+
 export interface ChartMountContext {
   readonly signal: AbortSignal;
   readonly theme: unknown;
   /** Non-empty title already rendered by host-provided chart chrome. */
   readonly externalizedTitle?: string;
+  readonly referenceActions?: ChartReferenceActions;
 }
 
 export interface ChartMaterializeContext extends ChartMountContext {
@@ -507,6 +532,7 @@ export interface ChartRenderRequest {
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
   readonly labels?: MarkdownChartLabelOverrides;
+  readonly referenceActions?: ChartReferenceActions;
 }
 
 export const DEFAULT_MARKDOWN_CHART_LOADING_LABEL = 'Rendering chart…';
@@ -1261,6 +1287,9 @@ export class ChartController {
         ? await prepared.renderer.materialize(prepared.parsed, {
             signal: abortController.signal,
             theme: request.theme,
+            ...(request.referenceActions
+              ? { referenceActions: request.referenceActions }
+              : {}),
             language: prepared.language,
             rawLanguage: prepared.rawLanguage,
             rendererId: prepared.rendererId,
@@ -1290,6 +1319,9 @@ export class ChartController {
       const handle = await prepared.renderer.mount(mountContainer, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
+        ...(request.referenceActions
+          ? { referenceActions: request.referenceActions }
+          : {}),
         ...(view && chartTitle ? { externalizedTitle: chartTitle } : {}),
       });
       if (generation !== this.#generation || abortController.signal.aborted) {

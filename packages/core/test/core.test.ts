@@ -184,6 +184,43 @@ describe('ChartController', () => {
     expect(secondDispose).toHaveBeenCalledOnce();
   });
 
+  it('passes opaque reference actions through materialize and mount', async () => {
+    const referenceActions = {
+      canOpen: vi.fn(() => true),
+      open: vi.fn(),
+    };
+    const materialize = vi.fn((parsed, context) => ({
+      parsed,
+      data: context.data,
+    }));
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      materialize,
+      mount,
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({ version: 1, renderer: 'test', spec: {} }),
+      referenceActions,
+    });
+
+    expect(materialize).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ referenceActions, rendererId: 'test' }),
+    );
+    expect(mount).toHaveBeenCalledWith(
+      element,
+      {},
+      expect.objectContaining({ referenceActions }),
+    );
+    controller.dispose();
+  });
+
   it('does not parse incomplete streaming input', async () => {
     const parse = vi.fn();
     const registry = new ChartRendererRegistry().register({
