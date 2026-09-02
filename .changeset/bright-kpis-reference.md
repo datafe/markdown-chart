@@ -8,4 +8,5 @@
 
 Add a strict multi-KPI renderer backed by canonical inline/ref data, optional
 sparklines and comparisons, safe structured formatting, generic host-owned
-reference actions, and zero-config KPI registration in the React/Vue adapters.
+reference actions with an optional host icon factory, and zero-config KPI
+registration in the React/Vue adapters.

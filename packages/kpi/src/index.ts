@@ -93,10 +93,25 @@ export interface KpiLimits extends ChartDataMaterializationLimits {
   readonly maxTrendPoints: number;
 }
 
+export interface KpiReferenceIconContext {
+  readonly event: ChartReferenceEvent;
+  readonly document: Document;
+}
+
+/**
+ * Trusted host presentation hook. Return a newly created decorative element
+ * for one reference control; returning nothing or throwing uses the default
+ * link glyph.
+ */
+export type KpiReferenceIconFactory = (
+  context: KpiReferenceIconContext,
+) => HTMLElement | SVGElement | null | undefined;
+
 export interface CreateKpiRendererOptions {
   readonly resolveDataRef?: ResolveChartDataRef;
   readonly validateDataRef?: (ref: string) => boolean;
   readonly limits?: Partial<KpiLimits>;
+  readonly referenceIcon?: KpiReferenceIconFactory;
 }
 
 interface MaterializedTrend {
@@ -608,9 +623,9 @@ function variable(name: string, fallback: string): string {
   return `var(${name}, ${fallback})`;
 }
 
-function createReferenceIcon(): SVGSVGElement {
+function createReferenceIcon(ownerDocument: Document): SVGSVGElement {
   const namespace = 'http://www.w3.org/2000/svg';
-  const icon = document.createElementNS(namespace, 'svg');
+  const icon = ownerDocument.createElementNS(namespace, 'svg');
   icon.setAttribute('viewBox', '0 0 24 24');
   icon.setAttribute('width', '13');
   icon.setAttribute('height', '13');
@@ -620,12 +635,23 @@ function createReferenceIcon(): SVGSVGElement {
   icon.setAttribute('stroke-linecap', 'round');
   icon.setAttribute('stroke-linejoin', 'round');
   icon.setAttribute('aria-hidden', 'true');
-  const first = document.createElementNS(namespace, 'path');
+  const first = ownerDocument.createElementNS(namespace, 'path');
   first.setAttribute('d', 'M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15');
-  const second = document.createElementNS(namespace, 'path');
+  const second = ownerDocument.createElementNS(namespace, 'path');
   second.setAttribute('d', 'M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 0 0 7.07 7.07l1.15-1.15');
   icon.append(first, second);
   return icon;
+}
+
+function isReferenceIcon(
+  value: unknown,
+  ownerDocument: Document,
+): value is HTMLElement | SVGElement {
+  const view = ownerDocument.defaultView;
+  return Boolean(
+    view
+    && (value instanceof view.HTMLElement || value instanceof view.SVGElement),
+  );
 }
 
 function createReferenceEvent(reference: KpiReference): ChartReferenceEvent {
@@ -652,6 +678,7 @@ interface ReferenceControl {
 function createReferenceControls(
   references: readonly KpiReference[] | undefined,
   context: ChartMountContext,
+  referenceIcon: KpiReferenceIconFactory | undefined,
 ): { readonly element: HTMLElement; readonly controls: readonly ReferenceControl[] } | undefined {
   const actions = context.referenceActions;
   if (!actions) return undefined;
@@ -676,7 +703,32 @@ function createReferenceControls(
       borderRadius: '6px', background: 'transparent', color: 'inherit', cursor: 'pointer',
       font: 'inherit', fontSize: '11px', lineHeight: '1',
     });
-    button.append(createReferenceIcon(), document.createTextNode(String(index + 1)));
+    let icon: HTMLElement | SVGElement | null | undefined;
+    if (referenceIcon) {
+      try {
+        icon = referenceIcon({ event, document: button.ownerDocument });
+      } catch {
+        // A host presentation error must not remove the reference affordance.
+      }
+    }
+    const ownerDocument = button.ownerDocument;
+    const iconSlot = ownerDocument.createElement('span');
+    iconSlot.className = 'markdown-chart-kpi-reference-icon';
+    iconSlot.setAttribute('aria-hidden', 'true');
+    setStyles(iconSlot, {
+      display: 'inline-flex', width: '13px', height: '13px', flex: '0 0 13px',
+      alignItems: 'center', justifyContent: 'center', lineHeight: '1',
+    });
+    const resolvedIcon = isReferenceIcon(icon, ownerDocument)
+      ? icon
+      : createReferenceIcon(ownerDocument);
+    resolvedIcon.setAttribute('aria-hidden', 'true');
+    resolvedIcon.setAttribute('focusable', 'false');
+    setStyles(resolvedIcon, {
+      width: '100%', height: '100%', pointerEvents: 'none',
+    });
+    iconSlot.append(resolvedIcon);
+    button.append(iconSlot, ownerDocument.createTextNode(String(index + 1)));
     const onClick = (): void => {
       if (!canOpenReference(actions, event)) return;
       try {
@@ -759,6 +811,7 @@ function createSparkline(trend: MaterializedTrend): SVGSVGElement {
 function createCard(
   item: MaterializedKpiItem,
   context: ChartMountContext,
+  referenceIcon: KpiReferenceIconFactory | undefined,
 ): { readonly element: HTMLElement; readonly controls: readonly ReferenceControl[] } {
   const card = document.createElement('section');
   card.className = 'markdown-chart-kpi-item';
@@ -780,7 +833,7 @@ function createCard(
     fontSize: '13px', fontWeight: '550', lineHeight: '1.45',
   });
   heading.append(title);
-  const referenceControls = createReferenceControls(item.references, context);
+  const referenceControls = createReferenceControls(item.references, context, referenceIcon);
   if (referenceControls) heading.append(referenceControls.element);
 
   const value = document.createElement('div');
@@ -870,7 +923,7 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       });
       const controls: ReferenceControl[] = [];
       parsed.items.forEach((item) => {
-        const card = createCard(item, context);
+        const card = createCard(item, context, options.referenceIcon);
         controls.push(...card.controls);
         grid.append(card.element);
       });

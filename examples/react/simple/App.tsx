@@ -6,6 +6,31 @@ import type {
 } from '@datafe-open/markdown-chart';
 import { MarkdownChart } from '@datafe-open/markdown-chart-react';
 
+function createKnowledgeBaseIcon({ document: ownerDocument }: { document: Document }): SVGSVGElement {
+  const namespace = 'http://www.w3.org/2000/svg';
+  const icon = ownerDocument.createElementNS(namespace, 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('width', '13');
+  icon.setAttribute('height', '13');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke', 'currentColor');
+  icon.setAttribute('stroke-width', '1.75');
+  icon.setAttribute('stroke-linecap', 'round');
+  icon.setAttribute('stroke-linejoin', 'round');
+  const book = ownerDocument.createElementNS(namespace, 'rect');
+  book.setAttribute('width', '8');
+  book.setAttribute('height', '18');
+  book.setAttribute('x', '3');
+  book.setAttribute('y', '3');
+  book.setAttribute('rx', '1');
+  const spine = ownerDocument.createElementNS(namespace, 'path');
+  spine.setAttribute('d', 'M7 3v18');
+  const leaningBook = ownerDocument.createElementNS(namespace, 'path');
+  leaningBook.setAttribute('d', 'M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z');
+  icon.append(book, spine, leaningBook);
+  return icon;
+}
+
 const dimensions = [
   'day',
   'unmetDemand',
@@ -134,7 +159,10 @@ export function App() {
     return { dimensions, source: rows };
   }, []);
   const validateDataRef = useCallback((ref: string) => ref === 'demo://经营风险日报', []);
-  const kpi = useMemo(() => ({ resolveDataRef, validateDataRef }), [resolveDataRef, validateDataRef]);
+  const kpi = useMemo(
+    () => ({ resolveDataRef, validateDataRef, referenceIcon: createKnowledgeBaseIcon }),
+    [resolveDataRef, validateDataRef],
+  );
   const canOpenReference = useCallback(
     (event: ChartReferenceEvent) => Object.prototype.hasOwnProperty.call(wikiContent, event.reference.ref),
     [],

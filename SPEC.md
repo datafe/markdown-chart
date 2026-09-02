@@ -176,6 +176,12 @@ navigate, fetch reference content, infer authorization, or expose raw refs as
 user-facing labels. The host owns scheme validation, authorization, and the
 resulting UI.
 
+A renderer MAY also offer a renderer-specific, trusted host presentation hook
+for the decorative reference glyph. Such a hook MUST NOT change the opaque
+reference payload, authorization checks, accessible label, or activation
+behavior. The KPI renderer's `referenceIcon` factory falls back to its default
+link glyph when no valid host icon is supplied.
+
 ## Streaming
 
 Hosts pass the outer document streaming state to a Markdown adapter. The adapter

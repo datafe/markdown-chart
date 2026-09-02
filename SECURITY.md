@@ -48,6 +48,9 @@ untrusted model.
 - Treat `ChartReferenceActions` as a privileged UI boundary. `canOpen` and
   `open` must validate the reference scheme and current principal authorization
   before opening host content. Do not place secrets in `ref` or `label`.
+- Treat renderer icon factories as trusted host code. Return newly created,
+  decorative DOM only; do not attach navigation, authorization, or data access
+  to the icon. Reference activation remains owned by `ChartReferenceActions`.
 - Prefer the shared `createLegacySandboxClient` for new legacy integrations.
   Its host-owned `LegacySandboxTransport` is a privileged authenticated data
   boundary: preserve `AbortSignal`, authorize every list/read operation, bound

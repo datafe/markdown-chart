@@ -81,6 +81,7 @@ directly or through the React/Vue adapter's `kpi` option:
 const renderer = createKpiRenderer({
   validateDataRef: (ref) => ref.startsWith('dataset://'),
   resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
+  referenceIcon: ({ document }) => createHostReferenceIcon(document),
 });
 ```
 
@@ -99,6 +100,12 @@ const referenceActions = {
   },
 };
 ```
+
+`referenceIcon` is a trusted host-only presentation hook. It receives the
+opaque reference event plus the control's owner `document` and returns a newly
+created decorative HTML/SVG element. If the hook is absent, returns nothing, or
+throws, the renderer uses its default link glyph. The renderer does not assign
+domain meaning to either icon.
 
 Hosts can align the renderer with their theme through the
 `--markdown-chart-kpi-*` CSS custom properties. Unset properties have light and

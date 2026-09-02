@@ -184,6 +184,12 @@ describe('MarkdownChart streaming lifecycle', () => {
   it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
     const open = vi.fn();
     const canOpen = vi.fn(() => true);
+    const referenceIcon = vi.fn(({ document: ownerDocument }: { document: Document }) => {
+      const icon = ownerDocument.createElement('span');
+      icon.dataset.hostKnowledgeBaseIcon = 'true';
+      return icon;
+    });
+    const kpi = { referenceIcon };
     const container = document.createElement('div');
     const root = createRoot(container);
 
@@ -192,6 +198,7 @@ describe('MarkdownChart streaming lifecycle', () => {
         <MarkdownChart
           source={closedKpi()}
           streaming
+          kpi={kpi}
           referenceActions={{ canOpen, open }}
         />,
       );
@@ -207,6 +214,7 @@ describe('MarkdownChart streaming lifecycle', () => {
       '[data-markdown-chart-kpi-reference]',
     );
     expect(buttons).toHaveLength(2);
+    expect(container.querySelectorAll('[data-host-knowledge-base-icon="true"]')).toHaveLength(2);
     buttons[1]?.click();
     expect(open).toHaveBeenCalledWith({
       rendererId: 'kpi',
@@ -221,12 +229,14 @@ describe('MarkdownChart streaming lifecycle', () => {
         <MarkdownChart
           source={closedKpi('\n\nThe analysis continues.')}
           streaming
+          kpi={kpi}
           referenceActions={{ canOpen, open }}
         />,
       );
     });
     expect(container.querySelector('.markdown-chart-placeholder')).toBe(original);
     expect(container.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
+    expect(container.querySelectorAll('[data-host-knowledge-base-icon="true"]')).toHaveLength(2);
     expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
     expect(container.textContent).toContain('The analysis continues.');
 

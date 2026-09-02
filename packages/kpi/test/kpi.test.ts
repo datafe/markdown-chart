@@ -5,7 +5,11 @@ import {
   ChartRendererRegistry,
   type ChartReferenceActions,
 } from '@datafe-open/markdown-chart';
-import { createKpiRenderer, parseKpiSpec } from '../src/index';
+import {
+  createKpiRenderer,
+  parseKpiSpec,
+  type KpiReferenceIconContext,
+} from '../src/index';
 
 function envelope(data: unknown, spec: unknown): string {
   return JSON.stringify({ version: 1, renderer: 'kpi', data, spec });
@@ -339,5 +343,45 @@ describe('KPI opaque references', () => {
     allowed = false;
     buttons[0]?.click();
     expect(open).toHaveBeenCalledOnce();
+  });
+
+  it('lets the trusted host replace the decorative reference icon', async () => {
+    const referenceIcon = vi.fn(({ event, document: ownerDocument }: KpiReferenceIconContext) => {
+      const icon = ownerDocument.createElement('span');
+      icon.dataset.hostKnowledgeBaseIcon = event.reference.ref;
+      return icon;
+    });
+    const { container } = await render(
+      envelope(wideData, mixedSpec),
+      { referenceIcon },
+      { open: vi.fn() },
+    );
+
+    expect(referenceIcon).toHaveBeenCalledWith(expect.objectContaining({
+      event: {
+        rendererId: 'kpi',
+        reference: { ref: 'opaque:revenue', label: '营收口径' },
+      },
+      document,
+    }));
+    expect(container.querySelector('[data-host-knowledge-base-icon="opaque:revenue"]')).not.toBeNull();
+    expect(container.querySelector('.markdown-chart-kpi-reference-icon > svg')).toBeNull();
+    const icon = container.querySelector('[data-host-knowledge-base-icon="opaque:revenue"]');
+    expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    expect(icon?.getAttribute('focusable')).toBe('false');
+    expect((icon as HTMLElement | null)?.style.pointerEvents).toBe('none');
+  });
+
+  it.each([
+    ['throws', () => { throw new Error('host icon failed'); }],
+    ['returns a non-element', () => 'invalid' as unknown as SVGElement],
+  ])('keeps the default link icon when the host icon factory %s', async (_case, referenceIcon) => {
+    const { container } = await render(
+      envelope(wideData, mixedSpec),
+      { referenceIcon },
+      { open: vi.fn() },
+    );
+
+    expect(container.querySelector('.markdown-chart-kpi-reference-icon > svg')).not.toBeNull();
   });
 });

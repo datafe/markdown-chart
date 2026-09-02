@@ -134,11 +134,17 @@ is materialized once for the value, sparkline, comparison, and Data view:
 
 Each item accepts up to three references. The renderer treats every reference
 as opaque and never fetches or navigates. A host selects allowed references and
-handles clicks through the generic action API:
+handles clicks through the generic action API. The optional KPI
+`referenceIcon` factory lets a trusted host supply its own decorative glyph;
+the renderer falls back to the link icon and never interprets what the custom
+icon represents:
 
 ```tsx
 <MarkdownChart
   source={source}
+  kpi={{
+    referenceIcon: ({ document }) => createHostReferenceIcon(document),
+  }}
   referenceActions={{
     canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
     open: ({ reference }) => openDocumentation(reference.ref),
