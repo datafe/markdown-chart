@@ -215,7 +215,7 @@ try {
     'const abortableResult: Promise<string> = waitForLegacySandboxAbortable(abortable, new AbortController().signal);',
     "const code: LegacySandboxErrorCode = new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'typed smoke').code;",
     'const options: MarkdownChartPluginOptions = {};',
-    "const kpiSpec: KpiSpec = { items: [{ id: 'metric', title: 'Metric', value: '1' }] };",
+    "const kpiSpec: KpiSpec = { items: [{ id: 'metric', title: 'Metric', value: { field: 'metric', reduce: 'lastNonNull' } }] };",
     "const referenceActions: ChartReferenceActions = { open: ({ reference }) => void reference.ref };",
     'const kpiRenderer = createKpiRenderer();',
     'void binding;',
