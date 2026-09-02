@@ -197,6 +197,28 @@ describe('KPI data/config contract', () => {
     expect([...container.querySelectorAll('.markdown-chart-kpi-status')].map((node) => node.textContent))
       .toEqual(['Ready', 'Stable']);
   });
+
+  it('supports safe Intl unit formatting and explicit null display', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ distance: 5, missing: null }] },
+      {
+        items: [
+          {
+            id: 'distance',
+            title: 'Distance',
+            value: { field: 'distance', format: { style: 'unit', unit: 'meter', maximumFractionDigits: 0 } },
+          },
+          {
+            id: 'missing',
+            title: 'Missing',
+            value: { field: 'missing', format: { style: 'decimal', nullDisplay: '暂无数据' } },
+          },
+        ],
+      },
+    ));
+    expect([...container.querySelectorAll('[data-markdown-chart-kpi-value]')].map((node) => node.textContent))
+      .toEqual(['5 m', '暂无数据']);
+  });
 });
 
 describe('KPI validation and security boundaries', () => {
