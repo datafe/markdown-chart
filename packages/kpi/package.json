@@ -1,0 +1,43 @@
+{
+  "name": "@datafe-open/markdown-chart-kpi",
+  "version": "0.1.14",
+  "description": "Strict framework-neutral KPI card renderer for Markdown Chart",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/datafe/markdown-chart.git",
+    "directory": "packages/kpi"
+  },
+  "homepage": "https://github.com/datafe/markdown-chart#readme",
+  "bugs": {
+    "url": "https://github.com/datafe/markdown-chart/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external @datafe-open/markdown-chart",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@datafe-open/markdown-chart": "workspace:*"
+  }
+}

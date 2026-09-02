@@ -258,6 +258,12 @@ importers:
         specifier: ^6.0.0
         version: 6.1.0
 
+  packages/kpi:
+    dependencies:
+      '@datafe-open/markdown-chart':
+        specifier: workspace:*
+        version: link:../core
+
   packages/markdown-it:
     dependencies:
       '@datafe-open/markdown-chart':

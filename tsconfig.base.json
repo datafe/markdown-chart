@@ -7,6 +7,7 @@
     "paths": {
       "@datafe-open/markdown-chart": ["packages/core/src/index.ts"],
       "@datafe-open/markdown-chart-echarts": ["packages/echarts/src/index.ts"],
+      "@datafe-open/markdown-chart-kpi": ["packages/kpi/src/index.ts"],
       "@datafe-open/markdown-chart-markdown-it": ["packages/markdown-it/src/index.ts"],
       "@datafe-open/markdown-chart-vue": ["packages/vue/src/index.ts"],
       "@datafe-open/markdown-chart-react": ["packages/react/src/index.tsx"]
