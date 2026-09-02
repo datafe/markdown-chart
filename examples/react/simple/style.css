@@ -35,12 +35,50 @@ button {
   box-shadow: 0 12px 38px rgb(31 41 55 / 8%);
 }
 
-.message-role {
+.message-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
   margin-bottom: 20px;
+}
+
+.message-role {
   color: #6b7280;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: .02em;
+}
+
+.mode-note {
+  margin-top: 5px;
+  color: #9aa1ae;
+  font-size: 12px;
+}
+
+.data-mode {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #e0e4ec;
+  border-radius: 8px;
+  background: #f7f8fb;
+}
+
+.data-mode button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.data-mode button[aria-pressed="true"] {
+  background: #fff;
+  color: #2f3fce;
+  box-shadow: 0 1px 4px rgb(31 41 55 / 12%);
 }
 
 .conversation-card h2 {
@@ -79,7 +117,7 @@ button {
   position: sticky;
   top: 24px;
   width: 320px;
-  min-height: 260px;
+  min-height: 360px;
   padding: 20px;
   border: 1px solid #dce2ee;
   border-radius: 12px;
@@ -104,11 +142,23 @@ button {
 }
 
 .reference-panel h2 {
-  margin: 32px 0 10px;
+  margin: 12px 0 6px;
   font-size: 18px;
 }
 
+.wiki-breadcrumb {
+  margin-top: 28px;
+  color: #7a8190;
+  font-size: 12px;
+}
+
+.wiki-version {
+  color: #9299a7;
+  font-size: 12px;
+}
+
 .reference-panel p {
+  margin: 22px 0;
   color: #667085;
   font-size: 14px;
   line-height: 1.55;

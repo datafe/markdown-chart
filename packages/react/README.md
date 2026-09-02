@@ -4,8 +4,8 @@ Zero-config `<MarkdownChart source={markdown} />`, provider, chart block, and
 `createMarkdownChartComponents()` adapter for react-markdown. The zero-config
 component registers ECharts and KPI automatically and gives chart blocks a
 360px minimum height; KPI cards override it with their compact content height.
-Canonical inline datasets and ECharts-resolved referenced
-datasets automatically include a Chart/Data icon switch.
+Canonical inline datasets and renderer-resolved referenced datasets
+automatically include a Chart/Data icon switch.
 
 Install the zero-config component with:
 
@@ -35,6 +35,17 @@ accessibility labels, empty/truncated data messages, and the
 Pass `referenceActions` to `MarkdownChart` or `MarkdownChartProvider` to expose
 renderer reference controls. The host selects supported refs with `canOpen` and
 handles clicks with `open`; the packages do not interpret or navigate refs.
+KPI referenced data uses the independent `kpi` renderer option:
+
+```tsx
+<MarkdownChart
+  source={source}
+  kpi={{ validateDataRef, resolveDataRef }}
+/>
+```
+
+Keep the `kpi` options and resolver callbacks stable across streaming renders
+so the automatic registry and completed chart mounts can be reused.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, bind `{ sessionId, requestId, phase,

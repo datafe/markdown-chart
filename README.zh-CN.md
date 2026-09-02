@@ -48,33 +48,71 @@
 
 ## KPI 渲染器
 
-KPI 卡片使用同一套 canonical fence，但刻意不包含 `data`。展示值采用字符串，精确格式由产出方控制：
+KPI 卡片与 ECharts 使用相同的 canonical `data` / `spec` 分离模型。宽表每行表示一个时间点，`spec` 只绑定字段和安全格式：
 
 ````markdown
 ```markdown-chart
 {
   "version": 1,
   "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "day": "2026-08-31", "unmet": 0.38, "revenue": 16800000 },
+      { "day": "2026-09-01", "unmet": 0.4, "revenue": 18000000 }
+    ]
+  },
   "spec": {
+    "timeField": "day",
     "items": [
       {
         "id": "unmet_demand",
         "title": "未满足需求",
-        "value": "40",
-        "suffix": "%",
-        "status": { "text": "流失中", "tone": "negative" },
+        "value": {
+          "field": "unmet",
+          "format": { "style": "percent", "maximumFractionDigits": 0 }
+        },
+        "status": {
+          "text": { "literal": "流失中" },
+          "tone": { "literal": "negative" }
+        },
+        "trend": {
+          "type": "area",
+          "compare": { "lag": 1, "mode": "absolute", "polarity": "lower-is-better" }
+        },
         "references": [
           { "ref": "docs://metrics/unmet-demand", "label": "指标口径" }
         ]
       },
-      { "id": "lost_revenue", "title": "累计流失营收", "value": "720", "suffix": "万" }
+      {
+        "id": "revenue",
+        "title": "预估增量营收",
+        "value": {
+          "field": "revenue",
+          "format": { "style": "currency", "currency": "CNY", "notation": "compact" }
+        }
+      }
     ]
   }
 }
 ```
 ````
 
-渲染器支持 1–12 个指标，每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击：
+渲染器支持 1–12 个指标、`lastNonNull` 归约、安全的结构化 `Intl.NumberFormat` 配置、字段/常量状态绑定，以及可选的 line/area sparkline 和确定性的 lag 对比。有效趋势点不足两个时降级为普通 KPI，同组可自由混排带趋势和无趋势指标。
+
+inline/ref 两种 `ChartData` 都可使用。ref 数据由宿主通过独立的 `kpi` 选项注入 resolver；一次物化结果同时服务主值、趋势、compare 和 Data 视图：
+
+```tsx
+<MarkdownChart
+  source={source}
+  kpi={{
+    validateDataRef: (ref) => ref.startsWith('dataset://'),
+    resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
+  }}
+/>
+```
+
+每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击：
 
 ```tsx
 <MarkdownChart

@@ -71,6 +71,13 @@ after a renderer materializes the reference as inline rows:
 Rows MUST be arrays of JSON scalar values or objects whose values are JSON
 scalars. `dimensions`, when present, MUST contain non-empty strings.
 
+Core exports renderer-neutral `ResolvedChartData`, `ResolveChartDataRef`, and
+`materializeChartData`. The helper validates resolver output and explicit row
+and cell limits, maps resolver failures to stable chart errors, and returns
+inline rows. It never interprets a ref, selects a transport, or performs a
+request. Renderer packages may retain renderer-specific aliases for backwards
+compatibility while sharing this boundary.
+
 ## ECharts specification
 
 For the canonical fence, `spec` is the ECharts option object directly:
@@ -88,31 +95,76 @@ be set. The renderer inserts the resolved dataset before calling ECharts.
 
 ## KPI specification
 
-The independent KPI renderer uses `renderer: "kpi"`. Canonical `data` MUST be
-absent. Its `spec` contains an `items` array with 1–12 entries. Each item has a
-unique ASCII `id`, non-empty `title` and `value` display strings, and MAY have
-`prefix`, `suffix`, `status`, and `references`:
+The independent KPI renderer uses `renderer: "kpi"` and requires canonical
+`data`. Data and configuration are separate: wide rows contain values, while
+`spec` contains only field bindings, safe formatting, trends, status, and
+references. `spec.items` contains 1–12 entries:
 
 ```json
 {
-  "items": [{
-    "id": "conversion_rate",
-    "title": "Conversion rate",
-    "value": "40",
-    "suffix": "%",
-    "status": { "text": "Below target", "tone": "warning" },
-    "references": [{
-      "ref": "docs://metrics/conversion-rate",
-      "label": "Metric definition"
+  "version": 1,
+  "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "day": "2026-08-31", "conversion": 0.38, "tone": "warning" },
+      { "day": "2026-09-01", "conversion": 0.4, "tone": "negative" }
+    ]
+  },
+  "spec": {
+    "timeField": "day",
+    "items": [{
+      "id": "conversion_rate",
+      "title": "Conversion rate",
+        "value": {
+          "field": "conversion",
+          "reduce": "lastNonNull",
+          "format": { "style": "percent", "maximumFractionDigits": 0 }
+        },
+        "status": {
+          "text": { "literal": "Below target" },
+          "tone": { "field": "tone" }
+        },
+        "trend": {
+          "type": "area",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "polarity": "higher-is-better"
+          },
+          "yScale": { "includeZero": true }
+        },
+      "references": [{
+        "ref": "docs://metrics/conversion-rate",
+        "label": "Metric definition"
+      }]
     }]
-  }]
+  }
 }
 ```
 
-`status.tone` is `neutral`, `positive`, `warning`, or `negative`. Each item MAY
-contain 1–3 references, with no duplicate `ref` in one item. `ref` is opaque to
-the renderer; `label` is the accessible, user-facing description. Unknown
-fields and canonical `data` are rejected.
+`value.field` is required; `reduce` defaults to and currently only supports
+`lastNonNull`. `format.style` is `text`, `decimal`, `percent`, `currency`, or
+`unit`. Formatting is a validated `Intl.NumberFormat` subset: currency, unit,
+notation, fraction digits, prefix, suffix, and null display. Functions,
+expressions, locale injection, and JavaScript formatters are not supported.
+
+Status text and tone each use exactly one `{ "field": ... }` or
+`{ "literal": ... }` binding. A group MAY mix items with and without `trend`.
+A trend uses `spec.timeField` unless it overrides `timeField`, and uses the KPI
+value field unless it overrides `field`. It supports `line`/`area`, optional
+absolute/relative lag comparison with polarity, and optional zero-inclusive Y
+scale. Source row order is authoritative and is never sorted. `lag` addresses
+an exact source-row offset and does not skip null rows. A trend with fewer than
+two valid numeric points is omitted without failing the KPI. A non-null,
+non-numeric trend value is invalid. Trend and dataset sizes are bounded.
+
+Each item MAY contain 1–3 references, with no duplicate `ref` in one item.
+`ref` is opaque to the renderer; `label` is the accessible description.
+Unknown fields are rejected. Array rows require unique `dimensions` matching
+their width. Referenced data is resolved once through the host callback and the
+same materialized rows serve values, trends, comparisons, and the shared Data
+view.
 
 ## Renderer reference actions
 

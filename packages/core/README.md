@@ -22,6 +22,12 @@ Canonical envelopes keep `data` separate from renderer-owned `spec`.
 `parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a
 host can inspect the same rows without loading the renderer.
 
+`materializeChartData()` is the shared renderer-neutral ref boundary. Hosts
+provide `ResolveChartDataRef` and optional validation; core forwards the opaque
+ref and abort signal, validates the returned scalar rows and explicit limits,
+and returns inline data. It does not select a transport, fetch, authorize, or
+interpret any ref scheme.
+
 Dynamic renderer parse contexts expose normalized `language` and the optional
 original `rawLanguage` first token. Adapters should preserve `rawLanguage` when
 a dynamic fence embeds a case-sensitive payload such as a file path.

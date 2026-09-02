@@ -7,8 +7,8 @@ placeholder mounting utility for markdown-it applications.
 instance or renderer registry. The component creates safe defaults, registers
 ECharts and KPI, and applies a 360px minimum chart height automatically; KPI
 cards override it with their compact content height. Canonical
-inline datasets and ECharts-resolved referenced datasets automatically include
-a Chart/Data switch.
+inline datasets and renderer-resolved referenced datasets automatically
+include a Chart/Data switch.
 The switch uses chart and table icons while retaining accessible labels.
 
 Install the zero-config component with:
@@ -36,6 +36,9 @@ Pass `:reference-actions="referenceActions"` to the component, or the same
 option to `useMarkdownChart()` / `mountMarkdownChartBlocks()`, to expose
 renderer reference controls. The host selects supported refs with `canOpen` and
 handles clicks with `open`; the packages do not interpret or navigate refs.
+Pass `:kpi="{ validateDataRef, resolveDataRef }"` for referenced KPI data.
+Keep that object and its callbacks stable across streaming renders so the
+automatic registry and completed chart mounts can be reused.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, compute a binding from `{ sessionId,

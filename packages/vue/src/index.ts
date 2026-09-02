@@ -10,7 +10,10 @@ import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
 } from '@datafe-open/markdown-chart-echarts';
-import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';
+import {
+  createKpiRenderer,
+  type CreateKpiRendererOptions,
+} from '@datafe-open/markdown-chart-kpi';
 import {
   createMarkdownChartEnvironment,
   getMarkdownChartBlocks,
@@ -326,6 +329,7 @@ export const MarkdownChart = defineComponent({
     markdownIt: { type: Object as PropType<MarkdownIt>, required: false },
     registry: { type: Object as PropType<ChartRendererRegistry>, required: false },
     echarts: { type: Object as PropType<CreateEChartsRendererOptions>, required: false },
+    kpi: { type: Object as PropType<CreateKpiRendererOptions>, required: false },
     theme: { type: null as unknown as PropType<unknown>, required: false },
     streaming: { type: Boolean, default: false },
     loadingLabel: { type: String, required: false },
@@ -350,7 +354,7 @@ export const MarkdownChart = defineComponent({
     const automaticRegistry = computed(
       () => new ChartRendererRegistry()
         .register(createEChartsRenderer(props.echarts))
-        .register(createKpiRenderer()),
+        .register(createKpiRenderer(props.kpi)),
     );
     const registry = computed(() => props.registry ?? automaticRegistry.value);
     const automaticMarkdownIt = computed(

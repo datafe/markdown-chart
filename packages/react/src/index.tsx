@@ -25,7 +25,10 @@ import {
   createEChartsRenderer,
   type CreateEChartsRendererOptions,
 } from '@datafe-open/markdown-chart-echarts';
-import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';
+import {
+  createKpiRenderer,
+  type CreateKpiRendererOptions,
+} from '@datafe-open/markdown-chart-kpi';
 
 export type MarkdownChartReactErrorHandler = (
   error: unknown,
@@ -260,6 +263,7 @@ export interface MarkdownChartProps {
   readonly source: string;
   readonly registry?: ChartRendererRegistry;
   readonly echarts?: CreateEChartsRendererOptions;
+  readonly kpi?: CreateKpiRendererOptions;
   readonly theme?: unknown;
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
@@ -274,8 +278,8 @@ export function MarkdownChart(props: MarkdownChartProps): ReactElement {
   const automaticRegistry = useMemo(
     () => new ChartRendererRegistry()
       .register(createEChartsRenderer(props.echarts))
-      .register(createKpiRenderer()),
-    [props.echarts],
+      .register(createKpiRenderer(props.kpi)),
+    [props.echarts, props.kpi],
   );
   const registry = props.registry ?? automaticRegistry;
   const components = useMemo(() => createMarkdownChartComponents({

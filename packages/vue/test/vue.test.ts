@@ -110,23 +110,63 @@ function legacySandboxBinding(
 }
 
 describe('MarkdownChart reactive object props', () => {
+  it('forwards KPI ref resolver options through the zero-config component once', async () => {
+    const resolveDataRef = vi.fn(async () => ({
+      dimensions: ['day', 'value'],
+      source: [['2026-09-01', 42]],
+    }));
+    const source = `\`\`\`markdown-chart\n${JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      data: { kind: 'ref', ref: 'dataset://kpi', dimensions: ['day', 'value'] },
+      spec: { items: [{ id: 'value', title: 'Value', value: { field: 'value' } }] },
+    })}\n\`\`\``;
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, kpi: { resolveDataRef } });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => {
+      expect(root.querySelector('[data-markdown-chart-kpi-value]')?.textContent).toBe('42');
+    });
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    app.unmount();
+  });
+
   it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
     const body = JSON.stringify({
       version: 1,
       renderer: 'kpi',
+      data: {
+        kind: 'inline',
+        source: [
+          { day: '2026-08-31', unmet: 0.38, lostRevenue: 650 },
+          { day: '2026-09-01', unmet: 0.4, lostRevenue: 720 },
+        ],
+      },
       spec: {
+        timeField: 'day',
         items: [
           {
             id: 'unmet_demand',
             title: '未满足需求',
-            value: '40',
-            suffix: '%',
+            value: { field: 'unmet', format: { style: 'percent', maximumFractionDigits: 0 } },
+            trend: {
+              type: 'line',
+              compare: { lag: 1, mode: 'absolute', polarity: 'lower-is-better' },
+            },
             references: [
               { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
               { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
             ],
           },
-          { id: 'lost_revenue', title: '累计流失营收', value: '720', suffix: '万' },
+          {
+            id: 'lost_revenue',
+            title: '累计流失营收',
+            value: { field: 'lostRevenue', format: { style: 'decimal', suffix: '万' } },
+          },
         ],
       },
     });

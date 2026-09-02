@@ -61,36 +61,80 @@ right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
 
 ## KPI renderer
 
-KPI cards use the same canonical fence but intentionally omit `data`. Display
-values are strings so the producer owns exact formatting:
+KPI cards use the same canonical `data`/`spec` separation as ECharts. A wide
+dataset contains one row per time point; `spec` binds fields and safe formatting:
 
 ````markdown
 ```markdown-chart
 {
   "version": 1,
   "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "day": "2026-08-31", "unmet": 0.38, "revenue": 16800000 },
+      { "day": "2026-09-01", "unmet": 0.4, "revenue": 18000000 }
+    ]
+  },
   "spec": {
+    "timeField": "day",
     "items": [
       {
         "id": "unmet_demand",
         "title": "Unmet demand",
-        "value": "40",
-        "suffix": "%",
-        "status": { "text": "At risk", "tone": "negative" },
+        "value": {
+          "field": "unmet",
+          "format": { "style": "percent", "maximumFractionDigits": 0 }
+        },
+        "status": {
+          "text": { "literal": "At risk" },
+          "tone": { "literal": "negative" }
+        },
+        "trend": {
+          "type": "area",
+          "compare": { "lag": 1, "mode": "absolute", "polarity": "lower-is-better" }
+        },
         "references": [
           { "ref": "docs://metrics/unmet-demand", "label": "Metric definition" }
         ]
       },
-      { "id": "lost_revenue", "title": "Lost revenue", "value": "720", "suffix": "K" }
+      {
+        "id": "revenue",
+        "title": "Revenue",
+        "value": {
+          "field": "revenue",
+          "format": { "style": "currency", "currency": "CNY", "notation": "compact" }
+        }
+      }
     ]
   }
 }
 ```
 ````
 
-The renderer supports 1–12 items and up to three references per item. It treats
-every reference as an opaque string and never fetches or navigates. A host can
-select allowed references and handle clicks through the generic action API:
+The renderer supports 1–12 items, `lastNonNull` reduction, safe structured
+`Intl.NumberFormat` options, field/literal status bindings, and optional
+line/area sparklines with deterministic lag comparison. Items with fewer than
+two valid trend points fall back to a plain KPI. A group can freely mix items
+with and without trends.
+
+Both inline and referenced `ChartData` are supported. For ref data, provide the
+host-owned resolver through the adapter's independent `kpi` option; the result
+is materialized once for the value, sparkline, comparison, and Data view:
+
+```tsx
+<MarkdownChart
+  source={source}
+  kpi={{
+    validateDataRef: (ref) => ref.startsWith('dataset://'),
+    resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
+  }}
+/>
+```
+
+Each item accepts up to three references. The renderer treats every reference
+as opaque and never fetches or navigates. A host selects allowed references and
+handles clicks through the generic action API:
 
 ```tsx
 <MarkdownChart
