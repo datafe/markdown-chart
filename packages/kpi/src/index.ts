@@ -157,7 +157,7 @@ const MAX_REFERENCE_CODE_UNITS = 16_384;
 const MAX_REFERENCE_LABEL_CODE_POINTS = 120;
 const MAX_COMPARE_LAG = 10_000;
 const KPI_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
-const DISPLAY_CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+const DISPLAY_CONTROL_CHARACTER = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
 const TONES = new Set<KpiTone>(['neutral', 'positive', 'warning', 'negative']);
 const FORMAT_STYLES = new Set<KpiFormatStyle>(['text', 'decimal', 'percent', 'currency', 'unit']);
 const NOTATIONS = new Set(['standard', 'compact', 'scientific', 'engineering']);
@@ -577,10 +577,7 @@ function materializeTrend(
     const currentValue = currentRowIndex >= 0 ? values[currentRowIndex] : null;
     if (typeof currentValue === 'number') {
       const previousIndex = currentRowIndex - trend.compare.lag;
-      const previous = previousIndex >= 0 ? readCell(data, previousIndex, field) : undefined;
-      if (previous !== null && previous !== undefined && typeof previous !== 'number') {
-        schemaError(`KPI trend field ${field} must contain only numbers or null`);
-      }
+      const previous = previousIndex >= 0 ? values[previousIndex] : undefined;
       if (typeof previous === 'number' && !(trend.compare.mode === 'relative' && previous === 0)) {
         const absoluteDelta = currentValue - previous;
         const displayDelta = trend.compare.mode === 'relative' ? absoluteDelta / Math.abs(previous) : absoluteDelta;
@@ -935,7 +932,7 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       }
       parsedSpec.items.forEach((item, index) => {
         if (item.dataset) {
-          if (!context.datasets?.[item.dataset]) {
+          if (!context.datasets || !Object.hasOwn(context.datasets, item.dataset)) {
             schemaError(`markdown-chart.spec.items[${index}].dataset references missing dataset ${item.dataset}`);
           }
         } else if (!context.data) {
@@ -954,7 +951,11 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       parsed.spec.items.forEach((item) => requestedDatasets.add(item.dataset));
       const dataByDataset = new Map<string | undefined, InlineChartData>();
       for (const dataset of requestedDatasets) {
-        const chartData = dataset === undefined ? parsed.data : parsed.datasets?.[dataset];
+        const chartData = dataset === undefined
+          ? parsed.data
+          : parsed.datasets && Object.hasOwn(parsed.datasets, dataset)
+            ? parsed.datasets[dataset]
+            : undefined;
         if (!chartData) {
           return schemaError(dataset
             ? `markdown-chart dataset ${dataset} is missing`

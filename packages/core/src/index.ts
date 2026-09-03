@@ -231,6 +231,12 @@ function parseChartDataDimensions(value: JsonValue | undefined): string[] | unde
       'markdown-chart.data.dimensions must be an array of non-empty strings',
     );
   }
+  if (new Set(value).size !== value.length) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.data.dimensions must be unique',
+    );
+  }
   return [...value] as string[];
 }
 
@@ -354,7 +360,7 @@ function validateMaterializedDimensions(
   if (new Set(dimensions).size !== dimensions.length) {
     throw new MarkdownChartError(
       'SCHEMA_INVALID',
-      'resolvedChartData.dimensions must be unique',
+      'chart data dimensions must be unique',
     );
   }
   return [...dimensions];

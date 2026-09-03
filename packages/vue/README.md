@@ -36,9 +36,10 @@ Pass `:reference-actions="referenceActions"` to the component, or the same
 option to `useMarkdownChart()` / `mountMarkdownChartBlocks()`, to expose
 renderer reference controls. The host selects supported refs with `canOpen` and
 handles clicks with `open`; the packages do not interpret or navigate refs.
-Pass `:kpi="{ validateDataRef, resolveDataRef }"` for referenced KPI data.
-Keep that object and its callbacks stable across streaming renders so the
-automatic registry and completed chart mounts can be reused.
+Pass a stable `:kpi="kpiOptions"` object for referenced KPI data. Keep that
+object, its resolver callbacks, and `referenceActions.canOpen` / `open` callbacks
+stable across streaming renders so the automatic registry and completed chart
+mounts can be reused.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, compute a binding from `{ sessionId,

@@ -142,17 +142,23 @@ inline/ref 两种 `ChartData` 都可使用。ref 数据由宿主通过独立的 
 />
 ```
 
-每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击：
+每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击。可选的 KPI `referenceIcon` 工厂允许可信宿主提供知识库等业务图标；渲染器只把它当作装饰元素，工厂返回空值或抛错时回退到默认链接图标：
 
 ```tsx
 <MarkdownChart
   source={source}
+  kpi={{
+    referenceIcon: ({ document }) => createKnowledgeBaseIcon(document),
+  }}
   referenceActions={{
     canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
     open: ({ reference }) => openDocumentation(reference.ref),
   }}
 />
 ```
+
+流式渲染期间应保持 `kpi` 配置对象以及 `referenceActions.canOpen` / `open`
+回调引用稳定，以便复用已经完成的卡片和取数结果。
 
 宿主应用无需加载图表运行时，也可以读取标准格式中的数据：
 

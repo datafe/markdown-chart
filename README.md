@@ -161,12 +161,17 @@ host-owned resolver through the adapter's independent `kpi` option; the result
 is materialized once for the value, sparkline, comparison, and Data view:
 
 ```tsx
-<MarkdownChart
-  source={source}
-  kpi={{
+const kpiOptions = useMemo(
+  () => ({
     validateDataRef: (ref) => ref.startsWith('dataset://'),
     resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
-  }}
+  }),
+  [],
+);
+
+<MarkdownChart
+  source={source}
+  kpi={kpiOptions}
 />
 ```
 
@@ -189,6 +194,9 @@ icon represents:
   }}
 />
 ```
+
+Keep the KPI options and `referenceActions.canOpen` / `open` callbacks stable
+across streaming renders so completed cards and resolved data can be reused.
 
 Hosts can inspect canonical data without loading a chart runtime:
 

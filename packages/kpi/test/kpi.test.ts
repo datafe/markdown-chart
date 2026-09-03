@@ -201,6 +201,11 @@ describe('KPI data/config contract', () => {
       { items: [{ id: 'default', title: 'Default', value: { field: 'value' } }] },
       { summary: { kind: 'inline', source: [{ value: 1 }] } },
     ));
+    await renderFailure(envelope(
+      undefined,
+      { items: [{ id: 'missing', title: 'Missing', dataset: 'constructor', value: { field: 'value' } }] },
+      { summary: { kind: 'inline', source: [{ value: 1 }] } },
+    ));
   });
 
   it('applies row and cell limits across the complete KPI dataset collection', async () => {
@@ -209,6 +214,10 @@ describe('KPI data/config contract', () => {
       { items: [{ id: 'named', title: 'Named', dataset: 'named', value: { field: 'value' } }] },
       { named: { kind: 'inline', source: [{ value: 2 }] } },
     ), { limits: { maxRows: 1 } }, 'LIMIT_EXCEEDED');
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ first: 1, second: 2 }] },
+      { items: [{ id: 'first', title: 'First', value: { field: 'first' } }] },
+    ), { limits: { maxCells: 1 } }, 'LIMIT_EXCEEDED');
   });
 
   it('inherits declared ref dimensions when the resolver omits them', async () => {
@@ -260,6 +269,21 @@ describe('KPI data/config contract', () => {
   it('uses exact source-row lag and does not skip a null comparison row', async () => {
     const { container } = await render(envelope(
       { kind: 'inline', source: [{ t: 1, value: 10 }, { t: 2, value: null }, { t: 3, value: 15 }] },
+      {
+        timeField: 't',
+        items: [{
+          id: 'value', title: 'Value', value: { field: 'value' },
+          trend: { type: 'line', compare: { lag: 1, mode: 'absolute', polarity: 'neutral' } },
+        }],
+      },
+    ));
+    expect(container.querySelector('.markdown-chart-kpi-sparkline')).not.toBeNull();
+    expect(container.querySelector('.markdown-chart-kpi-compare')).toBeNull();
+  });
+
+  it('does not compare against a row excluded from the trend by a null time value', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ t: 1, value: 10 }, { t: null, value: 12 }, { t: 3, value: 15 }] },
       {
         timeField: 't',
         items: [{
@@ -355,6 +379,14 @@ describe('KPI validation and security boundaries', () => {
       { kind: 'inline', source: [{ t: 1, value: 'bad' }, { t: 2, value: 'worse' }] },
       { timeField: 't', items: [{ id: 'x', title: 'X', value: { field: 'value' }, trend: { type: 'line' } }] },
     ));
+    await renderFailure(envelope(
+      { kind: 'inline', source: [['A', 1]] },
+      { items: [{ id: 'x', title: 'X', value: { field: 'value' } }] },
+    ));
+    await renderFailure(envelope(
+      { kind: 'inline', dimensions: ['name', 'value'], source: [['A']] },
+      { items: [{ id: 'x', title: 'X', value: { field: 'value' } }] },
+    ));
   });
 
   it('fails closed when a host rejects a data ref or no resolver is provided', async () => {
@@ -404,6 +436,12 @@ describe('KPI validation and security boundaries', () => {
         ...item('lag'),
         trend: { type: 'line', compare: { lag: 10_001, mode: 'absolute' } },
       }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({
+      items: [{ ...item('missing_time'), trend: { type: 'line' } }],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    expect(() => parseKpiSpec({
+      items: [{ ...item('bidi'), title: 'Revenue\u202E123' }],
     })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
   });
 });

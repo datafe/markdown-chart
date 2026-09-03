@@ -38,14 +38,20 @@ handles clicks with `open`; the packages do not interpret or navigate refs.
 KPI referenced data uses the independent `kpi` renderer option:
 
 ```tsx
+const kpiOptions = useMemo(
+  () => ({ validateDataRef, resolveDataRef }),
+  [validateDataRef, resolveDataRef],
+);
+
 <MarkdownChart
   source={source}
-  kpi={{ validateDataRef, resolveDataRef }}
+  kpi={kpiOptions}
 />
 ```
 
-Keep the `kpi` options and resolver callbacks stable across streaming renders
-so the automatic registry and completed chart mounts can be reused.
+Keep the `kpi` options, resolver callbacks, and `referenceActions.canOpen` / `open`
+callbacks stable across streaming renders so the automatic registry and completed
+chart mounts can be reused.
 
 New legacy ChatBI integrations should create one `createLegacySandboxClient`
 per authenticated principal lifecycle, bind `{ sessionId, requestId, phase,

@@ -8,6 +8,7 @@ import {
   isMarkdownFenceClosed,
   materializeChartData,
   MarkdownChartError,
+  parseChartData,
   parseChartJson,
   parseMarkdownChartEnvelope,
   validateChartJsonValue,
@@ -53,6 +54,11 @@ describe('materializeChartData', () => {
   });
 
   it('rejects duplicate dimensions and materialization limits', async () => {
+    expect(() => parseChartData({
+      kind: 'inline',
+      dimensions: ['value', 'value'],
+      source: [[1, 2]],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
     await expect(materializeChartData({
       kind: 'inline',
       dimensions: ['value', 'value'],
@@ -64,6 +70,13 @@ describe('materializeChartData', () => {
     }, {
       signal: new AbortController().signal,
       limits: { maxRows: 1 },
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    await expect(materializeChartData({
+      kind: 'inline',
+      source: [[1, 2]],
+    }, {
+      signal: new AbortController().signal,
+      limits: { maxCells: 1 },
     })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
     await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
       signal: new AbortController().signal,
@@ -81,6 +94,16 @@ describe('materializeChartData', () => {
     expect(row.__proto__).toBe(7);
     expect(row.constructor).toBe(8);
     expect(row.value).toBe(9);
+  });
+
+  it('preserves prototype-like object-row keys while parsing chart data', () => {
+    const source = JSON.parse('[{"__proto__":7,"constructor":8,"value":9}]') as Array<Record<string, number>>;
+    const result = parseChartData({ kind: 'inline', source });
+    const row = result.kind === 'inline' ? result.source[0] as Record<string, number> : undefined;
+    expect(Object.prototype.hasOwnProperty.call(row, '__proto__')).toBe(true);
+    expect(row?.__proto__).toBe(7);
+    expect(row?.constructor).toBe(8);
+    expect(row?.value).toBe(9);
   });
 
   it('maps resolver failures and quietly abandons aborted work', async () => {
