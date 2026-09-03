@@ -6,12 +6,137 @@ import {
   createMarkdownChartLoadingMarkup,
   findUnclosedMarkdownFence,
   isMarkdownFenceClosed,
+  materializeChartData,
   MarkdownChartError,
+  parseChartData,
   parseChartJson,
   parseMarkdownChartEnvelope,
   validateChartJsonValue,
   type ChartRenderer,
 } from '../src/index';
+
+describe('materializeChartData', () => {
+  it('materializes inline data without invoking a resolver', async () => {
+    const resolveDataRef = vi.fn();
+    const result = await materializeChartData({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    }, { signal: new AbortController().signal, resolveDataRef });
+    expect(result).toEqual({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    });
+    expect(resolveDataRef).not.toHaveBeenCalled();
+  });
+
+  it('keeps ref opaque, inherits declared dimensions, and calls the host once', async () => {
+    const signal = new AbortController().signal;
+    const resolveDataRef = vi.fn(async () => ({ source: [['A', 1]] }));
+    const result = await materializeChartData({
+      kind: 'ref',
+      ref: 'opaque:data',
+      format: 'json',
+      dimensions: ['name', 'value'],
+    }, { signal, resolveDataRef, validateDataRef: (ref) => ref === 'opaque:data' });
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    expect(resolveDataRef).toHaveBeenCalledWith('opaque:data', {
+      format: 'json',
+      dimensions: ['name', 'value'],
+      signal,
+    });
+    expect(result).toEqual({
+      kind: 'inline',
+      dimensions: ['name', 'value'],
+      source: [['A', 1]],
+    });
+  });
+
+  it('rejects duplicate dimensions and materialization limits', async () => {
+    expect(() => parseChartData({
+      kind: 'inline',
+      dimensions: ['value', 'value'],
+      source: [[1, 2]],
+    })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    await expect(materializeChartData({
+      kind: 'inline',
+      dimensions: ['value', 'value'],
+      source: [[1, 2]],
+    }, { signal: new AbortController().signal })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+    await expect(materializeChartData({
+      kind: 'inline',
+      source: [[1], [2]],
+    }, {
+      signal: new AbortController().signal,
+      limits: { maxRows: 1 },
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    await expect(materializeChartData({
+      kind: 'inline',
+      source: [[1, 2]],
+    }, {
+      signal: new AbortController().signal,
+      limits: { maxCells: 1 },
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => ({ source: [[Number.NaN]] }),
+    })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
+  });
+
+  it('preserves object-row keys that overlap Object.prototype', async () => {
+    const source = JSON.parse('[{"__proto__":7,"constructor":8,"value":9}]') as Array<Record<string, number>>;
+    const result = await materializeChartData({ kind: 'inline', source }, {
+      signal: new AbortController().signal,
+    });
+    const row = result?.source[0] as Record<string, number>;
+    expect(Object.prototype.hasOwnProperty.call(row, '__proto__')).toBe(true);
+    expect(row.__proto__).toBe(7);
+    expect(row.constructor).toBe(8);
+    expect(row.value).toBe(9);
+  });
+
+  it('preserves prototype-like object-row keys while parsing chart data', () => {
+    const source = JSON.parse('[{"__proto__":7,"constructor":8,"value":9}]') as Array<Record<string, number>>;
+    const result = parseChartData({ kind: 'inline', source });
+    const row = result.kind === 'inline' ? result.source[0] as Record<string, number> : undefined;
+    expect(Object.prototype.hasOwnProperty.call(row, '__proto__')).toBe(true);
+    expect(row?.__proto__).toBe(7);
+    expect(row?.constructor).toBe(8);
+    expect(row?.value).toBe(9);
+  });
+
+  it('maps resolver failures and quietly abandons aborted work', async () => {
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => { throw new Error('network'); },
+    })).rejects.toMatchObject({ code: 'REF_RESOLUTION_FAILED' });
+
+    const abort = new AbortController();
+    const pending = materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: abort.signal,
+      resolveDataRef: async () => {
+        abort.abort();
+        throw new Error('aborted');
+      },
+    });
+    await expect(pending).resolves.toBeUndefined();
+
+    const successfulAbort = new AbortController();
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:data' }, {
+      signal: successfulAbort.signal,
+      resolveDataRef: async () => {
+        successfulAbort.abort();
+        return { source: [['stale', 1]] };
+      },
+    })).resolves.toBeUndefined();
+
+    await expect(materializeChartData({ kind: 'ref', ref: 'opaque:missing' }, {
+      signal: new AbortController().signal,
+      resolveDataRef: async () => undefined as never,
+    })).rejects.toMatchObject({ code: 'REF_RESOLUTION_FAILED' });
+  });
+});
 
 describe('ChartRendererRegistry', () => {
   it('routes canonical markdown-chart envelopes without renderer-specific core switches', async () => {
@@ -182,6 +307,43 @@ describe('ChartController', () => {
     expect(firstDispose).toHaveBeenCalledOnce();
     controller.dispose();
     expect(secondDispose).toHaveBeenCalledOnce();
+  });
+
+  it('passes opaque reference actions through materialize and mount', async () => {
+    const referenceActions = {
+      canOpen: vi.fn(() => true),
+      open: vi.fn(),
+    };
+    const materialize = vi.fn((parsed, context) => ({
+      parsed,
+      data: context.data,
+    }));
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      materialize,
+      mount,
+    });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({ version: 1, renderer: 'test', spec: {} }),
+      referenceActions,
+    });
+
+    expect(materialize).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ referenceActions, rendererId: 'test' }),
+    );
+    expect(mount).toHaveBeenCalledWith(
+      element,
+      {},
+      expect.objectContaining({ referenceActions }),
+    );
+    controller.dispose();
   });
 
   it('does not parse incomplete streaming input', async () => {
@@ -815,6 +977,38 @@ describe('parseMarkdownChartEnvelope', () => {
       source: [['A', 10], ['B', 20]],
     });
     expect(envelope.spec).toEqual({ series: [{ type: 'bar' }] });
+  });
+
+  it('exposes named datasets independently from the default data and renderer spec', () => {
+    const envelope = parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      data: { kind: 'inline', source: [{ revenue: 20 }] },
+      datasets: {
+        inventory: { kind: 'inline', source: [{ stock: 7 }] },
+        forecast: { kind: 'ref', ref: 'dataset://forecast', format: 'json' },
+      },
+      spec: { items: [] },
+    }));
+
+    expect(envelope.data).toEqual({ kind: 'inline', source: [{ revenue: 20 }] });
+    expect(envelope.datasets).toEqual({
+      inventory: { kind: 'inline', source: [{ stock: 7 }] },
+      forecast: { kind: 'ref', ref: 'dataset://forecast', format: 'json' },
+    });
+  });
+
+  it.each([
+    ['an empty collection', {}],
+    ['an invalid dataset id', { 'inventory.current': { kind: 'inline', source: [] } }],
+    ['malformed named data', { inventory: { kind: 'inline', source: 'invalid' } }],
+  ])('rejects %s', (_label, datasets) => {
+    expect(() => parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      datasets,
+      spec: { items: [] },
+    }))).toThrowError();
   });
 
   it('rejects malformed canonical data before invoking a renderer', () => {

@@ -1,6 +1,6 @@
 # Releasing
 
-The five public packages are versioned as one fixed group and are published to
+The six public packages are versioned as one fixed group and are published to
 the public npm registry. Feature branches never publish packages.
 
 ## First release bootstrap
@@ -37,11 +37,12 @@ can be configured.
    Each package pins `publishConfig.registry` to the public npm registry, so a
    local mirror configuration cannot redirect publishing.
 
-6. Confirm that all five packages are public:
+6. Confirm that all six packages are public:
 
    ```sh
    npm view @datafe-open/markdown-chart version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-echarts version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-kpi version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-markdown-it version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-react version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-vue version --registry=https://registry.npmjs.org/
@@ -50,7 +51,7 @@ can be configured.
 ## Enable Trusted Publishing
 
 After the first release, open **Settings → Trusted Publisher** on each of the
-five npm package pages and configure:
+six npm package pages and configure:
 
 - Provider: GitHub Actions
 - Organization or user: `datafe`
@@ -64,7 +65,7 @@ organization that owns the repository. The npm package scope remains
 `@datafe-open`.
 
 The workflow uses GitHub OIDC and does not require an `NPM_TOKEN` secret. Run
-the Release workflow manually once after all five package settings are saved;
+the Release workflow manually once after all six package settings are saved;
 it should complete without publishing an unchanged version.
 
 ## Regular releases
@@ -80,3 +81,12 @@ it should complete without publishing an unchanged version.
 
 npm versions are immutable. If a release is wrong, publish a corrected patch;
 do not attempt to overwrite an existing version.
+
+## Adding another public package
+
+Add the package to the fixed group, the release workflow bootstrap list, and
+`scripts/check-pack.mjs`. The workflow intentionally pauses publishing while
+any package page is missing. After the Version Packages pull request is merged,
+publish only the new package once from a clean `main` checkout with an npm owner
+account, configure its Trusted Publisher exactly as above, and rerun the Release
+workflow. Do not publish from a feature branch.

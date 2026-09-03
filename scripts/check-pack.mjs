@@ -18,7 +18,7 @@ const tsc = path.join(
   '.bin',
   process.platform === 'win32' ? 'tsc.cmd' : 'tsc',
 );
-const packages = ['core', 'echarts', 'markdown-it', 'react', 'vue'];
+const packages = ['core', 'echarts', 'kpi', 'markdown-it', 'react', 'vue'];
 const thirdPartyPackages = new Set(['core', 'echarts']);
 const repositoryUrl = 'https://github.com/datafe/markdown-chart.git';
 const registryUrl = 'https://registry.npmjs.org/';
@@ -127,7 +127,9 @@ try {
     [
       "import { MarkdownChart } from '@datafe-open/markdown-chart-react';",
       "import { LegacySandboxError, createEChartsRenderer, createLegacySandboxClient, createLegacySandboxErrorClassifier, createLegacySandboxHostAdapter, waitForLegacySandboxAbortable } from '@datafe-open/markdown-chart-echarts';",
+      "import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';",
       "if (typeof MarkdownChart !== 'function') throw new Error('React ESM export is unavailable');",
+      "if (createKpiRenderer().id !== 'kpi') throw new Error('KPI renderer ESM export is unavailable');",
       "if (typeof createLegacySandboxClient !== 'function') throw new Error('ECharts legacy sandbox ESM export is unavailable');",
       "if (typeof createEChartsRenderer !== 'function') throw new Error('ECharts renderer ESM export is unavailable');",
       "if (typeof createLegacySandboxErrorClassifier !== 'function' || typeof createLegacySandboxHostAdapter !== 'function' || typeof waitForLegacySandboxAbortable !== 'function') throw new Error('ECharts legacy host adapter ESM exports are unavailable');",
@@ -145,6 +147,8 @@ try {
     path.join(consumerDirectory, 'require-smoke.cjs'),
     [
       "const { LegacySandboxError, createLegacySandboxClient, createLegacySandboxErrorClassifier, createLegacySandboxHostAdapter, waitForLegacySandboxAbortable } = require('@datafe-open/markdown-chart-echarts');",
+      "const { createKpiRenderer } = require('@datafe-open/markdown-chart-kpi');",
+      "if (createKpiRenderer().id !== 'kpi') throw new Error('KPI renderer CJS export is unavailable');",
       "if (typeof createLegacySandboxClient !== 'function') throw new Error('ECharts legacy sandbox CJS export is unavailable');",
       "if (typeof waitForLegacySandboxAbortable !== 'function') throw new Error('ECharts legacy abort CJS export is unavailable');",
       "const classifyError = createLegacySandboxErrorClassifier();",
@@ -167,6 +171,8 @@ try {
 
   writeFileSync(path.join(consumerDirectory, 'strict-consumer.ts'), [
     "import { markdownChartPlugin, type MarkdownChartPluginOptions } from '@datafe-open/markdown-chart-markdown-it';",
+    "import type { ChartReferenceActions } from '@datafe-open/markdown-chart';",
+    "import { createKpiRenderer, type KpiSpec } from '@datafe-open/markdown-chart-kpi';",
     "import { MarkdownChart } from '@datafe-open/markdown-chart-vue';",
     "import type { MarkdownChartProps as ReactMarkdownChartProps } from '@datafe-open/markdown-chart-react';",
     "import { LegacySandboxError, createEChartsRenderer, createLegacySandboxClient, createLegacySandboxErrorClassifier, createLegacySandboxHostAdapter, waitForLegacySandboxAbortable, type CreateEChartsRendererOptions, type LegacySandboxAbortablePromiseLike, type LegacySandboxBinding, type LegacySandboxContext, type LegacySandboxErrorClassifierOptions, type LegacySandboxErrorCode, type LegacySandboxFile, type LegacySandboxHostAdapter, type LegacySandboxHostContext, type LegacySandboxTransport, type ResolveLegacyArtifactContent, type ResolveLegacySandboxFileContent } from '@datafe-open/markdown-chart-echarts';",
@@ -209,6 +215,9 @@ try {
     'const abortableResult: Promise<string> = waitForLegacySandboxAbortable(abortable, new AbortController().signal);',
     "const code: LegacySandboxErrorCode = new LegacySandboxError('LEGACY_SANDBOX_FATAL', 'typed smoke').code;",
     'const options: MarkdownChartPluginOptions = {};',
+    "const kpiSpec: KpiSpec = { items: [{ id: 'metric', title: 'Metric', value: { field: 'metric', reduce: 'lastNonNull' } }] };",
+    "const referenceActions: ChartReferenceActions = { open: ({ reference }) => void reference.ref };",
+    'const kpiRenderer = createKpiRenderer();',
     'void binding;',
     'void resolveArtifactContent;',
     'void resolveSandboxFileContent;',
@@ -223,6 +232,9 @@ try {
     'void code;',
     'void markdownChartPlugin;',
     'void options;',
+    'void kpiSpec;',
+    'void referenceActions;',
+    'void kpiRenderer;',
     'void MarkdownChart;',
     '',
   ].join('\n'));

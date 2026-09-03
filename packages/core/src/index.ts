@@ -21,6 +21,42 @@ export interface RefChartData {
 }
 
 export type ChartData = InlineChartData | RefChartData;
+export type ChartDatasets = Readonly<Record<string, ChartData>>;
+
+/** A host-materialized dataset. It intentionally contains no transport metadata. */
+export interface ResolvedChartData {
+  readonly dimensions?: readonly string[];
+  readonly source: readonly ChartDataRow[];
+}
+
+export interface ResolveChartDataRefContext {
+  readonly format: 'csv' | 'json' | undefined;
+  readonly dimensions: readonly string[] | undefined;
+  readonly signal: AbortSignal;
+}
+
+/** Host-owned resolver boundary. Core never interprets or fetches `ref`. */
+export type ResolveChartDataRef = (
+  ref: string,
+  context: ResolveChartDataRefContext,
+) => ResolvedChartData | Promise<ResolvedChartData>;
+
+export interface ChartDataMaterializationLimits {
+  readonly maxRows: number;
+  readonly maxCells: number;
+}
+
+export const DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS: Readonly<ChartDataMaterializationLimits> = Object.freeze({
+  maxRows: 2_000,
+  maxCells: 40_000,
+});
+
+export interface MaterializeChartDataOptions {
+  readonly signal: AbortSignal;
+  readonly resolveDataRef?: ResolveChartDataRef;
+  readonly validateDataRef?: (ref: string) => boolean;
+  readonly limits?: Partial<ChartDataMaterializationLimits>;
+}
 
 export type ChartErrorCode =
   | 'INVALID_JSON'
@@ -195,6 +231,12 @@ function parseChartDataDimensions(value: JsonValue | undefined): string[] | unde
       'markdown-chart.data.dimensions must be an array of non-empty strings',
     );
   }
+  if (new Set(value).size !== value.length) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.data.dimensions must be unique',
+    );
+  }
   return [...value] as string[];
 }
 
@@ -221,7 +263,12 @@ function parseChartDataRows(value: JsonValue | undefined): ChartDataRow[] {
             `markdown-chart.data.source[${rowIndex}].${key} must be a JSON scalar`,
           );
         }
-        result[key] = cell as JsonPrimitive;
+        Object.defineProperty(result, key, {
+          value: cell as JsonPrimitive,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
       }
       return result;
     }
@@ -270,19 +317,226 @@ export function parseChartData(value: unknown): ChartData {
   );
 }
 
+const CHART_DATASET_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+
+export function parseChartDatasets(value: unknown): ChartDatasets {
+  if (!isJsonObject(value) || Object.keys(value).length === 0) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.datasets must be a non-empty object of named datasets',
+    );
+  }
+  const datasets: Record<string, ChartData> = {};
+  for (const [id, data] of Object.entries(value)) {
+    if (!CHART_DATASET_ID.test(id)) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `markdown-chart.datasets key ${id} must match ${CHART_DATASET_ID.source}`,
+      );
+    }
+    Object.defineProperty(datasets, id, {
+      value: parseChartData(data),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return datasets;
+}
+
+function validateMaterializedDimensions(
+  dimensions: readonly string[] | undefined,
+): string[] | undefined {
+  if (dimensions === undefined) return undefined;
+  if (
+    !Array.isArray(dimensions)
+    || dimensions.some((item) => typeof item !== 'string' || item.length === 0)
+  ) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'resolvedChartData.dimensions must be an array of non-empty strings',
+    );
+  }
+  if (new Set(dimensions).size !== dimensions.length) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'chart data dimensions must be unique',
+    );
+  }
+  return [...dimensions];
+}
+
+function validateMaterializedRows(
+  source: readonly ChartDataRow[],
+  limits: ChartDataMaterializationLimits,
+): ChartDataRow[] {
+  if (!Array.isArray(source)) {
+    throw new MarkdownChartError('SCHEMA_INVALID', 'resolvedChartData.source must be an array');
+  }
+  if (source.length > limits.maxRows) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `resolvedChartData.source exceeds the ${limits.maxRows} row limit`,
+    );
+  }
+  let cells = 0;
+  const rows = source.map((row, rowIndex): ChartDataRow => {
+    if (Array.isArray(row)) {
+      const result = row.map((cell, cellIndex) => {
+        if (cell !== null && !['string', 'number', 'boolean'].includes(typeof cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}][${cellIndex}] must be a JSON scalar`,
+          );
+        }
+        if (typeof cell === 'number' && !Number.isFinite(cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}][${cellIndex}] must contain only finite numbers`,
+          );
+        }
+        return cell as JsonPrimitive;
+      });
+      cells += result.length;
+      return result;
+    }
+    if (isJsonObject(row)) {
+      const result: Record<string, JsonPrimitive> = {};
+      for (const [key, cell] of Object.entries(row)) {
+        if (cell !== null && !['string', 'number', 'boolean'].includes(typeof cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}].${key} must be a JSON scalar`,
+          );
+        }
+        if (typeof cell === 'number' && !Number.isFinite(cell)) {
+          throw new MarkdownChartError(
+            'SCHEMA_INVALID',
+            `resolvedChartData.source[${rowIndex}].${key} must contain only finite numbers`,
+          );
+        }
+        Object.defineProperty(result, key, {
+          value: cell as JsonPrimitive,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+        cells += 1;
+      }
+      return result;
+    }
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      `resolvedChartData.source[${rowIndex}] must be an array or object`,
+    );
+  });
+  if (cells > limits.maxCells) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `resolvedChartData.source exceeds the ${limits.maxCells} cell limit`,
+    );
+  }
+  return rows;
+}
+
+/**
+ * Materialize canonical chart data exactly once at the renderer boundary.
+ *
+ * Reference validation, authorization and transport remain host-owned. An
+ * aborted resolution returns undefined so the lifecycle controller can quietly
+ * discard stale work.
+ */
+export async function materializeChartData(
+  data: ChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineChartData | undefined> {
+  const limits: ChartDataMaterializationLimits = {
+    ...DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS,
+    ...options.limits,
+  };
+  let resolved: ResolvedChartData;
+  if (data.kind === 'inline') {
+    resolved = data;
+  } else {
+    if (options.validateDataRef && !options.validateDataRef(data.ref)) {
+      throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
+    }
+    if (!options.resolveDataRef) {
+      throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
+    }
+    try {
+      resolved = await options.resolveDataRef(data.ref, {
+        format: data.format,
+        dimensions: data.dimensions,
+        signal: options.signal,
+      });
+    } catch (cause) {
+      if (options.signal.aborted) return undefined;
+      throw new MarkdownChartError(
+        'REF_RESOLUTION_FAILED',
+        'The chart dataset could not be resolved',
+        { cause },
+      );
+    }
+    if (options.signal.aborted) return undefined;
+    if (resolved === null || typeof resolved !== 'object') {
+      throw new MarkdownChartError(
+        'REF_RESOLUTION_FAILED',
+        `Chart data reference ${data.ref} resolved to an invalid dataset`,
+      );
+    }
+  }
+
+  const dimensions = validateMaterializedDimensions(
+    resolved.dimensions ?? (data.kind === 'ref' ? data.dimensions : undefined),
+  );
+  const source = validateMaterializedRows(resolved.source, limits);
+  return dimensions
+    ? { kind: 'inline', dimensions, source }
+    : { kind: 'inline', source };
+}
+
 export interface ChartParseContext {
   readonly language: string;
   /** The original first fence-info token, before case normalization. */
   readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
+}
+
+/** An opaque renderer-owned reference that a host may choose to open. */
+export interface ChartReference {
+  readonly ref: string;
+  readonly label: string;
+}
+
+/** Host interaction payload. The core never interprets `reference.ref`. */
+export interface ChartReferenceEvent {
+  readonly rendererId: string;
+  readonly reference: ChartReference;
+}
+
+/**
+ * Optional host boundary for renderer-owned reference controls.
+ *
+ * Renderers must treat `canOpen` as advisory and invoke it again immediately
+ * before `open`. Hosts remain responsible for validating and authorizing the
+ * opaque reference.
+ */
+export interface ChartReferenceActions {
+  readonly canOpen?: (event: ChartReferenceEvent) => boolean;
+  readonly open: (event: ChartReferenceEvent) => void | Promise<void>;
 }
 
 export interface ChartMountContext {
   readonly signal: AbortSignal;
   readonly theme: unknown;
+  /** Outer chart host when the renderer mounts into an inner chart-view node. */
+  readonly hostContainer?: HTMLElement;
   /** Non-empty title already rendered by host-provided chart chrome. */
   readonly externalizedTitle?: string;
+  readonly referenceActions?: ChartReferenceActions;
 }
 
 export interface ChartMaterializeContext extends ChartMountContext {
@@ -290,6 +544,7 @@ export interface ChartMaterializeContext extends ChartMountContext {
   readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
 }
 
 export interface MaterializedChart<Parsed = unknown> {
@@ -325,6 +580,7 @@ export interface PreparedChart {
   readonly renderer: ChartRenderer<unknown>;
   readonly parsed: unknown;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
   readonly language: string;
   readonly rawLanguage: string;
   readonly rendererId: string;
@@ -354,6 +610,7 @@ export interface MarkdownChartEnvelope {
   readonly version: 1;
   readonly renderer: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
   readonly spec: JsonValue;
 }
 
@@ -384,6 +641,7 @@ export function parseMarkdownChartEnvelope(
     version: 1,
     renderer: normalizeName(body.renderer, 'renderer id'),
     data: body.data === undefined ? undefined : parseChartData(body.data),
+    ...(body.datasets === undefined ? {} : { datasets: parseChartDatasets(body.datasets) }),
     spec: body.spec as JsonValue,
   };
 }
@@ -454,12 +712,14 @@ export class ChartRendererRegistry {
     let rendererId: string;
     let spec: JsonValue;
     let data: ChartData | undefined;
+    let datasets: ChartDatasets | undefined;
     let parseSource = false;
     if (language === MARKDOWN_CHART_LANGUAGE) {
       const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
       rendererId = envelope.renderer;
       spec = envelope.spec;
       data = envelope.data;
+      datasets = envelope.datasets;
     } else {
       const exact = this.#aliases.get(language);
       const matched = exact ? [] : [...this.#renderers.entries()]
@@ -486,7 +746,13 @@ export class ChartRendererRegistry {
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const context: ChartParseContext = { language, rawLanguage, rendererId, data };
+    const context: ChartParseContext = {
+      language,
+      rawLanguage,
+      rendererId,
+      data,
+      ...(datasets ? { datasets } : {}),
+    };
     if (parseSource && !renderer.parseSource) {
       throw new MarkdownChartError(
         'SCHEMA_INVALID',
@@ -496,7 +762,15 @@ export class ChartRendererRegistry {
     const parsed = parseSource
       ? await renderer.parseSource!(source, context)
       : await renderer.parse(spec, context);
-    return { renderer, parsed, data, language, rawLanguage, rendererId };
+    return {
+      renderer,
+      parsed,
+      data,
+      ...(datasets ? { datasets } : {}),
+      language,
+      rawLanguage,
+      rendererId,
+    };
   }
 }
 
@@ -507,6 +781,7 @@ export interface ChartRenderRequest {
   readonly streaming?: boolean;
   readonly loadingLabel?: string;
   readonly labels?: MarkdownChartLabelOverrides;
+  readonly referenceActions?: ChartReferenceActions;
 }
 
 export const DEFAULT_MARKDOWN_CHART_LOADING_LABEL = 'Rendering chart…';
@@ -1261,10 +1536,14 @@ export class ChartController {
         ? await prepared.renderer.materialize(prepared.parsed, {
             signal: abortController.signal,
             theme: request.theme,
+            ...(request.referenceActions
+              ? { referenceActions: request.referenceActions }
+              : {}),
             language: prepared.language,
             rawLanguage: prepared.rawLanguage,
             rendererId: prepared.rendererId,
             data: prepared.data,
+            ...(prepared.datasets ? { datasets: prepared.datasets } : {}),
           })
         : { parsed: prepared.parsed, data: prepared.data };
       if (generation !== this.#generation || abortController.signal.aborted) {
@@ -1290,6 +1569,10 @@ export class ChartController {
       const handle = await prepared.renderer.mount(mountContainer, materialized.parsed, {
         signal: abortController.signal,
         theme: request.theme,
+        hostContainer: container,
+        ...(request.referenceActions
+          ? { referenceActions: request.referenceActions }
+          : {}),
         ...(view && chartTitle ? { externalizedTitle: chartTitle } : {}),
       });
       if (generation !== this.#generation || abortController.signal.aborted) {

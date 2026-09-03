@@ -3,7 +3,7 @@
 English | [简体中文](./README.zh-CN.md)
 
 > [!NOTE]
-> All five `@datafe-open/markdown-chart*` packages are published on npm. The
+> All six `@datafe-open/markdown-chart*` packages are published on npm. The
 > install commands below use the public packages. Maintainers should follow
 > [RELEASING.md](./RELEASING.md) for subsequent releases.
 
@@ -11,9 +11,10 @@ English | [简体中文](./README.zh-CN.md)
 inspectable data and pluggable renderers. Its core is framework-neutral and
 independent of any chat product.
 
-The project starts with an ECharts renderer and adapters for markdown-it, Vue 3,
-and react-markdown. The registry-based core can accept future Plotly, Vega, or
-other renderer packages without adding chart-specific switches to the core.
+The project includes independent ECharts and KPI renderers plus adapters for
+markdown-it, Vue 3, and react-markdown. The registry-based core can accept
+future Plotly, Vega, or other renderer packages without adding chart-specific
+switches to the core.
 
 ## Packages
 
@@ -21,6 +22,7 @@ other renderer packages without adding chart-specific switches to the core.
 | --- | --- |
 | [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
 | [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON-only canonical ECharts renderer and deprecated ChatBI legacy adapter |
+| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | Strict responsive multi-KPI cards with optional host-owned reference actions |
 | [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | Safe placeholder plugin and environment side channel |
 | [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 component and composable |
 | [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown `code`/`pre` adapter |
@@ -56,6 +58,145 @@ For ECharts, the shared card title comes only from `spec.title.text`, which is
 the ECharts option's `title.text`. If it is absent or blank, the title element
 is omitted instead of showing a fallback. The Chart/Data controls remain
 right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
+
+## KPI renderer
+
+KPI cards use the same canonical data/configuration separation as ECharts. A
+shared default `data` dataset contains one row per time point; `spec` binds
+fields and safe formatting:
+
+````markdown
+```markdown-chart
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "day": "2026-08-31", "unmet": 0.38, "revenue": 16800000 },
+      { "day": "2026-09-01", "unmet": 0.4, "revenue": 18000000 }
+    ]
+  },
+  "spec": {
+    "timeField": "day",
+    "items": [
+      {
+        "id": "unmet_demand",
+        "title": "Unmet demand",
+        "value": {
+          "field": "unmet",
+          "format": { "style": "percent", "maximumFractionDigits": 0 }
+        },
+        "status": {
+          "text": { "literal": "At risk" },
+          "tone": { "literal": "negative" }
+        },
+        "trend": {
+          "type": "area",
+          "compare": { "lag": 1, "mode": "absolute", "polarity": "lower-is-better" }
+        },
+        "references": [
+          { "ref": "docs://metrics/unmet-demand", "label": "Metric definition" }
+        ]
+      },
+      {
+        "id": "revenue",
+        "title": "Revenue",
+        "value": {
+          "field": "revenue",
+          "format": { "style": "currency", "currency": "CNY", "notation": "compact" }
+        }
+      }
+    ]
+  }
+}
+```
+````
+
+The renderer supports 1–12 items, `lastNonNull` reduction, safe structured
+`Intl.NumberFormat` options, field/literal status bindings, and optional
+line/area sparklines with deterministic lag comparison. Items with fewer than
+two valid trend points fall back to a plain KPI. A group can freely mix items
+with and without trends.
+
+Prefer the shared default `data` when KPI items use the same grain, filters, and
+source. When they do not, put additional canonical ChartData objects in the
+top-level `datasets` map and select one with `item.dataset`. Omitting `dataset`
+selects the default `data`; the selector is deliberately named `dataset` so it
+cannot be confused with KPI `references`:
+
+```json
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
+  "datasets": {
+    "inventory": {
+      "kind": "inline",
+      "source": [{ "day": "2026-09-01", "stock": 23 }]
+    }
+  },
+  "spec": {
+    "items": [
+      { "id": "revenue", "title": "Revenue", "value": { "field": "revenue" } },
+      {
+        "id": "inventory",
+        "title": "Inventory",
+        "dataset": "inventory",
+        "value": { "field": "stock" },
+        "trend": { "type": "line", "timeField": "day" }
+      }
+    ]
+  }
+}
+```
+
+Every selected inline/ref dataset is materialized once, even when multiple KPI
+items select it. Row and cell limits apply to the complete selected collection.
+The built-in Data view continues to inspect the default `data`; a named-only KPI
+group renders without that single-dataset toggle.
+
+Both inline and referenced `ChartData` are supported. For ref data, provide the
+host-owned resolver through the adapter's independent `kpi` option; the result
+is materialized once for the value, sparkline, comparison, and Data view:
+
+```tsx
+const kpiOptions = useMemo(
+  () => ({
+    validateDataRef: (ref) => ref.startsWith('dataset://'),
+    resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
+  }),
+  [],
+);
+
+<MarkdownChart
+  source={source}
+  kpi={kpiOptions}
+/>
+```
+
+Each item accepts up to three references. The renderer treats every reference
+as opaque and never fetches or navigates. A host selects allowed references and
+handles clicks through the generic action API. The optional KPI
+`referenceIcon` factory lets a trusted host supply its own decorative glyph;
+the renderer falls back to the link icon and never interprets what the custom
+icon represents:
+
+```tsx
+<MarkdownChart
+  source={source}
+  kpi={{
+    referenceIcon: ({ document }) => createHostReferenceIcon(document),
+  }}
+  referenceActions={{
+    canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
+    open: ({ reference }) => openDocumentation(reference.ref),
+  }}
+/>
+```
+
+Keep the KPI options and `referenceActions.canOpen` / `open` callbacks stable
+across streaming renders so completed cards and resolved data can be reused.
 
 Hosts can inspect canonical data without loading a chart runtime:
 
@@ -134,8 +275,9 @@ defineProps<{ source: string }>();
 </template>
 ```
 
-Both components register ECharts, load it on first chart mount, and apply a
-360px minimum height automatically. Canonical inline data and referenced data
+Both components register ECharts and KPI automatically. They load ECharts on
+its first chart mount and apply a 360px minimum height to chart placeholders;
+the KPI renderer uses its compact content height. Canonical inline data and referenced data
 returned by `resolveDataRef` also enable a built-in icon-based Chart/Data switch
 with a bounded, scrollable data table.
 The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series

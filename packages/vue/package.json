@@ -34,12 +34,13 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external vue --external markdown-it --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts --external @datafe-open/markdown-chart-markdown-it",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external vue --external markdown-it --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts --external @datafe-open/markdown-chart-kpi --external @datafe-open/markdown-chart-markdown-it",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@datafe-open/markdown-chart": "workspace:*",
     "@datafe-open/markdown-chart-echarts": "workspace:*",
+    "@datafe-open/markdown-chart-kpi": "workspace:*",
     "@datafe-open/markdown-chart-markdown-it": "workspace:*",
     "@types/markdown-it": "^14.1.2",
     "markdown-it": "^14.1.0"

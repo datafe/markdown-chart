@@ -110,6 +110,112 @@ function legacySandboxBinding(
 }
 
 describe('MarkdownChart reactive object props', () => {
+  it('forwards KPI ref resolver options through the zero-config component once', async () => {
+    const resolveDataRef = vi.fn(async () => ({
+      dimensions: ['day', 'value'],
+      source: [['2026-09-01', 42]],
+    }));
+    const source = `\`\`\`markdown-chart\n${JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      data: { kind: 'ref', ref: 'dataset://kpi', dimensions: ['day', 'value'] },
+      spec: { items: [{ id: 'value', title: 'Value', value: { field: 'value' } }] },
+    })}\n\`\`\``;
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, kpi: { resolveDataRef } });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => {
+      expect(root.querySelector('[data-markdown-chart-kpi-value]')?.textContent).toBe('42');
+    });
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    app.unmount();
+  });
+
+  it('zero-config renders KPI references and preserves completed cards while text streams', async () => {
+    const body = JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      data: {
+        kind: 'inline',
+        source: [
+          { day: '2026-08-31', unmet: 0.38, lostRevenue: 650 },
+          { day: '2026-09-01', unmet: 0.4, lostRevenue: 720 },
+        ],
+      },
+      spec: {
+        timeField: 'day',
+        items: [
+          {
+            id: 'unmet_demand',
+            title: '未满足需求',
+            value: { field: 'unmet', format: { style: 'percent', maximumFractionDigits: 0 } },
+            trend: {
+              type: 'line',
+              compare: { lag: 1, mode: 'absolute', polarity: 'lower-is-better' },
+            },
+            references: [
+              { ref: 'docs://metrics/unmet-demand', label: '未满足需求口径' },
+              { ref: 'docs://metrics/unmet-demand-trend', label: '未满足需求趋势说明' },
+            ],
+          },
+          {
+            id: 'lost_revenue',
+            title: '累计流失营收',
+            value: { field: 'lostRevenue', format: { style: 'decimal', suffix: '万' } },
+          },
+        ],
+      },
+    });
+    const complete = `\`\`\`markdown-chart\n${body}\n\`\`\``;
+    const source = ref(complete);
+    const open = vi.fn();
+    const canOpen = vi.fn(() => true);
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, {
+          source: source.value,
+          streaming: true,
+          referenceActions: { canOpen, open },
+        });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+
+    await vi.waitFor(() => {
+      expect(root.querySelectorAll('[data-markdown-chart-kpi-id]')).toHaveLength(2);
+    });
+    const original = root.querySelector('.markdown-chart-placeholder');
+    const originalCard = root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]');
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
+    expect((original as HTMLElement | null)?.dataset.markdownChartIntrinsicHeight).toBe('true');
+    const buttons = root.querySelectorAll<HTMLButtonElement>(
+      '[data-markdown-chart-kpi-reference]',
+    );
+    expect(buttons).toHaveLength(2);
+    buttons[1]?.click();
+    expect(open).toHaveBeenCalledWith({
+      rendererId: 'kpi',
+      reference: {
+        ref: 'docs://metrics/unmet-demand-trend',
+        label: '未满足需求趋势说明',
+      },
+    });
+
+    source.value = `${complete}\n\nThe analysis continues.`;
+    await nextTick();
+    await vi.waitFor(() => expect(root.textContent).toContain('The analysis continues.'));
+    expect(root.querySelector('.markdown-chart-placeholder')).toBe(original);
+    expect(root.querySelector('[data-markdown-chart-kpi-id="unmet_demand"]')).toBe(originalCard);
+    expect((original as HTMLElement | null)?.style.minHeight).toBe('0');
+
+    app.unmount();
+  });
+
   it('provides zero-config parsing, registry, and chart height defaults', async () => {
     const source = '```markdown-chart\n{"version":1,"renderer":"echarts","data":{"kind":"inline","source":[]},"spec":{"series":[]}}\n```';
     const app = createApp(defineComponent({

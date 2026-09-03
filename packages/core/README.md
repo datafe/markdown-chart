@@ -18,9 +18,17 @@ value and creates a title element only when it is non-empty; it never supplies
 a fallback title. The Chart/Data controls remain right-aligned when no title is
 present, and the chart keeps 8px of vertical spacing from the toolbar.
 
-Canonical envelopes keep `data` separate from renderer-owned `spec`.
-`parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a
-host can inspect the same rows without loading the renderer.
+Canonical envelopes keep default `data` and optional named `datasets` separate
+from renderer-owned `spec`. `parseMarkdownChartEnvelope()` exposes validated
+inline or referenced ChartData objects and passes both forms to the selected
+renderer. The shared Chart/Data view inspects the default `data`; renderers own
+the presentation of any selected named datasets.
+
+`materializeChartData()` is the shared renderer-neutral ref boundary. Hosts
+provide `ResolveChartDataRef` and optional validation; core forwards the opaque
+ref and abort signal, validates the returned scalar rows and explicit limits,
+and returns inline data. It does not select a transport, fetch, authorize, or
+interpret any ref scheme.
 
 Dynamic renderer parse contexts expose normalized `language` and the optional
 original `rawLanguage` first token. Adapters should preserve `rawLanguage` when
@@ -40,3 +48,9 @@ Chart/Data controls, empty-data text, truncation notice, and adapter error
 fallbacks. `MarkdownChartLabelOverrides` is partial; omitted entries retain
 the exported `DEFAULT_MARKDOWN_CHART_LABELS`. Framework adapters expose the
 same `labels` object.
+
+`ChartRenderRequest.referenceActions` is a renderer-neutral host boundary for
+clickable references. Core only forwards `{ rendererId, reference: { ref,
+label } }`; it does not parse refs, authorize access, fetch content, navigate,
+or create a panel. Hosts can hide unsupported references with `canOpen` and
+handle accepted clicks with `open`.

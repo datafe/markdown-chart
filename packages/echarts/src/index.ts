@@ -1,6 +1,7 @@
 import {
   MarkdownChartError,
   isJsonObject,
+  materializeChartData,
   validateChartJsonValue,
   type ChartHandle,
   type ChartDataRow,
@@ -9,6 +10,9 @@ import {
   type JsonPrimitive,
   type JsonValue,
   type RefChartData,
+  type ResolvedChartData,
+  type ResolveChartDataRef,
+  type ResolveChartDataRefContext,
 } from '@datafe-open/markdown-chart';
 import {
   LegacySandboxError,
@@ -82,21 +86,12 @@ export interface DataWorksChartEChartsEnvelope {
   readonly option: Record<string, JsonValue>;
 }
 
-export interface ResolvedDataset {
-  readonly dimensions?: readonly string[];
-  readonly source: readonly DatasetRow[];
-}
-
-export interface ResolveDataRefContext {
-  readonly format: 'csv' | 'json' | undefined;
-  readonly dimensions: readonly string[] | undefined;
-  readonly signal: AbortSignal;
-}
-
-export type ResolveDataRef = (
-  ref: string,
-  context: ResolveDataRefContext,
-) => ResolvedDataset | Promise<ResolvedDataset>;
+/** @deprecated Prefer the renderer-neutral core name `ResolvedChartData`. */
+export type ResolvedDataset = ResolvedChartData;
+/** @deprecated Prefer the renderer-neutral core name `ResolveChartDataRefContext`. */
+export type ResolveDataRefContext = ResolveChartDataRefContext;
+/** @deprecated Prefer the renderer-neutral core name `ResolveChartDataRef`. */
+export type ResolveDataRef = ResolveChartDataRef;
 
 export interface EChartsInstance {
   setOption(option: Record<string, JsonValue>, options?: Record<string, JsonValue>): void;
@@ -1047,36 +1042,12 @@ export function createEChartsRenderer(
     data: RefDataset,
     signal: AbortSignal,
   ): Promise<InlineDataset | undefined> => {
-    if (options.validateDataRef && !options.validateDataRef(data.ref)) {
-      throw new MarkdownChartError('REF_REJECTED', 'The host rejected the chart data reference');
-    }
-    if (!options.resolveDataRef) {
-      throw new MarkdownChartError('REF_RESOLVER_MISSING', 'A resolveDataRef callback is required');
-    }
-    let resolvedDataset: ResolvedDataset;
-    try {
-      resolvedDataset = await options.resolveDataRef(data.ref, {
-        format: data.format,
-        dimensions: data.dimensions,
-        signal,
-      });
-    } catch (cause) {
-      if (signal.aborted) {
-        return undefined;
-      }
-      throw new MarkdownChartError(
-        'REF_RESOLUTION_FAILED',
-        'The chart dataset could not be resolved',
-        { cause },
-      );
-    }
-    if (signal.aborted) {
-      return undefined;
-    }
-    const dataset = resolvedDataset.dimensions || !data.dimensions
-      ? resolvedDataset
-      : { ...resolvedDataset, dimensions: data.dimensions };
-    return materializeDataset(dataset, limits).data;
+    return materializeChartData(data, {
+      signal,
+      limits: { maxRows: limits.maxRows, maxCells: limits.maxCells },
+      ...(options.resolveDataRef ? { resolveDataRef: options.resolveDataRef } : {}),
+      ...(options.validateDataRef ? { validateDataRef: options.validateDataRef } : {}),
+    });
   };
 
   return {
@@ -1086,6 +1057,9 @@ export function createEChartsRenderer(
     parse(spec, context) {
       if (context.language === 'echarts-fulldata') {
         return parseCompactEnvelope(spec, limits);
+      }
+      if (context.datasets) {
+        return schemaError('The ECharts renderer accepts only the default markdown-chart.data dataset');
       }
       return parseSpec(spec, context.data, limits);
     },
