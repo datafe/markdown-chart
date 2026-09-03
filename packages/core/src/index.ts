@@ -21,6 +21,7 @@ export interface RefChartData {
 }
 
 export type ChartData = InlineChartData | RefChartData;
+export type ChartDatasets = Readonly<Record<string, ChartData>>;
 
 /** A host-materialized dataset. It intentionally contains no transport metadata. */
 export interface ResolvedChartData {
@@ -310,6 +311,33 @@ export function parseChartData(value: unknown): ChartData {
   );
 }
 
+const CHART_DATASET_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+
+export function parseChartDatasets(value: unknown): ChartDatasets {
+  if (!isJsonObject(value) || Object.keys(value).length === 0) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.datasets must be a non-empty object of named datasets',
+    );
+  }
+  const datasets: Record<string, ChartData> = {};
+  for (const [id, data] of Object.entries(value)) {
+    if (!CHART_DATASET_ID.test(id)) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `markdown-chart.datasets key ${id} must match ${CHART_DATASET_ID.source}`,
+      );
+    }
+    Object.defineProperty(datasets, id, {
+      value: parseChartData(data),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return datasets;
+}
+
 function validateMaterializedDimensions(
   dimensions: readonly string[] | undefined,
 ): string[] | undefined {
@@ -468,6 +496,7 @@ export interface ChartParseContext {
   readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
 }
 
 /** An opaque renderer-owned reference that a host may choose to open. */
@@ -509,6 +538,7 @@ export interface ChartMaterializeContext extends ChartMountContext {
   readonly rawLanguage?: string;
   readonly rendererId: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
 }
 
 export interface MaterializedChart<Parsed = unknown> {
@@ -544,6 +574,7 @@ export interface PreparedChart {
   readonly renderer: ChartRenderer<unknown>;
   readonly parsed: unknown;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
   readonly language: string;
   readonly rawLanguage: string;
   readonly rendererId: string;
@@ -573,6 +604,7 @@ export interface MarkdownChartEnvelope {
   readonly version: 1;
   readonly renderer: string;
   readonly data: ChartData | undefined;
+  readonly datasets?: ChartDatasets;
   readonly spec: JsonValue;
 }
 
@@ -603,6 +635,7 @@ export function parseMarkdownChartEnvelope(
     version: 1,
     renderer: normalizeName(body.renderer, 'renderer id'),
     data: body.data === undefined ? undefined : parseChartData(body.data),
+    ...(body.datasets === undefined ? {} : { datasets: parseChartDatasets(body.datasets) }),
     spec: body.spec as JsonValue,
   };
 }
@@ -673,12 +706,14 @@ export class ChartRendererRegistry {
     let rendererId: string;
     let spec: JsonValue;
     let data: ChartData | undefined;
+    let datasets: ChartDatasets | undefined;
     let parseSource = false;
     if (language === MARKDOWN_CHART_LANGUAGE) {
       const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
       rendererId = envelope.renderer;
       spec = envelope.spec;
       data = envelope.data;
+      datasets = envelope.datasets;
     } else {
       const exact = this.#aliases.get(language);
       const matched = exact ? [] : [...this.#renderers.entries()]
@@ -705,7 +740,13 @@ export class ChartRendererRegistry {
     if (!renderer) {
       throw new MarkdownChartError('RENDERER_NOT_FOUND', `Renderer ${rendererId} is not registered`);
     }
-    const context: ChartParseContext = { language, rawLanguage, rendererId, data };
+    const context: ChartParseContext = {
+      language,
+      rawLanguage,
+      rendererId,
+      data,
+      ...(datasets ? { datasets } : {}),
+    };
     if (parseSource && !renderer.parseSource) {
       throw new MarkdownChartError(
         'SCHEMA_INVALID',
@@ -715,7 +756,15 @@ export class ChartRendererRegistry {
     const parsed = parseSource
       ? await renderer.parseSource!(source, context)
       : await renderer.parse(spec, context);
-    return { renderer, parsed, data, language, rawLanguage, rendererId };
+    return {
+      renderer,
+      parsed,
+      data,
+      ...(datasets ? { datasets } : {}),
+      language,
+      rawLanguage,
+      rendererId,
+    };
   }
 }
 
@@ -1488,6 +1537,7 @@ export class ChartController {
             rawLanguage: prepared.rawLanguage,
             rendererId: prepared.rendererId,
             data: prepared.data,
+            ...(prepared.datasets ? { datasets: prepared.datasets } : {}),
           })
         : { parsed: prepared.parsed, data: prepared.data };
       if (generation !== this.#generation || abortController.signal.aborted) {

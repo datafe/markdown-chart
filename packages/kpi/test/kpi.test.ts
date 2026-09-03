@@ -11,8 +11,14 @@ import {
   type KpiReferenceIconContext,
 } from '../src/index';
 
-function envelope(data: unknown, spec: unknown): string {
-  return JSON.stringify({ version: 1, renderer: 'kpi', data, spec });
+function envelope(data: unknown, spec: unknown, datasets?: unknown): string {
+  return JSON.stringify({
+    version: 1,
+    renderer: 'kpi',
+    ...(data === undefined ? {} : { data }),
+    ...(datasets === undefined ? {} : { datasets }),
+    spec,
+  });
 }
 
 async function render(
@@ -125,6 +131,84 @@ describe('KPI data/config contract', () => {
     expect(container.querySelector('.markdown-chart-data-view')?.textContent).toContain('2026-09-01');
     expect(container.querySelector('.markdown-chart-data-view')?.textContent).toContain('18000000');
     expect(resolveDataRef).toHaveBeenCalledOnce();
+  });
+
+  it('binds each item to the default data or an explicit named dataset', async () => {
+    const namedInventory = {
+      kind: 'inline',
+      source: [
+        { recorded_at: '2026-08-31', stock: 25 },
+        { recorded_at: '2026-09-01', stock: 23 },
+      ],
+    };
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ revenue: 18_000_000 }] },
+      {
+        items: [
+          {
+            id: 'revenue',
+            title: 'Revenue',
+            value: { field: 'revenue', format: { style: 'currency', currency: 'CNY', notation: 'compact' } },
+          },
+          {
+            id: 'inventory',
+            title: 'Inventory',
+            dataset: 'inventory',
+            value: { field: 'stock' },
+            trend: { type: 'line', timeField: 'recorded_at' },
+            references: [{ ref: 'opaque:inventory', label: 'Inventory definition' }],
+          },
+        ],
+      },
+      { inventory: namedInventory },
+    ));
+
+    expect([...container.querySelectorAll('[data-markdown-chart-kpi-value]')].map((node) => node.textContent))
+      .toEqual(['¥18M', '23']);
+    expect(container.querySelector('[data-markdown-chart-kpi-id="inventory"] .markdown-chart-kpi-sparkline'))
+      .not.toBeNull();
+  });
+
+  it('materializes one named ref dataset once when multiple KPI items select it', async () => {
+    const resolveDataRef = vi.fn(async () => ({
+      source: [{ first: 10, second: 20 }],
+    }));
+    const { container } = await render(envelope(
+      undefined,
+      {
+        items: [
+          { id: 'first', title: 'First', dataset: 'summary', value: { field: 'first' } },
+          { id: 'second', title: 'Second', dataset: 'summary', value: { field: 'second' } },
+        ],
+      },
+      { summary: { kind: 'ref', ref: 'dataset:summary', format: 'json' } },
+    ), { resolveDataRef });
+
+    expect(resolveDataRef).toHaveBeenCalledOnce();
+    expect([...container.querySelectorAll('[data-markdown-chart-kpi-value]')].map((node) => node.textContent))
+      .toEqual(['10', '20']);
+    expect(container.querySelector('.markdown-chart-toggle')).toBeNull();
+  });
+
+  it('rejects missing named datasets and items without an available default dataset', async () => {
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ value: 1 }] },
+      { items: [{ id: 'missing', title: 'Missing', dataset: 'other', value: { field: 'value' } }] },
+      { summary: { kind: 'inline', source: [{ value: 1 }] } },
+    ));
+    await renderFailure(envelope(
+      undefined,
+      { items: [{ id: 'default', title: 'Default', value: { field: 'value' } }] },
+      { summary: { kind: 'inline', source: [{ value: 1 }] } },
+    ));
+  });
+
+  it('applies row and cell limits across the complete KPI dataset collection', async () => {
+    await renderFailure(envelope(
+      { kind: 'inline', source: [{ value: 1 }] },
+      { items: [{ id: 'named', title: 'Named', dataset: 'named', value: { field: 'value' } }] },
+      { named: { kind: 'inline', source: [{ value: 2 }] } },
+    ), { limits: { maxRows: 1 } }, 'LIMIT_EXCEEDED');
   });
 
   it('inherits declared ref dimensions when the resolver omits them', async () => {

@@ -48,7 +48,7 @@
 
 ## KPI 渲染器
 
-KPI 卡片与 ECharts 使用相同的 canonical `data` / `spec` 分离模型。宽表每行表示一个时间点，`spec` 只绑定字段和安全格式：
+KPI 卡片与 ECharts 使用相同的数据/配置分离模型。默认共享的 `data` 宽表每行表示一个时间点，`spec` 只绑定字段和安全格式：
 
 ````markdown
 ```markdown-chart
@@ -99,6 +99,36 @@ KPI 卡片与 ECharts 使用相同的 canonical `data` / `spec` 分离模型。�
 ````
 
 渲染器支持 1–12 个指标、`lastNonNull` 归约、安全的结构化 `Intl.NumberFormat` 配置、字段/常量状态绑定，以及可选的 line/area sparkline 和确定性的 lag 对比。有效趋势点不足两个时降级为普通 KPI，同组可自由混排带趋势和无趋势指标。
+
+多个指标使用相同粒度、过滤条件和来源时，优先共享默认 `data`。不同时，把其它 canonical `ChartData` 放入顶层 `datasets`，并通过 `item.dataset` 选择；未配置 `dataset` 的指标使用默认 `data`。这样数据集选择 `dataset` 与指标证据 `references` 的语义保持独立：
+
+```json
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
+  "datasets": {
+    "inventory": {
+      "kind": "inline",
+      "source": [{ "day": "2026-09-01", "stock": 23 }]
+    }
+  },
+  "spec": {
+    "items": [
+      { "id": "revenue", "title": "营收", "value": { "field": "revenue" } },
+      {
+        "id": "inventory",
+        "title": "库存",
+        "dataset": "inventory",
+        "value": { "field": "stock" },
+        "trend": { "type": "line", "timeField": "day" }
+      }
+    ]
+  }
+}
+```
+
+同一个命名数据集被多个指标选择时只物化一次；行数和单元格限制作用于本 KPI 组实际选择的数据集合。内置 Data 视图继续检查默认 `data`；只有命名数据而没有默认数据时，不展示单数据集切换按钮。
 
 inline/ref 两种 `ChartData` 都可使用。ref 数据由宿主通过独立的 `kpi` 选项注入 resolver；一次物化结果同时服务主值、趋势、compare 和 Data 视图：
 

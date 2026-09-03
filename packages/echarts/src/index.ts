@@ -1058,6 +1058,9 @@ export function createEChartsRenderer(
       if (context.language === 'echarts-fulldata') {
         return parseCompactEnvelope(spec, limits);
       }
+      if (context.datasets) {
+        return schemaError('The ECharts renderer accepts only the default markdown-chart.data dataset');
+      }
       return parseSpec(spec, context.data, limits);
     },
     parseSource(source, context) {

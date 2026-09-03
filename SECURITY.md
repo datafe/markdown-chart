@@ -25,7 +25,8 @@ untrusted model.
   `dataset.transform.config.reg` values never reach the ECharts transform
   engine, avoiding attacker-controlled regular-expression execution.
 - The ECharts renderer itself performs no `fetch`, XHR, or dynamic URL loading.
-- The KPI renderer strictly bounds dataset rows/cells, trend points, items,
+- The KPI renderer strictly bounds aggregate selected dataset rows/cells,
+  trend points, items,
   strings, status, and reference counts. It permits only field/constant
   bindings, `lastNonNull`, and a structured `Intl.NumberFormat` subset; it
   rejects functions, arbitrary expressions, invalid units/currencies, and

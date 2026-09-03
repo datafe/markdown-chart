@@ -10,8 +10,8 @@ import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';
 const registry = new ChartRendererRegistry().register(createKpiRenderer());
 ```
 
-The canonical fence keeps a wide dataset separate from renderer-owned field,
-format, trend, status, and reference configuration:
+The canonical fence keeps default or named datasets separate from
+renderer-owned field, format, trend, status, and reference configuration:
 
 ````markdown
 ```markdown-chart
@@ -68,6 +68,28 @@ format, trend, status, and reference configuration:
 Formatting uses a validated subset of `Intl.NumberFormat`: `text`, `decimal`,
 `percent`, `currency`, or `unit`, plus notation, fraction digits, prefix,
 suffix, and null display. Functions and arbitrary expressions are rejected.
+
+Items use the default top-level `data` unless they set `dataset` to a key in
+the top-level `datasets` map. Prefer shared default data for matching grain,
+filters, and source; use named datasets when those differ. Each selected
+inline/ref dataset is materialized once and total row/cell limits apply across
+the selected collection. The default `data` remains the source of the built-in
+Data table; a named-only group renders without that single-dataset toggle.
+
+```json
+{
+  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
+  "datasets": {
+    "inventory": { "kind": "inline", "source": [{ "stock": 23 }] }
+  },
+  "spec": {
+    "items": [
+      { "id": "revenue", "title": "Revenue", "value": { "field": "revenue" } },
+      { "id": "inventory", "title": "Inventory", "dataset": "inventory", "value": { "field": "stock" } }
+    ]
+  }
+}
+```
 
 An item may omit `trend`, or use a `line`/`area` sparkline with an exact source
 row lag, absolute/relative comparison, polarity, and optional zero-inclusive Y

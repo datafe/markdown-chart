@@ -36,18 +36,21 @@ const dimensions = [
   'unmetDemand',
   'lostRevenueWan',
   'incrementalRevenue',
-  'storeInventory',
-  'inventoryStatus',
-  'inventoryTone',
 ] as const;
 
 const rows: readonly ChartDataRow[] = [
-  ['08-27', 0.31, 510, 12_600_000, '31/48', '库存安全', 'positive'],
-  ['08-28', 0.33, 548, 13_400_000, '29/48', '库存安全', 'positive'],
-  ['08-29', 0.35, 590, 14_500_000, '27/48', '库存偏低', 'warning'],
-  ['08-30', 0.36, 632, 15_700_000, '25/48', '库存偏低', 'warning'],
-  ['08-31', 0.38, 681, 16_800_000, '24/48', '低于安全水位', 'negative'],
-  ['09-01', 0.4, 720, 18_000_000, '23/48', '低于安全水位', 'negative'],
+  ['08-27', 0.31, 510, 12_600_000],
+  ['08-28', 0.33, 548, 13_400_000],
+  ['08-29', 0.35, 590, 14_500_000],
+  ['08-30', 0.36, 632, 15_700_000],
+  ['08-31', 0.38, 681, 16_800_000],
+  ['09-01', 0.4, 720, 18_000_000],
+];
+
+const inventoryDimensions = ['recordedAt', 'storeInventory', 'inventoryStatus', 'inventoryTone'] as const;
+const inventoryRows: readonly ChartDataRow[] = [
+  ['08-31 09:00', '24/48', '库存偏低', 'warning'],
+  ['09-01 09:00', '23/48', '低于安全水位', 'negative'],
 ];
 
 const spec = {
@@ -104,6 +107,7 @@ const spec = {
     {
       id: 'store_inventory',
       title: '门店库存',
+      dataset: 'inventory',
       value: { field: 'storeInventory', format: { style: 'text' } },
       status: { text: { field: 'inventoryStatus' }, tone: { field: 'inventoryTone' } },
       references: [{ ref: 'wiki://metrics/store-inventory', label: '门店安全库存口径' }],
@@ -138,12 +142,17 @@ function markdownSource(mode: 'inline' | 'ref'): string {
   const data = mode === 'inline'
     ? { kind: 'inline', dimensions, source: rows }
     : { kind: 'ref', ref: 'demo://经营风险日报', format: 'json', dimensions };
+  const datasets = {
+    inventory: mode === 'inline'
+      ? { kind: 'inline', dimensions: inventoryDimensions, source: inventoryRows }
+      : { kind: 'ref', ref: 'demo://门店库存', format: 'json', dimensions: inventoryDimensions },
+  };
   return `## 经营风险概览
 
-同一组中同时展示有趋势和无趋势 KPI。右上角引用由宿主打开 Wiki，图表包不解析 Wiki。
+同一组中同时展示默认数据和独立库存数据集。右上角引用由宿主打开 Wiki，图表包不解析 Wiki。
 
 \`\`\`markdown-chart
-${JSON.stringify({ version: 1, renderer: 'kpi', data, spec }, null, 2)}
+${JSON.stringify({ version: 1, renderer: 'kpi', data, datasets, spec }, null, 2)}
 \`\`\``;
 }
 
@@ -155,10 +164,15 @@ export function App() {
   const openReference = useCallback((event: ChartReferenceEvent) => {
     setSelectedReference(event);
   }, []);
-  const resolveDataRef = useCallback(async (): Promise<ResolvedChartData> => {
-    return { dimensions, source: rows };
+  const resolveDataRef = useCallback(async (ref: string): Promise<ResolvedChartData> => {
+    return ref === 'demo://门店库存'
+      ? { dimensions: inventoryDimensions, source: inventoryRows }
+      : { dimensions, source: rows };
   }, []);
-  const validateDataRef = useCallback((ref: string) => ref === 'demo://经营风险日报', []);
+  const validateDataRef = useCallback(
+    (ref: string) => ref === 'demo://经营风险日报' || ref === 'demo://门店库存',
+    [],
+  );
   const kpi = useMemo(
     () => ({ resolveDataRef, validateDataRef, referenceIcon: createKnowledgeBaseIcon }),
     [resolveDataRef, validateDataRef],

@@ -956,6 +956,38 @@ describe('parseMarkdownChartEnvelope', () => {
     expect(envelope.spec).toEqual({ series: [{ type: 'bar' }] });
   });
 
+  it('exposes named datasets independently from the default data and renderer spec', () => {
+    const envelope = parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      data: { kind: 'inline', source: [{ revenue: 20 }] },
+      datasets: {
+        inventory: { kind: 'inline', source: [{ stock: 7 }] },
+        forecast: { kind: 'ref', ref: 'dataset://forecast', format: 'json' },
+      },
+      spec: { items: [] },
+    }));
+
+    expect(envelope.data).toEqual({ kind: 'inline', source: [{ revenue: 20 }] });
+    expect(envelope.datasets).toEqual({
+      inventory: { kind: 'inline', source: [{ stock: 7 }] },
+      forecast: { kind: 'ref', ref: 'dataset://forecast', format: 'json' },
+    });
+  });
+
+  it.each([
+    ['an empty collection', {}],
+    ['an invalid dataset id', { 'inventory.current': { kind: 'inline', source: [] } }],
+    ['malformed named data', { inventory: { kind: 'inline', source: 'invalid' } }],
+  ])('rejects %s', (_label, datasets) => {
+    expect(() => parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'kpi',
+      datasets,
+      spec: { items: [] },
+    }))).toThrowError();
+  });
+
   it('rejects malformed canonical data before invoking a renderer', () => {
     expect(() => parseMarkdownChartEnvelope(JSON.stringify({
       version: 1,

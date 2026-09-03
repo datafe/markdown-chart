@@ -928,6 +928,17 @@ describe('createEChartsRenderer', () => {
     }))).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
+  it('rejects named datasets because ECharts consumes only canonical data', async () => {
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer());
+    await expect(registry.prepare('markdown-chart', JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      data: { kind: 'inline', dimensions: ['x', 'y'], source: [['A', 1]] },
+      datasets: { other: { kind: 'inline', dimensions: ['x', 'y'], source: [['B', 2]] } },
+      spec: { series: [{ type: 'bar' }] },
+    }))).rejects.toThrowError(/accepts only the default/);
+  });
+
   it('renders a strict JSON option envelope from a ChatBI query fence without legacy resolution', async () => {
     let rendered: Record<string, JsonValue> | undefined;
     const fake = fakeRuntime((option) => { rendered = option; });

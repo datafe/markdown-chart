@@ -61,8 +61,9 @@ right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
 
 ## KPI renderer
 
-KPI cards use the same canonical `data`/`spec` separation as ECharts. A wide
-dataset contains one row per time point; `spec` binds fields and safe formatting:
+KPI cards use the same canonical data/configuration separation as ECharts. A
+shared default `data` dataset contains one row per time point; `spec` binds
+fields and safe formatting:
 
 ````markdown
 ```markdown-chart
@@ -117,6 +118,43 @@ The renderer supports 1–12 items, `lastNonNull` reduction, safe structured
 line/area sparklines with deterministic lag comparison. Items with fewer than
 two valid trend points fall back to a plain KPI. A group can freely mix items
 with and without trends.
+
+Prefer the shared default `data` when KPI items use the same grain, filters, and
+source. When they do not, put additional canonical ChartData objects in the
+top-level `datasets` map and select one with `item.dataset`. Omitting `dataset`
+selects the default `data`; the selector is deliberately named `dataset` so it
+cannot be confused with KPI `references`:
+
+```json
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
+  "datasets": {
+    "inventory": {
+      "kind": "inline",
+      "source": [{ "day": "2026-09-01", "stock": 23 }]
+    }
+  },
+  "spec": {
+    "items": [
+      { "id": "revenue", "title": "Revenue", "value": { "field": "revenue" } },
+      {
+        "id": "inventory",
+        "title": "Inventory",
+        "dataset": "inventory",
+        "value": { "field": "stock" },
+        "trend": { "type": "line", "timeField": "day" }
+      }
+    ]
+  }
+}
+```
+
+Every selected inline/ref dataset is materialized once, even when multiple KPI
+items select it. Row and cell limits apply to the complete selected collection.
+The built-in Data view continues to inspect the default `data`; a named-only KPI
+group renders without that single-dataset toggle.
 
 Both inline and referenced `ChartData` are supported. For ref data, provide the
 host-owned resolver through the adapter's independent `kpi` option; the result

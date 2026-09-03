@@ -3,6 +3,7 @@ import {
   isJsonObject,
   materializeChartData,
   type ChartData,
+  type ChartDatasets,
   type ChartDataMaterializationLimits,
   type ChartHandle,
   type ChartMountContext,
@@ -78,6 +79,7 @@ export interface KpiTrend {
 export interface KpiItem {
   readonly id: string;
   readonly title: string;
+  readonly dataset?: string;
   readonly value: KpiValueBinding;
   readonly status?: KpiStatusBinding;
   readonly trend?: KpiTrend;
@@ -132,7 +134,8 @@ interface MaterializedKpiItem {
 
 interface ParsedKpiChart {
   readonly spec: KpiSpec;
-  readonly data: ChartData;
+  readonly data?: ChartData;
+  readonly datasets?: ChartDatasets;
   readonly items?: readonly MaterializedKpiItem[];
 }
 
@@ -404,9 +407,12 @@ function parseReferences(value: JsonValue | undefined, path: string): KpiReferen
 
 function parseItem(value: JsonValue, path: string): KpiItem {
   if (!isJsonObject(value)) return schemaError(`${path} must be an object`);
-  assertOwnKeys(value, new Set(['id', 'title', 'value', 'status', 'trend', 'references']), path);
+  assertOwnKeys(value, new Set(['id', 'title', 'dataset', 'value', 'status', 'trend', 'references']), path);
   if (typeof value.id !== 'string' || !KPI_ID.test(value.id)) {
     return schemaError(`${path}.id must match ${KPI_ID.source}`);
+  }
+  if (value.dataset !== undefined && (typeof value.dataset !== 'string' || !KPI_ID.test(value.dataset))) {
+    return schemaError(`${path}.dataset must match ${KPI_ID.source}`);
   }
   const status = parseStatus(value.status, `${path}.status`);
   const trend = parseTrend(value.trend, `${path}.trend`);
@@ -414,6 +420,7 @@ function parseItem(value: JsonValue, path: string): KpiItem {
   return {
     id: value.id,
     title: readDisplayString(value.title, `${path}.title`, MAX_TITLE_CODE_POINTS),
+    ...(typeof value.dataset === 'string' ? { dataset: value.dataset } : {}),
     value: parseValue(value.value, `${path}.value`),
     ...(status ? { status } : {}),
     ...(trend ? { trend } : {}),
@@ -470,17 +477,23 @@ function readCell(data: InlineChartData, rowIndex: number, field: string): JsonP
   return columnIndex < 0 ? undefined : row[columnIndex];
 }
 
-function assertBoundFields(data: InlineChartData, spec: KpiSpec): void {
+function assertBoundFields(
+  data: InlineChartData,
+  item: KpiItem,
+  spec: KpiSpec,
+  itemIndex: number,
+  dataPath: string,
+): void {
   if (data.dimensions && new Set(data.dimensions).size !== data.dimensions.length) {
-    schemaError('markdown-chart.data.dimensions must be unique for KPI field binding');
+    schemaError(`${dataPath}.dimensions must be unique for KPI field binding`);
   }
   if (data.source.some((row) => Array.isArray(row)) && !data.dimensions) {
-    schemaError('KPI array rows require markdown-chart.data.dimensions');
+    schemaError(`KPI array rows require ${dataPath}.dimensions`);
   }
   if (data.dimensions) {
     data.source.forEach((row, rowIndex) => {
       if (Array.isArray(row) && row.length !== data.dimensions?.length) {
-        schemaError(`markdown-chart.data.source[${rowIndex}] must contain ${data.dimensions?.length} cells`);
+        schemaError(`${dataPath}.source[${rowIndex}] must contain ${data.dimensions?.length} cells`);
       }
     });
   }
@@ -488,16 +501,14 @@ function assertBoundFields(data: InlineChartData, spec: KpiSpec): void {
   const requireField = (field: string, path: string): void => {
     if (!fields.has(field)) schemaError(`${path} references missing field ${field}`);
   };
-  spec.items.forEach((item, index) => {
-    const path = `markdown-chart.spec.items[${index}]`;
-    requireField(item.value.field, `${path}.value.field`);
-    if (item.status && 'field' in item.status.text) requireField(item.status.text.field, `${path}.status.text.field`);
-    if (item.status?.tone && 'field' in item.status.tone) requireField(item.status.tone.field, `${path}.status.tone.field`);
-    if (item.trend) {
-      requireField(item.trend.field ?? item.value.field, `${path}.trend.field`);
-      requireField(item.trend.timeField ?? spec.timeField as string, `${path}.trend.timeField`);
-    }
-  });
+  const path = `markdown-chart.spec.items[${itemIndex}]`;
+  requireField(item.value.field, `${path}.value.field`);
+  if (item.status && 'field' in item.status.text) requireField(item.status.text.field, `${path}.status.text.field`);
+  if (item.status?.tone && 'field' in item.status.tone) requireField(item.status.tone.field, `${path}.status.tone.field`);
+  if (item.trend) {
+    requireField(item.trend.field ?? item.value.field, `${path}.trend.field`);
+    requireField(item.trend.timeField ?? spec.timeField as string, `${path}.trend.timeField`);
+  }
 }
 
 function lastNonNull(data: InlineChartData, field: string): {
@@ -592,9 +603,22 @@ function materializeTrend(
   };
 }
 
-function materializeItems(data: InlineChartData, spec: KpiSpec, limits: KpiLimits): MaterializedKpiItem[] {
-  assertBoundFields(data, spec);
-  return spec.items.map((item): MaterializedKpiItem => {
+function materializeItems(
+  dataByDataset: ReadonlyMap<string | undefined, InlineChartData>,
+  spec: KpiSpec,
+  limits: KpiLimits,
+): MaterializedKpiItem[] {
+  return spec.items.map((item, itemIndex): MaterializedKpiItem => {
+    const data = dataByDataset.get(item.dataset);
+    if (!data) {
+      return schemaError(item.dataset
+        ? `markdown-chart.spec.items[${itemIndex}].dataset references missing dataset ${item.dataset}`
+        : `markdown-chart.spec.items[${itemIndex}] requires default markdown-chart.data`);
+    }
+    const dataPath = item.dataset
+      ? `markdown-chart.datasets.${item.dataset}`
+      : 'markdown-chart.data';
+    assertBoundFields(data, item, spec, itemIndex, dataPath);
     const current = lastNonNull(data, item.value.field);
     const statusText = item.status ? resolveTextBinding(data, item.status.text) : undefined;
     const trend = materializeTrend(data, item, spec, limits.maxTrendPoints);
@@ -609,6 +633,27 @@ function materializeItems(data: InlineChartData, spec: KpiSpec, limits: KpiLimit
       ...(item.references ? { references: item.references } : {}),
     };
   });
+}
+
+function assertAggregateDataLimits(
+  dataByDataset: ReadonlyMap<string | undefined, InlineChartData>,
+  limits: KpiLimits,
+): void {
+  let rowCount = 0;
+  let cellCount = 0;
+  for (const data of dataByDataset.values()) {
+    rowCount += data.source.length;
+    cellCount += data.source.reduce(
+      (total, row) => total + (Array.isArray(row) ? row.length : Object.keys(row).length),
+      0,
+    );
+  }
+  if (rowCount > limits.maxRows) {
+    throw new MarkdownChartError('LIMIT_EXCEEDED', `KPI datasets exceed the ${limits.maxRows} total row limit`);
+  }
+  if (cellCount > limits.maxCells) {
+    throw new MarkdownChartError('LIMIT_EXCEEDED', `KPI datasets exceed the ${limits.maxCells} total cell limit`);
+  }
 }
 
 function setStyles(element: HTMLElement | SVGElement, styles: Partial<CSSStyleDeclaration>): void {
@@ -884,19 +929,50 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
   return {
     id: KPI_RENDERER_ID,
     parse(spec, context) {
-      if (!context.data) return schemaError('markdown-chart.data is required for the kpi renderer');
-      return { spec: parseKpiSpec(spec), data: context.data };
+      const parsedSpec = parseKpiSpec(spec);
+      if (!context.data && !context.datasets) {
+        return schemaError('markdown-chart.data or markdown-chart.datasets is required for the kpi renderer');
+      }
+      parsedSpec.items.forEach((item, index) => {
+        if (item.dataset) {
+          if (!context.datasets?.[item.dataset]) {
+            schemaError(`markdown-chart.spec.items[${index}].dataset references missing dataset ${item.dataset}`);
+          }
+        } else if (!context.data) {
+          schemaError(`markdown-chart.spec.items[${index}] requires default markdown-chart.data or an explicit dataset`);
+        }
+      });
+      return {
+        spec: parsedSpec,
+        ...(context.data ? { data: context.data } : {}),
+        ...(context.datasets ? { datasets: context.datasets } : {}),
+      };
     },
     async materialize(parsed, context) {
-      const data = await materializeChartData(parsed.data, {
-        signal: context.signal,
-        limits: { maxRows: limits.maxRows, maxCells: limits.maxCells },
-        ...(options.resolveDataRef ? { resolveDataRef: options.resolveDataRef } : {}),
-        ...(options.validateDataRef ? { validateDataRef: options.validateDataRef } : {}),
-      });
-      if (!data) return { parsed, data: context.data };
+      const requestedDatasets = new Set<string | undefined>();
+      if (parsed.data) requestedDatasets.add(undefined);
+      parsed.spec.items.forEach((item) => requestedDatasets.add(item.dataset));
+      const dataByDataset = new Map<string | undefined, InlineChartData>();
+      for (const dataset of requestedDatasets) {
+        const chartData = dataset === undefined ? parsed.data : parsed.datasets?.[dataset];
+        if (!chartData) {
+          return schemaError(dataset
+            ? `markdown-chart dataset ${dataset} is missing`
+            : 'default markdown-chart.data is missing');
+        }
+        const materialized = await materializeChartData(chartData, {
+          signal: context.signal,
+          limits: { maxRows: limits.maxRows, maxCells: limits.maxCells },
+          ...(options.resolveDataRef ? { resolveDataRef: options.resolveDataRef } : {}),
+          ...(options.validateDataRef ? { validateDataRef: options.validateDataRef } : {}),
+        });
+        if (!materialized) return { parsed, data: context.data };
+        dataByDataset.set(dataset, materialized);
+      }
+      assertAggregateDataLimits(dataByDataset, limits);
+      const data = dataByDataset.get(undefined);
       return {
-        parsed: { ...parsed, data, items: materializeItems(data, parsed.spec, limits) },
+        parsed: { ...parsed, ...(data ? { data } : {}), items: materializeItems(dataByDataset, parsed.spec, limits) },
         data,
       };
     },

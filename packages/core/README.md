@@ -18,9 +18,11 @@ value and creates a title element only when it is non-empty; it never supplies
 a fallback title. The Chart/Data controls remain right-aligned when no title is
 present, and the chart keeps 8px of vertical spacing from the toolbar.
 
-Canonical envelopes keep `data` separate from renderer-owned `spec`.
-`parseMarkdownChartEnvelope()` exposes validated inline or referenced data so a
-host can inspect the same rows without loading the renderer.
+Canonical envelopes keep default `data` and optional named `datasets` separate
+from renderer-owned `spec`. `parseMarkdownChartEnvelope()` exposes validated
+inline or referenced ChartData objects and passes both forms to the selected
+renderer. The shared Chart/Data view inspects the default `data`; renderers own
+the presentation of any selected named datasets.
 
 `materializeChartData()` is the shared renderer-neutral ref boundary. Hosts
 provide `ResolveChartDataRef` and optional validation; core forwards the opaque
