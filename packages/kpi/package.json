@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-kpi",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Strict framework-neutral KPI card renderer for Markdown Chart",
   "license": "MIT",
   "repository": {

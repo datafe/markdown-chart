@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.1.16
+
+### Patch Changes
+
+- 7b62c07: Match incomplete KPI grid rows to the card background while preserving separators and theme colors.
+  - @datafe-open/markdown-chart@0.1.16
+
 ## 0.1.15
 
 ### Patch Changes
