@@ -863,6 +863,7 @@ function createCard(
     display: 'flex', minWidth: '0', minHeight: item.trend ? '172px' : '128px', boxSizing: 'border-box',
     flexDirection: 'column', padding: '16px 16px 14px',
     background: variable('--markdown-chart-kpi-background', themeFallback(context.theme, '#ffffff', '#17191f')),
+    boxShadow: `0 0 0 1px ${variable('--markdown-chart-kpi-border', themeFallback(context.theme, '#d9deea', '#343943'))}`,
   });
   const heading = document.createElement('div');
   setStyles(heading, { display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: '0' });
@@ -995,8 +996,10 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       setStyles(grid, {
         display: 'grid', width: '100%', minWidth: '0', overflow: 'hidden', boxSizing: 'border-box',
         gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1px',
-        padding: '1px', borderRadius: '8px',
-        background: variable('--markdown-chart-kpi-border', themeFallback(context.theme, '#d9deea', '#343943')),
+        border: `1px solid ${variable('--markdown-chart-kpi-border', themeFallback(context.theme, '#d9deea', '#343943'))}`,
+        borderRadius: '8px',
+        // Unfilled cells share the card surface; card shadows draw the separators.
+        background: variable('--markdown-chart-kpi-background', themeFallback(context.theme, '#ffffff', '#17191f')),
       });
       const controls: ReferenceControl[] = [];
       parsed.items.forEach((item) => {
