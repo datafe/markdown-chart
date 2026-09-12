@@ -1,54 +1,114 @@
 # Markdown Chart
 
-[English](./README.md) | 简体中文
+<p align="center">
+  <strong>面向 Markdown 的安全、流式图表渲染方案。</strong><br />
+  将严格 JSON 代码块渲染为可交互的 ECharts 图表和响应式 KPI 卡片。
+</p>
 
-> [!NOTE]
-> 6 个 `@datafe-open/markdown-chart*` 包均已公开发布到 npm，下文安装命令会直接使用公开包。后续版本发布请参阅[发布流程](./RELEASING.md)。
+<p align="center">
+  <a href="https://www.npmjs.com/package/@datafe-open/markdown-chart"><img alt="npm 版本" src="https://img.shields.io/npm/v/@datafe-open/markdown-chart?color=4f46e5"></a>
+  <a href="https://github.com/datafe/markdown-chart/actions/workflows/release.yml"><img alt="发布状态" src="https://github.com/datafe/markdown-chart/actions/workflows/release.yml/badge.svg"></a>
+  <a href="./LICENSE"><img alt="MIT 许可证" src="https://img.shields.io/github/license/datafe/markdown-chart"></a>
+</p>
 
-`markdown-chart` 为流式 Markdown 提供可移植的图表代码块，支持查看原始数据和接入不同的图表渲染器。核心包与框架无关，也不依赖任何聊天产品。
+<p align="center">
+  <a href="./README.md">English</a> · 简体中文
+</p>
 
-项目提供相互独立的 ECharts、KPI 渲染器，以及 markdown-it、Vue 3 和 react-markdown 适配器。基于注册表的核心设计可以继续接入 Plotly、Vega 或其他渲染器包，无需在核心包中添加针对具体图表库的分支判断。
+<p align="center">
+  <img src="./docs/images/markdown-chart-kpi.png" alt="Markdown Chart 渲染响应式多 KPI 卡片组" width="960" />
+</p>
 
-## 包
+`markdown-chart` 是一个小巧、易于接入不同前端框架的 Markdown 图表工具包，
+尤其适合渲染 AI 或数据应用仍在流式输出的 Markdown。它让原始数据保持可查看，
+让图表配置可以跨宿主传递，也让渲染器与 Markdown 解析链路彼此解耦。
 
-| 包 | 用途 |
-| --- | --- |
-| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | 渲染器注册表、标准 `markdown-chart` 路由和生命周期控制器 |
-| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | 仅接受严格 JSON 的标准 ECharts 渲染器，以及已弃用的 ChatBI legacy 适配器 |
-| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | 严格校验的响应式多 KPI 卡片，以及可选的宿主引用操作 |
-| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | 输出安全占位节点，并通过 markdown-it env 收集图表块的插件 |
-| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 组件和 composable |
-| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown 的 `code`/`pre` 适配器 |
+## 为什么选择 Markdown Chart？
 
-## 标准 Markdown 格式
+- **为流式 Markdown 设计。** 已闭合的图表代码块会立即渲染，并在后续文本
+  继续到达时保持挂载。
+- **数据默认可查看。** 标准协议将数据与渲染器配置分离，自动提供图表/数据
+  切换和有边界的表格视图。
+- **适合承接生成内容。** 文档输入只接受严格 JSON，不执行 JavaScript，
+  并对 schema、大小和图表配置设置明确限制。
+- **直接接入常见技术栈。** 提供 React + react-markdown、Vue 3 + markdown-it
+  组件，也可以只使用与框架无关的核心包。
+- **同时覆盖图表和指标卡。** 内置相互独立的 ECharts 与响应式多 KPI 渲染器。
+- **可扩展但不绑定宿主。** 可以注册其它渲染器、解析应用自有数据引用，
+  或由宿主处理引用点击事件。
 
-````markdown
-```markdown-chart
+## 快速开始
+
+### React + react-markdown
+
+```sh
+pnpm add echarts @datafe-open/markdown-chart-react
+```
+
+````tsx
+import { MarkdownChart } from '@datafe-open/markdown-chart-react';
+
+const source = `## 月度销售额
+
+\`\`\`markdown-chart
 {
   "version": 1,
   "renderer": "echarts",
   "data": {
     "kind": "inline",
     "dimensions": ["month", "sales"],
-    "source": [["Jan", 100], ["Feb", 180]]
+    "source": [["1 月", 100], ["2 月", 180], ["3 月", 260]]
   },
   "spec": {
-    "title": { "text": "月度销售额" },
     "xAxis": { "type": "category" },
     "yAxis": {},
     "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
   }
 }
-```
+\`\`\``;
+
+export function Report() {
+  return <MarkdownChart source={source} />;
+}
 ````
 
-协议只有一个 `version`，位于最外层的 `markdown-chart` 协议对象中。`data` 与渲染器无关，因此宿主应用可以独立展示 inline 数据，例如提供“查看数据”操作。`spec` 属于选定的渲染器，不再重复保存数据或版本号。
+这个组件会自动配置 react-markdown、ECharts 和 KPI 渲染器。如果应用已经管理
+Markdown 解析器或渲染器注册表，请参考 [React 高级示例](./examples/react/advanced/)。
 
-对于 ECharts，公共卡片标题只取 `spec.title.text`，也就是 ECharts option 的 `title.text`。该值缺失或为空时不会展示标题元素，也不会使用兜底文本。`Chart / Data` 按钮仍保持右对齐，图表与工具栏之间保留 8px 的垂直间距。
+### Vue 3 + markdown-it
 
-## KPI 渲染器
+```sh
+pnpm add echarts @datafe-open/markdown-chart-vue
+```
 
-KPI 卡片与 ECharts 使用相同的数据/配置分离模型。默认共享的 `data` 宽表每行表示一个时间点，`spec` 只绑定字段和安全格式：
+```vue
+<script setup lang="ts">
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
+
+defineProps<{ source: string; streaming?: boolean }>();
+</script>
+
+<template>
+  <MarkdownChart :source="source" :streaming="streaming" />
+</template>
+```
+
+Vue 组件会自动配置 markdown-it 和同一组内置渲染器。完整可运行工程见
+[简单与高级示例](./examples/)。
+
+## 可以渲染什么？
+
+### ECharts 图表
+
+使用 `renderer: "echarts"`，通过与渲染器无关的 `data` 提供数据，以严格 JSON
+ECharts `spec` 提供图表配置。显式 ECharts 配置会覆盖项目的展示默认值。
+Inline 数据以及由宿主 resolver 返回的引用数据都会自动获得图表/数据切换能力。
+
+### 多 KPI 卡片
+
+使用 `renderer: "kpi"` 展示包含 1–12 个指标的响应式卡片组。每个 KPI 可以从
+共享或具名数据集中绑定值，使用结构化 `Intl.NumberFormat` 配置格式化数值，
+展示语义状态与折线/面积趋势，并按需暴露由宿主处理的引用入口。
 
 ````markdown
 ```markdown-chart
@@ -58,35 +118,22 @@ KPI 卡片与 ECharts 使用相同的数据/配置分离模型。默认共享的
   "data": {
     "kind": "inline",
     "source": [
-      { "day": "2026-08-31", "unmet": 0.38, "revenue": 16800000 },
-      { "day": "2026-09-01", "unmet": 0.4, "revenue": 18000000 }
+      { "day": "2026-09-01", "conversion": 0.38, "revenue": 16800000 },
+      { "day": "2026-09-02", "conversion": 0.42, "revenue": 18000000 }
     ]
   },
   "spec": {
     "timeField": "day",
     "items": [
       {
-        "id": "unmet_demand",
-        "title": "未满足需求",
-        "value": {
-          "field": "unmet",
-          "format": { "style": "percent", "maximumFractionDigits": 0 }
-        },
-        "status": {
-          "text": { "literal": "流失中" },
-          "tone": { "literal": "negative" }
-        },
-        "trend": {
-          "type": "area",
-          "compare": { "lag": 1, "mode": "absolute", "polarity": "lower-is-better" }
-        },
-        "references": [
-          { "ref": "docs://metrics/unmet-demand", "label": "指标口径" }
-        ]
+        "id": "conversion",
+        "title": "转化率",
+        "value": { "field": "conversion", "format": { "style": "percent" } },
+        "trend": { "type": "area", "compare": { "lag": 1, "mode": "absolute" } }
       },
       {
         "id": "revenue",
-        "title": "预估增量营收",
+        "title": "营收",
         "value": {
           "field": "revenue",
           "format": { "style": "currency", "currency": "CNY", "notation": "compact" }
@@ -98,152 +145,9 @@ KPI 卡片与 ECharts 使用相同的数据/配置分离模型。默认共享的
 ```
 ````
 
-渲染器支持 1–12 个指标、`lastNonNull` 归约、安全的结构化 `Intl.NumberFormat` 配置、字段/常量状态绑定，以及可选的 line/area sparkline 和确定性的 lag 对比。有效趋势点不足两个时降级为普通 KPI，同组可自由混排带趋势和无趋势指标。
-
-多个指标使用相同粒度、过滤条件和来源时，优先共享默认 `data`。不同时，把其它 canonical `ChartData` 放入顶层 `datasets`，并通过 `item.dataset` 选择；未配置 `dataset` 的指标使用默认 `data`。这样数据集选择 `dataset` 与指标证据 `references` 的语义保持独立：
-
-```json
-{
-  "version": 1,
-  "renderer": "kpi",
-  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
-  "datasets": {
-    "inventory": {
-      "kind": "inline",
-      "source": [{ "day": "2026-09-01", "stock": 23 }]
-    }
-  },
-  "spec": {
-    "items": [
-      { "id": "revenue", "title": "营收", "value": { "field": "revenue" } },
-      {
-        "id": "inventory",
-        "title": "库存",
-        "dataset": "inventory",
-        "value": { "field": "stock" },
-        "trend": { "type": "line", "timeField": "day" }
-      }
-    ]
-  }
-}
-```
-
-同一个命名数据集被多个指标选择时只物化一次；行数和单元格限制作用于本 KPI 组实际选择的数据集合。内置 Data 视图继续检查默认 `data`；只有命名数据而没有默认数据时，不展示单数据集切换按钮。
-
-inline/ref 两种 `ChartData` 都可使用。ref 数据由宿主通过独立的 `kpi` 选项注入 resolver；一次物化结果同时服务主值、趋势、compare 和 Data 视图：
-
-```tsx
-<MarkdownChart
-  source={source}
-  kpi={{
-    validateDataRef: (ref) => ref.startsWith('dataset://'),
-    resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
-  }}
-/>
-```
-
-每个指标最多三个引用。引用始终是不透明字符串，渲染器不会取数或跳转。宿主通过通用 action API 筛选允许的引用并处理点击。可选的 KPI `referenceIcon` 工厂允许可信宿主提供知识库等业务图标；渲染器只把它当作装饰元素，工厂返回空值或抛错时回退到默认链接图标：
-
-```tsx
-<MarkdownChart
-  source={source}
-  kpi={{
-    referenceIcon: ({ document }) => createKnowledgeBaseIcon(document),
-  }}
-  referenceActions={{
-    canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
-    open: ({ reference }) => openDocumentation(reference.ref),
-  }}
-/>
-```
-
-流式渲染期间应保持 `kpi` 配置对象以及 `referenceActions.canOpen` / `open`
-回调引用稳定，以便复用已经完成的卡片和取数结果。
-
-宿主应用无需加载图表运行时，也可以读取标准格式中的数据：
-
-```sh
-pnpm add @datafe-open/markdown-chart
-```
-
-```ts
-import { parseMarkdownChartEnvelope } from '@datafe-open/markdown-chart';
-
-// chartFenceBody 是 markdown-chart 代码块内部的 JSON 文本。
-const { data } = parseMarkdownChartEnvelope(chartFenceBody);
-if (data?.kind === 'inline') {
-  showDataTable(data.dimensions, data.source);
-}
-```
-
-## 紧凑 ECharts 围栏
-
-ECharts 包还会注册 `dataworks-chart` skill 使用的精确
-`echarts-fulldata` 围栏。它只接受严格 JSON、绝不执行 JavaScript，是等价
-canonical envelope 的 renderer-owned shorthand：
-
-````markdown
-```echarts-fulldata
-{
-  "version": 1,
-  "data": {
-    "kind": "inline",
-    "dimensions": ["month", "sales"],
-    "source": [["Jan", 100], ["Feb", 180]]
-  },
-  "option": {
-    "title": { "text": "月度销售额" },
-    "series": [{ "type": "bar" }]
-  }
-}
-```
-````
-
-紧凑格式省去固定的 `renderer` / `spec` 包装，但仍与 canonical ECharts
-共用 option 校验、标题、data-ref 解析和 Chart/Data 视图。单数
-`echart-fulldata` 不会注册。
-
-## React + react-markdown
-
-假设前面的标准 Markdown 已保存在 `source` 中：
-
-```sh
-pnpm add echarts @datafe-open/markdown-chart-react
-```
-
-```tsx
-import { MarkdownChart } from '@datafe-open/markdown-chart-react';
-
-export function App({ source }: { source: string }) {
-  return <MarkdownChart source={source} />;
-}
-```
-
-## Vue 3 + markdown-it
-
-```sh
-pnpm add echarts @datafe-open/markdown-chart-vue
-```
-
-```vue
-<script setup lang="ts">
-import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-
-defineProps<{ source: string }>();
-</script>
-
-<template>
-  <MarkdownChart :source="source" />
-</template>
-```
-
-两个组件都会自动注册 ECharts 和 KPI；ECharts 在首次挂载时加载运行时并使用 360px 的默认最小高度，KPI 则采用紧凑的内容高度。标准格式中的 inline 数据，以及由 `resolveDataRef` 返回的 ref 数据，都会自动启用基于图标的 `Chart / Data` 切换和有边界、可滚动的数据表格。卡片、工具栏、图标、表格，以及 ECharts 的默认色板、坐标轴、tooltip 和系列样式均改编自 [Qwen Code WebShell 实现](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx)；Markdown 中显式设置的 ECharts option 仍然优先。React 包自带 `react-markdown`，Vue 包自带 `markdown-it`。只有默认行为不能满足需求时，才需要传入自定义 `registry`、解析器、主题或渲染器选项。归因信息见[第三方声明](./THIRD_PARTY_NOTICES.md)。
-
-宿主应用可以通过 `--markdown-chart-background`、`--markdown-chart-subtle-background` 和 `--markdown-chart-accent` 对齐卡片颜色。高级模式可以设置 `createEChartsRenderer({ defaultStyle: false })` 关闭展示样式默认值；安全校验、标准 data 注入和 data ref 解析仍然会执行。
-
 ## 流式渲染
 
-把外层 Markdown 文档的流式状态传给框架组件：
+在 token 仍在到达时，把外层文档状态传给组件：
 
 ```tsx
 <MarkdownChart source={source} streaming={isStreaming} />
@@ -253,123 +157,38 @@ defineProps<{ source: string }>();
 <MarkdownChart :source="source" :streaming="isStreaming" />
 ```
 
-已经闭合的图表代码块会立即渲染；后续文本继续到达时，已挂载的图表实例会保持不变。只有末尾仍未闭合、正在输出的代码块会等待更多输入；图表代码块位于引用块中时也遵循相同行为。等待中的代码块以及异步解析、取数和运行时挂载阶段会显示内置 loading，不再留下空白占位。可以用 `loadingLabel` 本地化文案，用 `--markdown-chart-loading-color` 对齐颜色。React 高级模式把相同状态传给 `MarkdownChartProvider`，Vue 高级模式则传给 `MarkdownChart`。
+代码块一旦闭合就会立即渲染。只有文档末尾尚未闭合的活动代码块会继续等待；
+解析、数据解析或图表运行时挂载尚未完成时，会展示内置 loading 状态。
 
-## 界面文案本地化
+## 由宿主管理的数据与操作
 
-React 和 Vue 宿主可以传入部分 `labels`，本地化 Chart/Data 控件、无障碍标签、空数据提示、截断提示和图表错误兜底：
+标准数据既可以直接 inline，也可以使用 `dataset://forecast` 这类不透明引用。
+项目本身不会选择传输方式，也不会主动请求引用；宿主负责校验引用并提供 resolver。
+KPI 引用入口遵守同一边界：渲染器只转发不透明事件，由宿主决定是否以及如何打开。
 
-```tsx
-<MarkdownChart
-  source={source}
-  labels={{
-    chartUnavailable: '图表不可用',
-    viewMode: '视图模式',
-    chart: '图表',
-    data: '数据',
-    showChart: '显示图表',
-    showData: '显示数据',
-    noData: '暂无数据',
-    tableNotice: ({ visibleRows, totalRows, visibleColumns, totalColumns }) =>
-      `显示 ${visibleRows}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`,
-  }}
-/>
-```
+因此，应用的数据访问、鉴权、页面跳转和领域协议都留在公共渲染器之外。
 
-`MarkdownChartProvider`、`MarkdownChartBlock`、Vue composable / 挂载工具和 markdown-it 插件都接受同一个 `MarkdownChartLabelOverrides` 类型；没有提供的文案继续使用英文默认值。
+## 包说明
 
-## 高级配置
+| 包 | 用途 |
+| --- | --- |
+| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | 与框架无关的注册表、标准解析器、数据视图和生命周期控制器 |
+| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | 严格 JSON ECharts 渲染器 |
+| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | 响应式多 KPI 渲染器 |
+| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | markdown-it 占位插件和环境通道 |
+| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | React + react-markdown 组件和适配器 |
+| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 + markdown-it 组件和 composable |
 
-只有在添加新渲染器或解析宿主数据时，才需要创建并传入注册表：
+## 文档
 
-```ts
-import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
+- [协议规范](./SPEC.md)
+- [安全模型与支持的 ECharts 配置范围](./SECURITY.md)
+- [可运行示例](./examples/)
+- [React 包接入指南](./packages/react/README.md)
+- [Vue 包接入指南](./packages/vue/README.md)
+- [发布流程](./RELEASING.md)
 
-const registry = new ChartRendererRegistry();
-registry.register(createEChartsRenderer({
-  resolveDataRef: async (ref, meta) => loadApplicationDataset(ref, meta.signal),
-}));
-```
-
-解析方法返回 `{ dimensions?, source }`。如果省略 `dimensions`，会保留 ref 上声明的维度。ECharts 会同时把实体化后的数据用于 `option.dataset` 和公共 `Chart / Data` 视图，因此不需要再内联复制数据也可查看表格。
-
-把同一个实时注册表传给框架适配器。之后注册的渲染器别名，例如 `vega-lite` 或 `plotly`，无需更新适配器的语言列表即可被识别。包本身不会获取数据引用，允许哪些引用协议由应用决定。
-
-### 接入已有的 react-markdown 应用
-
-如果宿主应用已经管理外层 Markdown 渲染器，仍然可以使用 Provider 和 components API。使用上面配置好的 `registry`，接入方式如下：
-
-```tsx
-import ReactMarkdown from 'react-markdown';
-import {
-  MarkdownChartProvider,
-  createMarkdownChartComponents,
-} from '@datafe-open/markdown-chart-react';
-
-const chartComponents = createMarkdownChartComponents({
-  chartStyle: { minHeight: 360 },
-});
-
-<MarkdownChartProvider registry={registry} streaming={isStreaming}>
-  <ReactMarkdown components={chartComponents}>{source}</ReactMarkdown>
-</MarkdownChartProvider>
-```
-
-Provider 会从直接子节点 `ReactMarkdown` 中推断 `source`，因此在这种常见的高级接入方式中，启用流式渲染不需要再增加一个必填属性。
-
-在这种模式下，应用应把所有直接导入的包声明为应用依赖：
-
-```sh
-pnpm add echarts react-markdown \
-  @datafe-open/markdown-chart \
-  @datafe-open/markdown-chart-echarts \
-  @datafe-open/markdown-chart-react
-```
-
-### 接入已有的 Vue + markdown-it 应用
-
-Vue 应用可以保留已有的 markdown-it 实例，并把同一个注册表传给插件和组件：
-
-```vue
-<script setup lang="ts">
-import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-import MarkdownIt from 'markdown-it';
-
-defineProps<{ source: string; isStreaming: boolean }>();
-
-const registry = new ChartRendererRegistry().register(createEChartsRenderer());
-const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
-  registry,
-});
-</script>
-
-<template>
-  <MarkdownChart
-    :source="source"
-    :streaming="isStreaming"
-    :markdown-it="markdownIt"
-    :registry="registry"
-  />
-</template>
-```
-
-把这个高级示例直接导入的包声明为应用依赖：
-
-```sh
-pnpm add echarts markdown-it \
-  @datafe-open/markdown-chart \
-  @datafe-open/markdown-chart-echarts \
-  @datafe-open/markdown-chart-markdown-it \
-  @datafe-open/markdown-chart-vue
-```
-
-更多内容请参阅 [SPEC.md](./SPEC.md)、[SECURITY.md](./SECURITY.md) 以及 Vue 和 React [示例](./examples/)。简单模式和高级模式位于相互独立的可运行目录中，各自拥有独立的依赖清单。
-
-## 开发
+## 本地开发
 
 ```sh
 pnpm install
@@ -379,8 +198,10 @@ pnpm build
 pnpm check:pack
 ```
 
-根目录构建会同时验证所有可发布包，以及全部 React/Vue Vite 示例。示例 workspace 均为私有包，不会包含在 npm 包产物中。发布包变更使用 Changesets 管理，首次发布和自动发布步骤见[发布流程](./RELEASING.md)。
+欢迎提交 Issue 和 Pull Request。可发布包的变更使用 Changesets；根目录构建也会
+验证全部 React 和 Vue 示例。
 
 ## 许可证
 
-MIT。部分实现改编自采用 Apache-2.0 许可证的 Qwen Code，详见[第三方声明](./THIRD_PARTY_NOTICES.md)。
+MIT。部分实现改编自采用 Apache-2.0 许可证的 Qwen Code，详见
+[第三方声明](./THIRD_PARTY_NOTICES.md)。

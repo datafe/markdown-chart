@@ -1,69 +1,119 @@
 # Markdown Chart
 
-English | [简体中文](./README.zh-CN.md)
+<p align="center">
+  <strong>Safe, streaming-ready charts for Markdown.</strong><br />
+  Turn strict JSON code fences into interactive ECharts visualizations and responsive KPI cards.
+</p>
 
-> [!NOTE]
-> All six `@datafe-open/markdown-chart*` packages are published on npm. The
-> install commands below use the public packages. Maintainers should follow
-> [RELEASING.md](./RELEASING.md) for subsequent releases.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@datafe-open/markdown-chart"><img alt="npm version" src="https://img.shields.io/npm/v/@datafe-open/markdown-chart?color=4f46e5"></a>
+  <a href="https://github.com/datafe/markdown-chart/actions/workflows/release.yml"><img alt="Release" src="https://github.com/datafe/markdown-chart/actions/workflows/release.yml/badge.svg"></a>
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/datafe/markdown-chart"></a>
+</p>
 
-`markdown-chart` provides portable chart blocks for streaming Markdown, with
-inspectable data and pluggable renderers. Its core is framework-neutral and
-independent of any chat product.
+<p align="center">
+  English · <a href="./README.zh-CN.md">简体中文</a>
+</p>
 
-The project includes independent ECharts and KPI renderers plus adapters for
-markdown-it, Vue 3, and react-markdown. The registry-based core can accept
-future Plotly, Vega, or other renderer packages without adding chart-specific
-switches to the core.
+<p align="center">
+  <img src="./docs/images/markdown-chart-kpi.png" alt="Markdown Chart rendering a responsive multi-KPI group" width="960" />
+</p>
 
-## Packages
+`markdown-chart` is a small, framework-friendly toolkit for rendering charts
+inside Markdown—including Markdown that is still streaming from an AI or data
+application. It keeps data inspectable, chart specifications portable, and
+renderer code outside your Markdown pipeline.
 
-| Package | Purpose |
-| --- | --- |
-| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Renderer registry, canonical `markdown-chart` routing, and lifecycle controller |
-| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON-only canonical ECharts renderer and deprecated ChatBI legacy adapter |
-| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | Strict responsive multi-KPI cards with optional host-owned reference actions |
-| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | Safe placeholder plugin and environment side channel |
-| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 component and composable |
-| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | react-markdown `code`/`pre` adapter |
+## Why Markdown Chart?
 
-## Canonical Markdown
+- **Built for streaming Markdown.** Completed chart fences render immediately
+  and stay mounted while the rest of the document continues to arrive.
+- **Inspectable by default.** Canonical data is separate from the renderer
+  specification, enabling a built-in Chart/Data switch and bounded data table.
+- **Safe for generated content.** Document input is strict JSON—never
+  executable JavaScript—and is protected by schema, size, and option limits.
+- **Works with your stack.** Use the ready-made React + react-markdown or Vue 3
+  + markdown-it components, or integrate the framework-neutral core.
+- **Charts and KPIs.** ECharts and responsive multi-KPI cards are included as
+  independent renderers.
+- **Extensible without lock-in.** Register another renderer, resolve
+  application-owned data references, or handle reference clicks in the host.
 
-````markdown
-```markdown-chart
+## Quick start
+
+### React + react-markdown
+
+```sh
+pnpm add echarts @datafe-open/markdown-chart-react
+```
+
+````tsx
+import { MarkdownChart } from '@datafe-open/markdown-chart-react';
+
+const source = `## Monthly sales
+
+\`\`\`markdown-chart
 {
   "version": 1,
   "renderer": "echarts",
   "data": {
     "kind": "inline",
     "dimensions": ["month", "sales"],
-    "source": [["Jan", 100], ["Feb", 180]]
+    "source": [["Jan", 100], ["Feb", 180], ["Mar", 260]]
   },
   "spec": {
-    "title": { "text": "Monthly sales" },
     "xAxis": { "type": "category" },
     "yAxis": {},
     "series": [{ "type": "bar", "encode": { "x": "month", "y": "sales" } }]
   }
 }
-```
+\`\`\``;
+
+export function Report() {
+  return <MarkdownChart source={source} />;
+}
 ````
 
-There is only one protocol `version`, on the outer `markdown-chart` envelope.
-`data` is renderer-neutral so hosts can expose the inline rows independently,
-for example in a “View data” action. `spec` belongs to the selected renderer and
-does not repeat the data or version.
+The component configures react-markdown plus the ECharts and KPI renderers. If
+your application already owns the Markdown parser or renderer registry, use the
+[advanced React example](./examples/react/advanced/) instead.
 
-For ECharts, the shared card title comes only from `spec.title.text`, which is
-the ECharts option's `title.text`. If it is absent or blank, the title element
-is omitted instead of showing a fallback. The Chart/Data controls remain
-right-aligned, and the chart keeps 8px of vertical spacing from the toolbar.
+### Vue 3 + markdown-it
 
-## KPI renderer
+```sh
+pnpm add echarts @datafe-open/markdown-chart-vue
+```
 
-KPI cards use the same canonical data/configuration separation as ECharts. A
-shared default `data` dataset contains one row per time point; `spec` binds
-fields and safe formatting:
+```vue
+<script setup lang="ts">
+import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
+
+defineProps<{ source: string; streaming?: boolean }>();
+</script>
+
+<template>
+  <MarkdownChart :source="source" :streaming="streaming" />
+</template>
+```
+
+The Vue component configures markdown-it plus the same built-in renderers. See
+the [simple and advanced examples](./examples/) for complete runnable apps.
+
+## What you can render
+
+### ECharts
+
+Use `renderer: "echarts"` with renderer-neutral `data` and a strict JSON
+ECharts `spec`. Explicit ECharts values win over the presentation defaults.
+Inline data—and referenced data returned by your resolver—automatically gets a
+Chart/Data switch.
+
+### Multi-KPI cards
+
+Use `renderer: "kpi"` for a responsive group of 1–12 metrics. KPI items can
+bind values from shared or named datasets, format numbers with structured
+`Intl.NumberFormat` options, display semantic status, draw line or area
+sparklines, and expose optional host-owned references.
 
 ````markdown
 ```markdown-chart
@@ -73,31 +123,18 @@ fields and safe formatting:
   "data": {
     "kind": "inline",
     "source": [
-      { "day": "2026-08-31", "unmet": 0.38, "revenue": 16800000 },
-      { "day": "2026-09-01", "unmet": 0.4, "revenue": 18000000 }
+      { "day": "2026-09-01", "conversion": 0.38, "revenue": 16800000 },
+      { "day": "2026-09-02", "conversion": 0.42, "revenue": 18000000 }
     ]
   },
   "spec": {
     "timeField": "day",
     "items": [
       {
-        "id": "unmet_demand",
-        "title": "Unmet demand",
-        "value": {
-          "field": "unmet",
-          "format": { "style": "percent", "maximumFractionDigits": 0 }
-        },
-        "status": {
-          "text": { "literal": "At risk" },
-          "tone": { "literal": "negative" }
-        },
-        "trend": {
-          "type": "area",
-          "compare": { "lag": 1, "mode": "absolute", "polarity": "lower-is-better" }
-        },
-        "references": [
-          { "ref": "docs://metrics/unmet-demand", "label": "Metric definition" }
-        ]
+        "id": "conversion",
+        "title": "Conversion",
+        "value": { "field": "conversion", "format": { "style": "percent" } },
+        "trend": { "type": "area", "compare": { "lag": 1, "mode": "absolute" } }
       },
       {
         "id": "revenue",
@@ -113,193 +150,9 @@ fields and safe formatting:
 ```
 ````
 
-The renderer supports 1–12 items, `lastNonNull` reduction, safe structured
-`Intl.NumberFormat` options, field/literal status bindings, and optional
-line/area sparklines with deterministic lag comparison. Items with fewer than
-two valid trend points fall back to a plain KPI. A group can freely mix items
-with and without trends.
-
-Prefer the shared default `data` when KPI items use the same grain, filters, and
-source. When they do not, put additional canonical ChartData objects in the
-top-level `datasets` map and select one with `item.dataset`. Omitting `dataset`
-selects the default `data`; the selector is deliberately named `dataset` so it
-cannot be confused with KPI `references`:
-
-```json
-{
-  "version": 1,
-  "renderer": "kpi",
-  "data": { "kind": "inline", "source": [{ "revenue": 18000000 }] },
-  "datasets": {
-    "inventory": {
-      "kind": "inline",
-      "source": [{ "day": "2026-09-01", "stock": 23 }]
-    }
-  },
-  "spec": {
-    "items": [
-      { "id": "revenue", "title": "Revenue", "value": { "field": "revenue" } },
-      {
-        "id": "inventory",
-        "title": "Inventory",
-        "dataset": "inventory",
-        "value": { "field": "stock" },
-        "trend": { "type": "line", "timeField": "day" }
-      }
-    ]
-  }
-}
-```
-
-Every selected inline/ref dataset is materialized once, even when multiple KPI
-items select it. Row and cell limits apply to the complete selected collection.
-The built-in Data view continues to inspect the default `data`; a named-only KPI
-group renders without that single-dataset toggle.
-
-Both inline and referenced `ChartData` are supported. For ref data, provide the
-host-owned resolver through the adapter's independent `kpi` option; the result
-is materialized once for the value, sparkline, comparison, and Data view:
-
-```tsx
-const kpiOptions = useMemo(
-  () => ({
-    validateDataRef: (ref) => ref.startsWith('dataset://'),
-    resolveDataRef: (ref, { signal }) => loadDataset(ref, signal),
-  }),
-  [],
-);
-
-<MarkdownChart
-  source={source}
-  kpi={kpiOptions}
-/>
-```
-
-Each item accepts up to three references. The renderer treats every reference
-as opaque and never fetches or navigates. A host selects allowed references and
-handles clicks through the generic action API. The optional KPI
-`referenceIcon` factory lets a trusted host supply its own decorative glyph;
-the renderer falls back to the link icon and never interprets what the custom
-icon represents:
-
-```tsx
-<MarkdownChart
-  source={source}
-  kpi={{
-    referenceIcon: ({ document }) => createHostReferenceIcon(document),
-  }}
-  referenceActions={{
-    canOpen: ({ reference }) => reference.ref.startsWith('docs://'),
-    open: ({ reference }) => openDocumentation(reference.ref),
-  }}
-/>
-```
-
-Keep the KPI options and `referenceActions.canOpen` / `open` callbacks stable
-across streaming renders so completed cards and resolved data can be reused.
-
-Hosts can inspect canonical data without loading a chart runtime:
-
-```sh
-pnpm add @datafe-open/markdown-chart
-```
-
-```ts
-import { parseMarkdownChartEnvelope } from '@datafe-open/markdown-chart';
-
-// chartFenceBody is the JSON text inside one markdown-chart fence.
-const { data } = parseMarkdownChartEnvelope(chartFenceBody);
-if (data?.kind === 'inline') {
-  showDataTable(data.dimensions, data.source);
-}
-```
-
-## Compact ECharts fence
-
-The ECharts package also registers the exact `echarts-fulldata` fence used by
-the `dataworks-chart` skill. It is strict JSON, never JavaScript, and is a
-renderer-owned shorthand for the equivalent canonical envelope:
-
-````markdown
-```echarts-fulldata
-{
-  "version": 1,
-  "data": {
-    "kind": "inline",
-    "dimensions": ["month", "sales"],
-    "source": [["Jan", 100], ["Feb", 180]]
-  },
-  "option": {
-    "title": { "text": "Monthly sales" },
-    "series": [{ "type": "bar" }]
-  }
-}
-```
-````
-
-The compact envelope saves the fixed `renderer` / `spec` wrapper while using
-the same option validation, title, data-ref resolution, and Chart/Data view as
-canonical ECharts. The singular `echart-fulldata` fence is not registered.
-
-## React + react-markdown
-
-With the canonical Markdown above stored in `source`:
-
-```sh
-pnpm add echarts @datafe-open/markdown-chart-react
-```
-
-```tsx
-import { MarkdownChart } from '@datafe-open/markdown-chart-react';
-
-export function App({ source }: { source: string }) {
-  return <MarkdownChart source={source} />;
-}
-```
-
-## Vue 3 + markdown-it
-
-```sh
-pnpm add echarts @datafe-open/markdown-chart-vue
-```
-
-```vue
-<script setup lang="ts">
-import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-
-defineProps<{ source: string }>();
-</script>
-
-<template>
-  <MarkdownChart :source="source" />
-</template>
-```
-
-Both components register ECharts and KPI automatically. They load ECharts on
-its first chart mount and apply a 360px minimum height to chart placeholders;
-the KPI renderer uses its compact content height. Canonical inline data and referenced data
-returned by `resolveDataRef` also enable a built-in icon-based Chart/Data switch
-with a bounded, scrollable data table.
-The card, toolbar, icons, table, and default ECharts palette/axes/tooltip/series
-styling are adapted from the
-[Qwen Code WebShell implementation](https://github.com/QwenLM/qwen-code/blob/89ab15d2f1bc253d4375e508130462ad5df3c56f/packages/web-shell/client/components/messages/EchartsFullDataBlock.tsx),
-while explicit ECharts option values still win. The React package includes
-`react-markdown`, and the Vue package includes `markdown-it`. Pass a custom
-`registry`, parser, theme, or renderer options only when the defaults are not
-sufficient. See [Third-party notices](./THIRD_PARTY_NOTICES.md) for attribution.
-
-Card colors can be aligned with the host through `--markdown-chart-background`,
-`--markdown-chart-subtle-background`, `--markdown-chart-accent`, and
-`--markdown-chart-accent-foreground`. The selected Chart/Data icon foreground
-falls back to the chart background and then `#ffffff`; hosts with a custom
-accent can override the accent and its foreground as a pair. Advanced registries
-can set `createEChartsRenderer({ defaultStyle: false })` to disable the
-presentation defaults. Validation, canonical data injection, and data-ref
-resolution still apply.
-
 ## Streaming
 
-Pass the outer document streaming state to the framework component:
+Pass the outer document state while tokens are arriving:
 
 ```tsx
 <MarkdownChart source={source} streaming={isStreaming} />
@@ -309,146 +162,40 @@ Pass the outer document streaming state to the framework component:
 <MarkdownChart :source="source" :streaming="isStreaming" />
 ```
 
-Closed chart fences render immediately and keep their mounted chart instance as
-later text arrives. Only the active unterminated tail fence waits for more
-input, including when a chart fence is nested in a blockquote. Pending fences
-and asynchronous parsing, data resolution, and runtime
-mounting show a built-in loading indicator instead of a blank placeholder.
-Use `loadingLabel` to localize its text and
-`--markdown-chart-loading-color` to align its color. Advanced React applications
-pass the same state to
-`MarkdownChartProvider`; advanced Vue applications pass it to `MarkdownChart`.
+Closed fences render as soon as they are complete. Only the active,
+unterminated tail fence waits for more input, and pending parsing, data
+resolution, or runtime mounting shows a built-in loading state.
 
-## Localized labels
+## Host-owned data and actions
 
-React and Vue hosts can pass a partial `labels` object to localize the
-Chart/Data controls, accessibility labels, empty-data text, truncation notice,
-and chart error fallback:
+Canonical data can be inline or an opaque reference such as
+`dataset://forecast`. The library never chooses a transport or fetches that
+reference itself: the host validates it and provides a resolver. KPI reference
+controls follow the same boundary—the renderer forwards an opaque event, while
+the host decides whether and how to open it.
 
-```tsx
-<MarkdownChart
-  source={source}
-  labels={{
-    chartUnavailable: '图表不可用',
-    viewMode: '视图模式',
-    chart: '图表',
-    data: '数据',
-    showChart: '显示图表',
-    showData: '显示数据',
-    noData: '暂无数据',
-    tableNotice: ({ visibleRows, totalRows, visibleColumns, totalColumns }) =>
-      `显示 ${visibleRows}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`,
-  }}
-/>
-```
+This keeps application data access, authorization, navigation, and domain
+protocols outside the public renderer.
 
-The same `MarkdownChartLabelOverrides` type is accepted by
-`MarkdownChartProvider`, `MarkdownChartBlock`, the Vue composable/mounting
-utility, and the markdown-it plugin. Omitted labels use the English defaults.
+## Packages
 
-## Advanced setup
+| Package | Purpose |
+| --- | --- |
+| [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Framework-neutral registry, canonical parser, data view, and lifecycle controller |
+| [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON ECharts renderer |
+| [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | Responsive multi-KPI renderer |
+| [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | markdown-it placeholder plugin and environment channel |
+| [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | React + react-markdown component and adapter |
+| [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 + markdown-it component and composable |
 
-Create and pass a registry only when adding renderers or resolving host data:
+## Documentation
 
-```ts
-import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
-
-const registry = new ChartRendererRegistry();
-registry.register(createEChartsRenderer({
-  resolveDataRef: async (ref, meta) => loadApplicationDataset(ref, meta.signal),
-}));
-```
-
-The resolver returns `{ dimensions?, source }`. If it omits `dimensions`, the
-dimensions declared on the ref are retained. ECharts uses the materialized rows
-for both `option.dataset` and the shared Chart/Data view, so referenced datasets
-can be inspected without duplicating them inline.
-
-Pass the same live registry to framework adapters. Renderer aliases registered
-later, such as `vega-lite` or `plotly`, are then recognized without updating an
-adapter language list. The package never fetches a data reference itself;
-applications decide which reference schemes are allowed.
-
-### Existing react-markdown applications
-
-The provider and components API remains available when the host already owns
-the surrounding Markdown renderer. Using the configured `registry` above, the
-integration remains:
-
-```tsx
-import ReactMarkdown from 'react-markdown';
-import {
-  MarkdownChartProvider,
-  createMarkdownChartComponents,
-} from '@datafe-open/markdown-chart-react';
-
-const chartComponents = createMarkdownChartComponents({
-  chartStyle: { minHeight: 360 },
-});
-
-<MarkdownChartProvider registry={registry} streaming={isStreaming}>
-  <ReactMarkdown components={chartComponents}>{source}</ReactMarkdown>
-</MarkdownChartProvider>
-```
-
-The provider infers `source` from its direct `ReactMarkdown` child, so streaming
-support does not add another required prop in this common advanced setup.
-
-Because the application imports `react-markdown` directly in this mode,
-declare every directly imported package as an application dependency:
-
-```sh
-pnpm add echarts react-markdown \
-  @datafe-open/markdown-chart \
-  @datafe-open/markdown-chart-echarts \
-  @datafe-open/markdown-chart-react
-```
-
-### Existing Vue + markdown-it applications
-
-Vue applications can keep their existing markdown-it instance and pass the
-same registry to both the plugin and component:
-
-```vue
-<script setup lang="ts">
-import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
-import { createEChartsRenderer } from '@datafe-open/markdown-chart-echarts';
-import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
-import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-import MarkdownIt from 'markdown-it';
-
-defineProps<{ source: string; isStreaming: boolean }>();
-
-const registry = new ChartRendererRegistry().register(createEChartsRenderer());
-const markdownIt = new MarkdownIt({ html: false }).use(markdownChartPlugin, {
-  registry,
-});
-</script>
-
-<template>
-  <MarkdownChart
-    :source="source"
-    :streaming="isStreaming"
-    :markdown-it="markdownIt"
-    :registry="registry"
-  />
-</template>
-```
-
-Declare the packages imported by this advanced setup directly:
-
-```sh
-pnpm add echarts markdown-it \
-  @datafe-open/markdown-chart \
-  @datafe-open/markdown-chart-echarts \
-  @datafe-open/markdown-chart-markdown-it \
-  @datafe-open/markdown-chart-vue
-```
-
-See [SPEC.md](./SPEC.md), [SECURITY.md](./SECURITY.md), and the Vue and React
-[examples](./examples/). Simple and advanced modes live in separate runnable
-folders with independent dependency manifests.
+- [Protocol specification](./SPEC.md)
+- [Security model and supported ECharts profile](./SECURITY.md)
+- [Runnable examples](./examples/)
+- [React package guide](./packages/react/README.md)
+- [Vue package guide](./packages/vue/README.md)
+- [Release process](./RELEASING.md)
 
 ## Development
 
@@ -460,10 +207,8 @@ pnpm build
 pnpm check:pack
 ```
 
-The root build validates both publishable packages and all React/Vue Vite
-examples. Example workspaces are private and are never included in package
-tarballs. Published-package changes use Changesets; see
-[RELEASING.md](./RELEASING.md) for bootstrap and automated release steps.
+Issues and pull requests are welcome. Published-package changes use Changesets;
+the root build also validates all React and Vue examples.
 
 ## License
 
