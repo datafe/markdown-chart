@@ -1,0 +1,20 @@
+{
+  "name": "@datafe-open/markdown-chart-example-echarts-performance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm typecheck && vite build",
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@datafe-open/markdown-chart": "workspace:*",
+    "@datafe-open/markdown-chart-echarts": "workspace:*",
+    "echarts": "5.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

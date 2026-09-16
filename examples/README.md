@@ -19,3 +19,8 @@ request-to-session fallback, caching, and live waiting. Each host keeps one
 `createLegacySandboxHostAdapter` per component lifecycle and uses its
 `identity`/`bind` pair with session/request/phase context and an explicit
 non-secret `cacheScopeKey`.
+
+The [`echarts/performance/`](./echarts/performance/) example is a reproducible
+100,000-row renderer benchmark pinned to ECharts 5.6. It covers referenced-data
+materialization, Canvas first paint, DataZoom interaction, and browser heap
+sampling without presenting local-machine timings as a product SLA.
