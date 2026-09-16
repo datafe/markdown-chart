@@ -11,6 +11,7 @@ import {
   applyEChartsDefaultStyle,
   createLegacySandboxClient,
   createEChartsRenderer,
+  DEFAULT_ECHARTS_LIMITS,
   LegacySandboxError,
   type EChartsRuntime,
   type LegacySandboxBinding,
@@ -213,6 +214,16 @@ function legacySandboxBinding(
 }
 
 describe('createEChartsRenderer', () => {
+  it('defaults to the shared 100k-row narrow-table budget', () => {
+    expect(DEFAULT_ECHARTS_LIMITS).toEqual({
+      maxRows: 100_000,
+      maxCells: 500_000,
+      maxSeries: 100,
+      maxDepth: 40,
+      maxNodes: 700_000,
+    });
+  });
+
   it('uses the first non-empty ECharts title as the shared card title', async () => {
     const renderer = createEChartsRenderer();
     const parsed = await renderer.parse({
@@ -1377,16 +1388,13 @@ describe('createEChartsRenderer', () => {
     expect(container.querySelector('.markdown-chart-loading')).not.toBeNull();
   });
 
-  it('accepts legacySandbox CSV over 500 KB within ECharts row and cell limits', async () => {
+  it('accepts 100k legacySandbox rows at the default 500k-cell limit', async () => {
     let rendered: Record<string, JsonValue> | undefined;
-    const rows = Array.from({ length: 2_000 }, (_, rowIndex) => (
-      Array.from({ length: 20 }, (_, columnIndex) => (
-        `${rowIndex}-${columnIndex}-${'x'.repeat(16)}`
-      ))
-    ));
-    const dimensions = Array.from({ length: 20 }, (_, index) => `column_${index}`);
+    const rows = Array.from({ length: 100_000 }, () => ['1', '2', '3', '4', '5']);
+    const dimensions = ['timestamp', 'value_1', 'value_2', 'value_3', 'value_4'];
     const csv = [dimensions, ...rows].map((row) => row.join(',')).join('\n');
     expect(csv.length).toBeGreaterThan(500_000);
+    expect(new TextEncoder().encode(csv).byteLength).toBeLessThan(5 * 1024 * 1024);
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
@@ -1404,7 +1412,54 @@ describe('createEChartsRenderer', () => {
     await render;
 
     const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
-    expect(dataset?.source).toHaveLength(2_000);
+    expect(dataset?.source).toHaveLength(100_000);
+  });
+
+  it('rejects resolved datasets beyond the default row and cell budgets', async () => {
+    const loadECharts = vi.fn();
+    const renderRef = (source: readonly (readonly JsonValue[])[]) => {
+      const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+        loadECharts,
+        resolveDataRef: async () => ({ source }),
+        resizeObserver: false,
+      }));
+      return new ChartController(registry).render(document.createElement('div'), {
+        language: 'markdown-chart',
+        source: canonical(
+          { series: [{ type: 'line' }] },
+          { kind: 'ref', ref: 'benchmark:trend' },
+        ),
+      });
+    };
+
+    await expect(renderRef(Array.from({ length: 100_001 }, () => [1])))
+      .rejects.toThrow(/100000 row limit/);
+    await expect(renderRef(Array.from({ length: 83_334 }, () => [1, 2, 3, 4, 5, 6])))
+      .rejects.toThrow(/500000 cell limit/);
+    expect(loadECharts).not.toHaveBeenCalled();
+  });
+
+  it('rejects combined legacy data and options beyond the default node budget', async () => {
+    const rows = Array.from({ length: 100_000 }, () => '1,2,3,4,5');
+    const csv = ['timestamp,value_1,value_2,value_3,value_4', ...rows].join('\n');
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts,
+      legacySandbox: legacySandboxBinding({
+        resolveLegacyArtifactContent: async () => csv,
+      }),
+    }));
+    const render = new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+    });
+    await answerLegacySandbox({
+      color: Array.from({ length: 99_990 }, () => []),
+      series: [],
+    });
+
+    await expect(render).rejects.toThrow(/700000 node limit/);
+    expect(loadECharts).not.toHaveBeenCalled();
   });
 
   it('requires legacySandbox for the temporary ChatBI query fence', async () => {
