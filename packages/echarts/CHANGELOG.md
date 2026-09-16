@@ -1,5 +1,15 @@
 # @datafe-open/markdown-chart-echarts
 
+## 0.1.17
+
+### Patch Changes
+
+- d453fe2: Raise the default ECharts renderer budget to 100,000 rows, 500,000 cells, and
+  700,000 JSON nodes for narrow-table trend data. Hosts can still provide lower
+  limits, while Markdown fence size limits and legacy artifact byte, column, and
+  timeout limits remain unchanged.
+  - @datafe-open/markdown-chart@0.1.17
+
 ## 0.1.16
 
 ### Patch Changes
