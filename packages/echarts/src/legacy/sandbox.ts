@@ -221,6 +221,7 @@ export interface ExecuteLegacyChartSourceRequest {
   readonly inputData: readonly ChartDataRow[];
   readonly signal: AbortSignal;
   readonly timeoutMs: number;
+  readonly maxNodes?: number;
 }
 
 function createRequestId(): string {
@@ -254,6 +255,15 @@ export function executeLegacyChartSource(
     return Promise.reject(new MarkdownChartError(
       'SCHEMA_INVALID',
       'Legacy sandbox timeout must be a positive safe integer',
+    ));
+  }
+  if (
+    request.maxNodes !== undefined
+    && (!Number.isSafeInteger(request.maxNodes) || request.maxNodes <= 0)
+  ) {
+    return Promise.reject(new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'Legacy sandbox maxNodes must be a positive safe integer',
     ));
   }
   if (typeof document === 'undefined' || !document.body) {
@@ -333,7 +343,10 @@ export function executeLegacyChartSource(
         return;
       }
       try {
-        const option = validateChartJsonValue(event.data.option);
+        const option = validateChartJsonValue(
+          event.data.option,
+          request.maxNodes === undefined ? {} : { maxNodes: request.maxNodes },
+        );
         if (!isJsonObject(option)) {
           throw new MarkdownChartError(
             'SCHEMA_INVALID',
