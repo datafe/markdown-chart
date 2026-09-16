@@ -1416,6 +1416,43 @@ describe('createEChartsRenderer', () => {
     expect(dataset?.source).toHaveLength(100_000);
   });
 
+  it('accepts a 100k legacy trend option above the core JSON node budget', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const rows = Array.from(
+      { length: 100_000 },
+      (_, index) => `2024-01-01,${index},${['A', 'B', 'C'][index % 3]}`,
+    );
+    const csv = ['date,value,category', ...rows].join('\n');
+    const dates = Array.from({ length: 100_000 }, () => '2024-01-01');
+    const values = Array.from({ length: 100_000 }, (_, index) => index);
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      legacySandbox: legacySandboxBinding({
+        resolveLegacySandboxFileContent: async () => csv,
+      }),
+      resizeObserver: false,
+    }));
+
+    const render = new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_sandbox_filepath_app/csv/trend_data.csv',
+      source: 'var option = {};',
+    });
+    await answerLegacySandbox({
+      xAxis: { type: 'category', data: dates },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data: values }],
+    });
+    await render;
+
+    const xAxis = rendered?.xAxis as Record<string, JsonValue> | undefined;
+    const series = rendered?.series as Record<string, JsonValue>[] | undefined;
+    const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
+    expect(xAxis?.data).toHaveLength(100_000);
+    expect(series?.[0]?.data).toHaveLength(100_000);
+    expect(dataset?.source).toHaveLength(100_000);
+  });
+
   it('rejects resolved datasets beyond the default row and cell budgets', async () => {
     const loadECharts = vi.fn();
     const renderRef = (source: JsonPrimitive[][]) => {

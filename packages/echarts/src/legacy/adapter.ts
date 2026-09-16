@@ -17,6 +17,7 @@ export interface ResolveLegacyArtifactQueryOptions {
   readonly signal: AbortSignal;
   readonly resolveArtifactContent: ResolveLegacyArtifactContent;
   readonly limits: LegacyArtifactLimits;
+  readonly maxNodes?: number;
   readonly preserveLegacySandboxError?: boolean;
 }
 
@@ -24,6 +25,7 @@ interface ResolveLegacyChartOptions {
   readonly source: string;
   readonly signal: AbortSignal;
   readonly limits: LegacyArtifactLimits;
+  readonly maxNodes?: number;
   readonly resolveContent: () => string | Promise<string>;
   readonly resolutionError: string;
   readonly returnTypeError: string;
@@ -65,6 +67,7 @@ async function resolveLegacyChart(
     inputData: data.source,
     signal: options.signal,
     timeoutMs: options.limits.executionTimeoutMs,
+    ...(options.maxNodes === undefined ? {} : { maxNodes: options.maxNodes }),
   });
   return { data, spec };
 }
@@ -77,6 +80,7 @@ export async function resolveLegacyArtifactQuery(
     source: options.block.source,
     signal: options.signal,
     limits: options.limits,
+    ...(options.maxNodes === undefined ? {} : { maxNodes: options.maxNodes }),
     resolveContent: () => options.resolveArtifactContent({
       language: options.block.language,
       jobId: options.block.jobId,
@@ -94,6 +98,7 @@ export interface ResolveLegacySandboxFileOptions {
   readonly signal: AbortSignal;
   readonly resolveSandboxFileContent: ResolveLegacySandboxFileContent;
   readonly limits: LegacyArtifactLimits;
+  readonly maxNodes?: number;
   readonly preserveLegacySandboxError?: boolean;
 }
 
@@ -105,6 +110,7 @@ export async function resolveLegacySandboxFile(
     source: options.block.source,
     signal: options.signal,
     limits: options.limits,
+    ...(options.maxNodes === undefined ? {} : { maxNodes: options.maxNodes }),
     resolveContent: () => options.resolveSandboxFileContent({
       language: options.block.language,
       filePath: options.block.filePath,

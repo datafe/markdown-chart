@@ -1121,6 +1121,7 @@ export function createEChartsRenderer(
             signal: context.signal,
             resolveSandboxFileContent: resolveLegacySandboxFileContent as ResolveLegacySandboxFileContent,
             limits: legacyArtifactLimits as LegacyArtifactLimits,
+            maxNodes: limits.maxNodes,
             preserveLegacySandboxError: options.legacySandbox !== undefined,
           });
         } else {
@@ -1129,6 +1130,7 @@ export function createEChartsRenderer(
             signal: context.signal,
             resolveArtifactContent: resolveLegacyArtifactContent as ResolveLegacyArtifactContent,
             limits: legacyArtifactLimits as LegacyArtifactLimits,
+            maxNodes: limits.maxNodes,
             preserveLegacySandboxError: true,
           });
         }
