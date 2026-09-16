@@ -5,6 +5,7 @@ import {
   ChartController,
   ChartRendererRegistry,
   MarkdownChartError,
+  type JsonPrimitive,
   type JsonValue,
 } from '@datafe-open/markdown-chart';
 import {
@@ -1417,7 +1418,7 @@ describe('createEChartsRenderer', () => {
 
   it('rejects resolved datasets beyond the default row and cell budgets', async () => {
     const loadECharts = vi.fn();
-    const renderRef = (source: readonly (readonly JsonValue[])[]) => {
+    const renderRef = (source: JsonPrimitive[][]) => {
       const registry = new ChartRendererRegistry().register(createEChartsRenderer({
         loadECharts,
         resolveDataRef: async () => ({ source }),
