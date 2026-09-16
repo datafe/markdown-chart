@@ -177,6 +177,13 @@ the host decides whether and how to open it.
 This keeps application data access, authorization, navigation, and domain
 protocols outside the public renderer.
 
+The ECharts renderer defaults to at most 100,000 rows, 500,000 cells, and
+700,000 JSON nodes. These budgets target narrow-table trends resolved through
+`data.kind: "ref"` or a host adapter; the core Markdown fence remains bounded
+separately and is not intended to carry 100,000 inline rows. Hosts with tighter
+resource budgets can lower any renderer limit through
+`createEChartsRenderer({ limits })`.
+
 ## Packages
 
 | Package | Purpose |
