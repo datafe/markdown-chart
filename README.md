@@ -34,8 +34,8 @@ renderer code outside your Markdown pipeline.
   executable JavaScript—and is protected by schema, size, and option limits.
 - **Works with your stack.** Use the ready-made React + react-markdown or Vue 3
   + markdown-it components, or integrate the framework-neutral core.
-- **Charts and KPIs.** ECharts and responsive multi-KPI cards are included as
-  independent renderers.
+- **Charts and KPIs.** ECharts table, graph, and hierarchy charts plus responsive
+  multi-KPI cards are included as independent renderers.
 - **Extensible without lock-in.** Register another renderer, resolve
   application-owned data references, or handle reference clicks in the host.
 
@@ -107,6 +107,12 @@ Use `renderer: "echarts"` with renderer-neutral `data` and a strict JSON
 ECharts `spec`. Explicit ECharts values win over the presentation defaults.
 Inline data—and referenced data returned by your resolver—automatically gets a
 Chart/Data switch.
+
+Use `data.shape: "graph"` for canonical nodes/links rendered as Sankey or
+relationship graphs, and `data.shape: "hierarchy"` for canonical children
+rendered as tree, treemap, or sunburst. The renderer maps that one source into
+ECharts while the shared card exposes Nodes/Links or flattened hierarchy data.
+Structured series never duplicate facts in `series.data` or `series.links`.
 
 ### Multi-KPI cards
 
@@ -184,6 +190,11 @@ The ECharts renderer defaults to at most 100,000 rows, 1,000,000 cells, and
 separately and is not intended to carry 100,000 inline rows. Hosts with tighter
 resource budgets can lower any renderer limit through
 `createEChartsRenderer({ limits })`.
+
+Core separately bounds structured data to 2,000 nodes, 4,000 graph links, and
+20 hierarchy levels by default. Configure these registry budgets with
+`new ChartRendererRegistry({ dataLimits: { ... } })`; ECharts-specific table
+row/cell limits retain their existing behavior.
 
 ## Packages
 

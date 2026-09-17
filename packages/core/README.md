@@ -20,15 +20,22 @@ present, and the chart keeps 8px of vertical spacing from the toolbar.
 
 Canonical envelopes keep default `data` and optional named `datasets` separate
 from renderer-owned `spec`. `parseMarkdownChartEnvelope()` exposes validated
-inline or referenced ChartData objects and passes both forms to the selected
+inline or referenced table, graph, or hierarchy ChartData objects and passes both forms to the selected
 renderer. The shared Chart/Data view inspects the default `data`; renderers own
 the presentation of any selected named datasets.
 
 `materializeChartData()` is the shared renderer-neutral ref boundary. Hosts
 provide `ResolveChartDataRef` and optional validation; core forwards the opaque
-ref and abort signal, validates the returned scalar rows and explicit limits,
-and returns inline data. It does not select a transport, fetch, authorize, or
+ref, declared shape, and abort signal; validates returned scalar rows,
+nodes/links, or nested children and explicit limits; and returns inline data.
+Graph receives Nodes/Links subviews, while hierarchy receives a flattened
+path/depth/value/derived-total table. It does not select a transport, fetch, authorize, or
 interpret any ref scheme.
+
+Renderers can return `preferredHeight` for a bounded, vertically scrollable
+canvas or `renderError` for a chart-specific constraint failure. A render error
+skips mount but preserves the materialized Data view; malformed JSON/source and
+runtime failures remain fatal.
 
 Dynamic renderer parse contexts expose normalized `language` and the optional
 original `rawLanguage` first token. Adapters should preserve `rawLanguage` when

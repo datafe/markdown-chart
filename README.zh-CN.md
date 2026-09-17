@@ -33,7 +33,7 @@
   并对 schema、大小和图表配置设置明确限制。
 - **直接接入常见技术栈。** 提供 React + react-markdown、Vue 3 + markdown-it
   组件，也可以只使用与框架无关的核心包。
-- **同时覆盖图表和指标卡。** 内置相互独立的 ECharts 与响应式多 KPI 渲染器。
+- **同时覆盖图表和指标卡。** 内置 ECharts table、graph、hierarchy 图表与响应式多 KPI 渲染器。
 - **可扩展但不绑定宿主。** 可以注册其它渲染器、解析应用自有数据引用，
   或由宿主处理引用点击事件。
 
@@ -104,6 +104,10 @@ Vue 组件会自动配置 markdown-it 和同一组内置渲染器。完整可运
 ECharts `spec` 提供图表配置。显式 ECharts 配置会覆盖项目的展示默认值。
 Inline 数据以及由宿主 resolver 返回的引用数据都会自动获得图表/数据切换能力。
 
+节点/连线使用 `data.shape: "graph"`，可渲染桑基图和关系图；嵌套 children 使用
+`data.shape: "hierarchy"`，可渲染树图、矩形树图和旭日图。同一份 source 同时驱动
+ECharts 与 Nodes/Links 或扁平层级 Data 视图，结构化 series 不再复制 data/links。
+
 ### 多 KPI 卡片
 
 使用 `renderer: "kpi"` 展示包含 1–12 个指标的响应式卡片组。每个 KPI 可以从
@@ -168,10 +172,14 @@ KPI 引用入口遵守同一边界：渲染器只转发不透明事件，由宿�
 
 因此，应用的数据访问、鉴权、页面跳转和领域协议都留在公共渲染器之外。
 
-ECharts renderer 默认最多接收 100,000 行、500,000 个单元格和 700,000
+ECharts renderer 默认最多接收 100,000 行、1,000,000 个单元格和 1,200,000
 个 JSON 节点。该预算面向通过 `data.kind: "ref"` 或宿主适配器解析的窄表趋势
 数据；core Markdown fence 仍受独立输入限制，不用于直接内嵌 100,000 行数据。
 资源预算更紧的宿主可通过 `createEChartsRenderer({ limits })` 下调任一限制。
+
+Core 另外将结构化数据默认限制为 2,000 个节点、4,000 条 graph 连线和 20 层
+hierarchy。宿主通过 `new ChartRendererRegistry({ dataLimits: { ... } })` 调整这些预算；
+ECharts 既有 table 行/单元格限制保持不变。
 
 ## 包说明
 

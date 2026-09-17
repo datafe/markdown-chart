@@ -91,7 +91,7 @@ export interface KpiSpec {
   readonly items: readonly KpiItem[];
 }
 
-export interface KpiLimits extends ChartDataMaterializationLimits {
+export interface KpiLimits extends Pick<ChartDataMaterializationLimits, 'maxRows' | 'maxCells'> {
   readonly maxTrendPoints: number;
 }
 
@@ -931,6 +931,14 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       if (!context.data && !context.datasets) {
         return schemaError('markdown-chart.data or markdown-chart.datasets is required for the kpi renderer');
       }
+      if (context.data && (context.data.shape ?? 'table') !== 'table') {
+        return schemaError('The kpi renderer accepts only table data');
+      }
+      if (context.datasets && Object.values(context.datasets).some(
+        (data) => (data.shape ?? 'table') !== 'table',
+      )) {
+        return schemaError('The kpi renderer accepts only table datasets');
+      }
       parsedSpec.items.forEach((item, index) => {
         if (item.dataset) {
           if (!context.datasets || !Object.hasOwn(context.datasets, item.dataset)) {
@@ -969,7 +977,10 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
           ...(options.validateDataRef ? { validateDataRef: options.validateDataRef } : {}),
         });
         if (!materialized) return { parsed, data: context.data };
-        dataByDataset.set(dataset, materialized);
+        if ((materialized.shape ?? 'table') !== 'table') {
+          return schemaError('The kpi renderer accepts only table data');
+        }
+        dataByDataset.set(dataset, materialized as InlineChartData);
       }
       assertAggregateDataLimits(dataByDataset, limits);
       const data = dataByDataset.get(undefined);

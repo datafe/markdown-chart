@@ -42,6 +42,7 @@ describe('materializeChartData', () => {
     }, { signal, resolveDataRef, validateDataRef: (ref) => ref === 'opaque:data' });
     expect(resolveDataRef).toHaveBeenCalledOnce();
     expect(resolveDataRef).toHaveBeenCalledWith('opaque:data', {
+      shape: 'table',
       format: 'json',
       dimensions: ['name', 'value'],
       signal,
@@ -135,6 +136,64 @@ describe('materializeChartData', () => {
       signal: new AbortController().signal,
       resolveDataRef: async () => undefined as never,
     })).rejects.toMatchObject({ code: 'REF_RESOLUTION_FAILED' });
+  });
+
+  it('materializes structured refs using the declared shape', async () => {
+    const signal = new AbortController().signal;
+    const resolveDataRef = vi.fn(async () => ({
+      source: {
+        nodes: [{ id: 'a', name: 'Same' }, { id: 'b', name: 'Same' }],
+        links: [{ source: 'a', target: 'b', value: 3 }],
+      },
+    }));
+    const result = await materializeChartData({
+      kind: 'ref',
+      shape: 'graph',
+      format: 'json',
+      ref: 'artifact://graph.json',
+    }, { signal, resolveDataRef });
+
+    expect(resolveDataRef).toHaveBeenCalledWith('artifact://graph.json', {
+      shape: 'graph',
+      format: 'json',
+      dimensions: undefined,
+      signal,
+    });
+    expect(result).toEqual({
+      kind: 'inline',
+      shape: 'graph',
+      source: {
+        nodes: [{ id: 'a', name: 'Same' }, { id: 'b', name: 'Same' }],
+        links: [{ source: 'a', target: 'b', value: 3 }],
+      },
+    });
+
+    await expect(materializeChartData({
+      kind: 'ref',
+      shape: 'graph',
+      format: 'json',
+      ref: 'artifact://graph.json',
+    }, {
+      signal,
+      resolveDataRef,
+      limits: { maxDataNodes: 1 },
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+  });
+
+  it('rejects invalid graph references and hierarchy structure once in core', () => {
+    expect(() => parseChartData({
+      kind: 'inline',
+      shape: 'graph',
+      source: {
+        nodes: [{ id: 'a', name: 'A' }],
+        links: [{ source: 'a', target: 'missing' }],
+      },
+    })).toThrowError(/references unknown node missing/);
+    expect(() => parseChartData({
+      kind: 'inline',
+      shape: 'hierarchy',
+      source: [{ id: 'root', name: 'Root', value: 3, children: [{ id: 'leaf', name: 'Leaf' }] }],
+    })).toThrowError(/value is not allowed when children are present/);
   });
 });
 
@@ -552,11 +611,58 @@ describe('ChartController', () => {
     expect(mount).toHaveBeenCalledOnce();
     expect(element.querySelector('[data-markdown-chart-chart-view]')?.getAttribute('data-mounted'))
       .toBe('true');
+    expect(element.style.color).toBe('var(--markdown-chart-foreground, #e5e7eb)');
     const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
     showData?.click();
     const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     expect(dataView?.hidden).toBe(false);
     expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+  });
+
+  it('keeps structured Data visible with a renderer constraint error and bounded canvas height', async () => {
+    const mount = vi.fn();
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      parse: (spec) => spec,
+      materialize: (parsed, context) => ({
+        parsed,
+        data: context.data,
+        preferredHeight: 960,
+        renderError: new MarkdownChartError('SCHEMA_INVALID', 'Sankey data must be acyclic'),
+      }),
+      mount,
+    });
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: {
+          kind: 'inline',
+          shape: 'graph',
+          source: {
+            nodes: [{ id: 'a', name: 'Same', category: 'Group' }, { id: 'b', name: 'Same' }],
+            links: [{ source: 'a', target: 'b', value: 2 }],
+          },
+        },
+        spec: {},
+      }),
+    });
+
+    expect(mount).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-render-error')?.textContent)
+      .toBe('Sankey data must be acyclic');
+    const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
+    expect(chartView?.style.height).toBe('960px');
+    expect(element.querySelector<HTMLElement>('.markdown-chart-chart-viewport')?.style.maxHeight)
+      .toBe('min(74vh, 740px)');
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.textContent).toContain('Same');
+    expect(dataView?.textContent).toContain('Group');
+    element.querySelector<HTMLButtonElement>('[role="tab"]:last-of-type')?.click();
+    expect(dataView?.textContent).toContain('2');
   });
 
   it('aborts and discards an in-flight materialization before mount', async () => {
@@ -1018,5 +1124,89 @@ describe('parseMarkdownChartEnvelope', () => {
       data: { kind: 'inline', source: [['A', { nested: true }]] },
       spec: {},
     }))).toThrowError(/JSON scalars/);
+  });
+
+  it('parses graph and hierarchy shapes without table dimensions', () => {
+    const graph = parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      data: {
+        kind: 'inline',
+        shape: 'graph',
+        source: {
+          nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+          links: [{ source: 'a', target: 'b', value: 1 }],
+        },
+      },
+      spec: { series: [{ type: 'sankey' }] },
+    }));
+    expect(graph.data?.shape).toBe('graph');
+
+    const hierarchy = parseMarkdownChartEnvelope(JSON.stringify({
+      version: 1,
+      renderer: 'echarts',
+      data: {
+        kind: 'inline',
+        shape: 'hierarchy',
+        source: [{ id: 'root', name: 'Root', children: [{ id: 'leaf', name: 'Leaf', value: 2 }] }],
+      },
+      spec: { series: [{ type: 'treemap' }] },
+    }));
+    expect(hierarchy.data?.shape).toBe('hierarchy');
+  });
+
+  it('rejects structured dimensions, non-json refs, duplicate edges, and depth overflow', () => {
+    const envelope = (data: unknown) => JSON.stringify({
+      version: 1, renderer: 'echarts', data, spec: { series: [{ type: 'graph' }] },
+    });
+    expect(() => parseMarkdownChartEnvelope(envelope({
+      kind: 'inline', shape: 'graph', dimensions: ['id'], source: { nodes: [], links: [] },
+    }))).toThrowError(/dimensions is only valid for table/);
+    expect(() => parseMarkdownChartEnvelope(envelope({
+      kind: 'ref', shape: 'graph', ref: 'artifact://graph.csv', format: 'csv',
+    }))).toThrowError(/require format json/);
+    expect(() => parseMarkdownChartEnvelope(envelope({
+      kind: 'inline', shape: 'graph',
+      source: {
+        nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+        links: [{ source: 'a', target: 'b' }, { source: 'a', target: 'b' }],
+      },
+    }))).toThrowError(/duplicates the directed endpoint pair/);
+
+    let validDepth: Record<string, unknown> = { id: 'leaf', name: 'Leaf' };
+    for (let index = 0; index < 19; index += 1) {
+      validDepth = { id: `valid-${index}`, name: `Valid ${index}`, children: [validDepth] };
+    }
+    expect(() => parseMarkdownChartEnvelope(envelope({
+      kind: 'inline', shape: 'hierarchy', source: [validDepth],
+    }))).not.toThrow();
+    const node = { id: 'overflow', name: 'Overflow', children: [validDepth] };
+    expect(() => parseMarkdownChartEnvelope(envelope({
+      kind: 'inline', shape: 'hierarchy', source: [node],
+    }))).toThrowError(/20 hierarchy depth limit/);
+  });
+
+  it('enforces structured node and link limits at their exact boundaries', () => {
+    const nodes = Array.from({ length: 2_001 }, (_, index) => ({ id: `n${index}`, name: `N${index}` }));
+    expect(() => parseChartData({
+      kind: 'inline', shape: 'graph', source: { nodes: nodes.slice(0, 2_000), links: [] },
+    })).not.toThrow();
+    expect(() => parseChartData({
+      kind: 'inline', shape: 'graph', source: { nodes, links: [] },
+    })).toThrowError(/2000 node limit/);
+
+    const edgeNodes = Array.from({ length: 65 }, (_, index) => ({ id: `e${index}`, name: `E${index}` }));
+    const links: Array<{ source: string; target: string }> = [];
+    for (const source of edgeNodes) {
+      for (const target of edgeNodes) {
+        if (source.id !== target.id) links.push({ source: source.id, target: target.id });
+      }
+    }
+    expect(() => parseChartData({
+      kind: 'inline', shape: 'graph', source: { nodes: edgeNodes, links: links.slice(0, 4_000) },
+    })).not.toThrow();
+    expect(() => parseChartData({
+      kind: 'inline', shape: 'graph', source: { nodes: edgeNodes, links: links.slice(0, 4_001) },
+    })).toThrowError(/4000 link limit/);
   });
 });

@@ -208,6 +208,26 @@ describe('KPI data/config contract', () => {
     ));
   });
 
+  it('rejects structured default and named datasets', async () => {
+    const graphData = {
+      kind: 'inline',
+      shape: 'graph',
+      source: {
+        nodes: [{ id: 'a', name: 'A' }],
+        links: [],
+      },
+    };
+    await renderFailure(envelope(
+      graphData,
+      { items: [{ id: 'value', title: 'Value', value: { field: 'value' } }] },
+    ));
+    await renderFailure(envelope(
+      undefined,
+      { items: [{ id: 'value', title: 'Value', dataset: 'graph', value: { field: 'value' } }] },
+      { graph: graphData },
+    ));
+  });
+
   it('applies row and cell limits across the complete KPI dataset collection', async () => {
     await renderFailure(envelope(
       { kind: 'inline', source: [{ value: 1 }] },

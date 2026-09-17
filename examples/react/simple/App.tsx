@@ -138,6 +138,56 @@ const wikiContent: Record<string, { title: string; breadcrumb: string; body: str
   },
 };
 
+const graphChart = {
+  version: 1,
+  renderer: 'echarts',
+  data: {
+    kind: 'inline',
+    shape: 'graph',
+    source: {
+      nodes: [
+        { id: 'entry', name: '首次进入且尚未选择分析路径的会话', category: '入口' },
+        { id: 'analysis', name: '分析', category: '结果' },
+        { id: 'artifact', name: '产物', category: '结果' },
+      ],
+      links: [
+        { source: 'entry', target: 'analysis', value: 70 },
+        { source: 'entry', target: 'artifact', value: 30 },
+      ],
+    },
+  },
+  spec: {
+    title: { text: '会话流向（示例数据）' },
+    tooltip: { trigger: 'item' },
+    series: [{ type: 'sankey', nodeAlign: 'justify', emphasis: { focus: 'adjacency' } }],
+  },
+} as const;
+
+const hierarchyChart = {
+  version: 1,
+  renderer: 'echarts',
+  data: {
+    kind: 'inline',
+    shape: 'hierarchy',
+    source: [{
+      id: 'all',
+      name: '全部技能',
+      children: [
+        { id: 'analysis', name: '分析类', children: [
+          { id: 'diagnosis', name: '诊断', value: 70 },
+          { id: 'quality', name: '数据质量', value: 30 },
+        ] },
+        { id: 'artifact', name: '产物类', value: 50 },
+      ],
+    }],
+  },
+  spec: {
+    title: { text: '技能构成（示例数据）' },
+    tooltip: { trigger: 'item' },
+    series: [{ type: 'treemap', label: { show: true } }],
+  },
+} as const;
+
 function markdownSource(mode: 'inline' | 'ref'): string {
   const data = mode === 'inline'
     ? { kind: 'inline', dimensions, source: rows }
@@ -153,11 +203,24 @@ function markdownSource(mode: 'inline' | 'ref'): string {
 
 \`\`\`markdown-chart
 ${JSON.stringify({ version: 1, renderer: 'kpi', data, datasets, spec }, null, 2)}
+\`\`\`
+
+## 结构化数据
+
+同一份节点、边或 children 数据同时驱动图形和 Data 视图。
+
+\`\`\`markdown-chart
+${JSON.stringify(graphChart, null, 2)}
+\`\`\`
+
+\`\`\`markdown-chart
+${JSON.stringify(hierarchyChart, null, 2)}
 \`\`\``;
 }
 
 export function App() {
   const [mode, setMode] = useState<'inline' | 'ref'>('inline');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [continuation, setContinuation] = useState('');
   const [selectedReference, setSelectedReference] = useState<ChartReferenceEvent>();
   const source = useMemo(() => markdownSource(mode), [mode]);
@@ -195,14 +258,21 @@ export function App() {
             <div className="message-role">ADA · 数据分析助手</div>
             <div className="mode-note">canonical data：{mode === 'inline' ? 'Inline 宽表' : 'Ref（宿主 resolver 物化）'}</div>
           </div>
-          <div className="data-mode" role="group" aria-label="数据来源">
-            <button type="button" aria-pressed={mode === 'inline'} onClick={() => setMode('inline')}>Inline</button>
-            <button type="button" aria-pressed={mode === 'ref'} onClick={() => setMode('ref')}>Ref</button>
+          <div className="message-controls">
+            <div className="data-mode" role="group" aria-label="数据来源">
+              <button type="button" aria-pressed={mode === 'inline'} onClick={() => setMode('inline')}>Inline</button>
+              <button type="button" aria-pressed={mode === 'ref'} onClick={() => setMode('ref')}>Ref</button>
+            </div>
+            <div className="data-mode" role="group" aria-label="图表主题">
+              <button type="button" aria-pressed={theme === 'light'} onClick={() => setTheme('light')}>浅色</button>
+              <button type="button" aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}>深色</button>
+            </div>
           </div>
         </div>
         <MarkdownChart
           source={`${source}${continuation}`}
           streaming
+          theme={theme}
           kpi={kpi}
           referenceActions={referenceActions}
         />

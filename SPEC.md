@@ -49,7 +49,9 @@ currently registered.
 
 ## Data
 
-Canonical data is either inline or referenced. Inline data is directly
+Canonical data is either inline or referenced. `kind` identifies transport;
+optional `shape` identifies its renderer-neutral structure. Omitting `shape`
+is equivalent to `"table"`. Inline data is directly
 available to hosts for actions such as “View data”. The default framework
 adapters expose a Chart/Data switch for inline data and for referenced data
 after a renderer materializes the reference as inline rows:
@@ -71,8 +73,22 @@ after a renderer materializes the reference as inline rows:
   resolved inline rows from its materialization step. The adapter then creates
   the shared Chart/Data view before mounting the chart.
 
-Rows MUST be arrays of JSON scalar values or objects whose values are JSON
+Table rows MUST be arrays of JSON scalar values or objects whose values are JSON
 scalars. `dimensions`, when present, MUST contain non-empty strings.
+
+`shape: "graph"` uses `{ nodes, links }`. Nodes have a dataset-unique non-empty
+`id`, a display `name`, and optional display `category`. Links reference node
+IDs through `source` and `target`; optional `value` is finite and non-negative.
+One directed endpoint pair may appear only once. `shape: "hierarchy"` uses a
+non-empty root array of nested `{ id, name, children? | value? }` nodes. IDs are
+unique across the dataset, non-leaves do not declare `value`, and leaf values
+are finite and non-negative when present. Structured data forbids `dimensions`.
+Default structured budgets are 2,000 nodes, 4,000 graph links, and 20 hierarchy
+levels. Core applies the same structural validation after resolving a ref.
+
+Structured refs MUST declare `format: "json"`; the resolver returns
+`{ source }`, where source is the declared shape itself. The resolver context
+includes `shape`, enabling the host to select the correct stored representation.
 
 The optional top-level `datasets` collection uses the same inline/ref schema:
 
@@ -117,6 +133,21 @@ When canonical `data` is present, `spec.dataset` is reserved and MUST NOT also
 be set. The renderer inserts the resolved dataset before calling ECharts.
 ECharts does not consume top-level named `datasets`; their presence is rejected
 instead of being silently ignored.
+
+Table data is inserted as `option.dataset`. Structured ECharts data requires
+exactly one series and does not use `dataset` or `encode`:
+
+- graph supports `sankey` and `graph`; core node IDs become stable numeric link
+  endpoints, while names remain display labels. Sankey additionally requires
+  at least one link, values on every link, positive total flow, and a DAG.
+- hierarchy supports `tree`, `treemap`, and `sunburst`. Tree requires one root.
+  Area charts require values on every leaf and a positive total; copied parent
+  values are derived from their children.
+
+Structured series MUST NOT declare `data`, `nodes`, `links`, or `edges`, because
+canonical `data.source` is the only fact source. A structured chart constraint
+failure after successful materialization remains visible in the Chart pane and
+keeps its Data view available. The KPI renderer accepts only table data.
 
 ## KPI specification
 

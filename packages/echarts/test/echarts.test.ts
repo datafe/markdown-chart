@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { runInNewContext } from 'node:vm';
+import * as echarts from 'echarts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
@@ -482,6 +483,309 @@ describe('createEChartsRenderer', () => {
     });
     controller.dispose();
     expect(fake.dispose).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['area and stacked comparison', {
+      kind: 'inline', dimensions: ['period', 'a', 'b'], source: [['P1', 4, 6], ['P2', 7, 3]],
+    }, {
+      xAxis: { type: 'category' }, yAxis: { type: 'value' },
+      series: [
+        { name: 'A', type: 'line', stack: 'total', areaStyle: {}, encode: { x: 'period', y: 'a' }, label: { show: true } },
+        { name: 'B', type: 'bar', stack: 'total', encode: { x: 'period', y: 'b' }, label: { show: true } },
+      ],
+    }, 'P2'],
+    ['histogram', {
+      kind: 'inline', dimensions: ['bucket', 'count'], source: [['0-9', 2], ['10-19', 3]],
+    }, {
+      xAxis: { type: 'category' }, yAxis: { type: 'value' },
+      series: [{ type: 'bar', barGap: '0%', encode: { x: 'bucket', y: 'count' }, label: { show: true } }],
+    }, '10-19'],
+    ['boxplot', {
+      kind: 'inline', dimensions: ['group', 'min', 'q1', 'median', 'q3', 'max'], source: [['A', 1, 2, 3, 4, 5]],
+    }, {
+      xAxis: { type: 'category' }, yAxis: { type: 'value' },
+      series: [{ type: 'boxplot', encode: { x: 'group', y: ['min', 'q1', 'median', 'q3', 'max'] } }],
+    }, 'A'],
+    ['scatter', {
+      kind: 'inline', dimensions: ['x', 'y'], source: [[1, 2], [2, 3]],
+    }, {
+      xAxis: { type: 'value' }, yAxis: { type: 'value' },
+      series: [{ type: 'scatter', encode: { x: 'x', y: 'y' }, label: { show: true } }],
+    }, '<path'],
+    ['heatmap', {
+      kind: 'inline', dimensions: ['x', 'y', 'value'], source: [['A', 'X', 1], ['B', 'Y', 2]],
+    }, {
+      xAxis: { type: 'category' }, yAxis: { type: 'category' }, visualMap: { min: 0, max: 2 },
+      series: [{ type: 'heatmap', encode: { x: 'x', y: 'y', value: 'value' }, label: { show: true } }],
+    }, 'Y'],
+    ['pie', {
+      kind: 'inline', dimensions: ['name', 'value'], source: [['A', 7], ['B', 3]],
+    }, {
+      series: [{ type: 'pie', radius: ['35%', '65%'], encode: { itemName: 'name', value: 'value' }, label: { show: true } }],
+    }, 'A'],
+    ['funnel', {
+      kind: 'inline', dimensions: ['stage', 'value'], source: [['Visit', 10], ['Buy', 5]],
+    }, {
+      series: [{ type: 'funnel', encode: { itemName: 'stage', value: 'value' }, label: { show: true } }],
+    }, 'Buy'],
+    ['radar', {
+      kind: 'inline', dimensions: ['name', 'quality', 'speed'], source: [['Plan', 4, 3]],
+    }, {
+      radar: { indicator: [{ name: 'Quality', max: 5 }, { name: 'Speed', max: 5 }] },
+      series: [{ type: 'radar', encode: { itemName: 'name', value: ['quality', 'speed'] }, label: { show: true } }],
+    }, 'Quality'],
+    ['gauge', {
+      kind: 'inline', dimensions: ['name', 'value'], source: [['Score', 72]],
+    }, {
+      series: [{ type: 'gauge', encode: { itemName: 'name', value: 'value' }, detail: { show: true } }],
+    }, '72'],
+    ['waterfall', {
+      kind: 'inline', dimensions: ['step', 'base', 'increase', 'decrease'], source: [['Start', 0, 10, 0], ['Cost', 7, 0, 3]],
+    }, {
+      xAxis: { type: 'category' }, yAxis: { type: 'value' },
+      series: [
+        { name: 'Base', type: 'bar', stack: 'total', itemStyle: { opacity: 0 }, encode: { x: 'step', y: 'base' } },
+        { name: 'Increase', type: 'bar', stack: 'total', encode: { x: 'step', y: 'increase' }, label: { show: true } },
+        { name: 'Decrease', type: 'bar', stack: 'total', encode: { x: 'step', y: 'decrease' }, label: { show: true } },
+      ],
+    }, 'Cost'],
+  ] as const)('renders the chart-ready %s family with the real ECharts SVG runtime', async (_name, data, spec, marker) => {
+    let svg = '';
+    echarts.setPlatformAPI({
+      measureText(text) { return { width: [...text].length * 8 }; },
+    });
+    const runtime: EChartsRuntime = {
+      init() {
+        const chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 640, height: 400 });
+        return {
+          setOption(option) {
+            chart.setOption(option as echarts.EChartsOption);
+            svg = chart.renderToSVGString();
+          },
+          resize() {},
+          dispose() { chart.dispose(); },
+        };
+      },
+    };
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    const controller = new ChartController(registry);
+    await controller.render(document.createElement('div'), {
+      language: 'markdown-chart',
+      source: canonical(spec as unknown as JsonValue, data as unknown as JsonValue),
+    });
+
+    expect(svg).toContain('<svg');
+    expect(svg).toContain(marker);
+    controller.dispose();
+  });
+
+  it('maps graph data by node id while preserving duplicate display names and categories', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    await new ChartController(registry).render(document.createElement('div'), {
+      language: 'markdown-chart',
+      source: canonical({
+        tooltip: { trigger: 'item' },
+        series: [{ type: 'graph' }],
+      }, {
+        kind: 'inline',
+        shape: 'graph',
+        source: {
+          nodes: [
+            { id: 'a', name: 'Same', category: 'First' },
+            { id: 'b', name: 'Same', category: 'Second' },
+          ],
+          links: [{ source: 'a', target: 'b', value: 5 }],
+        },
+      }),
+    });
+
+    expect(rendered).not.toHaveProperty('dataset');
+    expect(rendered?.series).toEqual([{
+      type: 'graph',
+      data: [
+        { id: 'a', name: 'Same', category: 0 },
+        { id: 'b', name: 'Same', category: 1 },
+      ],
+      links: [{ source: 0, target: 1, value: 5 }],
+      categories: [{ name: 'First' }, { name: 'Second' }],
+    }]);
+  });
+
+  it('renders Sankey node display names through the real ECharts SVG runtime', async () => {
+    echarts.setPlatformAPI({
+      measureText(text) { return { width: [...text].length * 8 }; },
+    });
+    let svg = '';
+    let rendered: Record<string, JsonValue> | undefined;
+    const runtime: EChartsRuntime = {
+      init() {
+        const chart = echarts.init(null, null, { renderer: 'svg', ssr: true, width: 640, height: 400 });
+        return {
+          setOption(option) {
+            rendered = option;
+            chart.setOption(option as echarts.EChartsOption);
+            svg = chart.renderToSVGString();
+          },
+          resize() {},
+          dispose() { chart.dispose(); },
+        };
+      },
+    };
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    const controller = new ChartController(registry);
+    await controller.render(document.createElement('div'), {
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'sankey' }] }, {
+        kind: 'inline',
+        shape: 'graph',
+        source: {
+          nodes: [
+            { id: 'entry', name: 'Long user-visible entry name' },
+            { id: 'result', name: 'User-visible result name' },
+          ],
+          links: [{ source: 'entry', target: 'result', value: 3 }],
+        },
+      }),
+    });
+
+    expect(svg).toContain('Long user-visible entry name');
+    expect(svg).toContain('User-visible result name');
+    expect(rendered?.series).toEqual([{
+      type: 'sankey',
+      data: [
+        {
+          id: 'entry',
+          name: 'Long user-visible entry name',
+          label: { formatter: 'Long user-visible entry name' },
+        },
+        {
+          id: 'result',
+          name: 'User-visible result name',
+          label: { formatter: 'User-visible result name' },
+        },
+      ],
+      links: [{ source: 0, target: 1, value: 3 }],
+    }]);
+    controller.dispose();
+  });
+
+  it('applies the existing formatter safety policy to Sankey display names', async () => {
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'sankey' }] }, {
+        kind: 'inline',
+        shape: 'graph',
+        source: {
+          nodes: [
+            { id: 'entry', name: '<b>Unsafe entry</b>' },
+            { id: 'result', name: 'Result' },
+          ],
+          links: [{ source: 'entry', target: 'result', value: 3 }],
+        },
+      }),
+    });
+
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-render-error')?.textContent)
+      .toContain('markdown-chart.data.source.nodes[0].name contains a URL, CSS URL, or unsafe markup');
+  });
+
+  it('derives hierarchy parent totals without mutating the canonical source', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const source = [{
+      id: 'root', name: 'Root', children: [
+        { id: 'a', name: 'A', value: 2 },
+        { id: 'b', name: 'B', value: 3 },
+      ],
+    }];
+    const original = structuredClone(source);
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      resizeObserver: false,
+      defaultStyle: false,
+    }));
+    await new ChartController(registry).render(document.createElement('div'), {
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'treemap' }] }, {
+        kind: 'inline', shape: 'hierarchy', source,
+      }),
+    });
+
+    expect(source).toEqual(original);
+    expect(rendered?.series).toEqual([{
+      type: 'treemap',
+      data: [{
+        id: 'root', name: 'Root', value: 5, children: [
+          { id: 'a', name: 'A', value: 2 },
+          { id: 'b', name: 'B', value: 3 },
+        ],
+      }],
+    }]);
+  });
+
+  it('keeps graph Data available when sankey constraints fail', async () => {
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: canonical({ series: [{ type: 'sankey' }] }, {
+        kind: 'inline',
+        shape: 'graph',
+        source: {
+          nodes: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+          links: [
+            { source: 'a', target: 'b', value: 1 },
+            { source: 'b', target: 'a', value: 1 },
+          ],
+        },
+      }),
+    });
+
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-render-error')?.textContent)
+      .toBe('Sankey data must be acyclic');
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    expect(element.querySelector('.markdown-chart-data-view')?.textContent).toContain('A');
+  });
+
+  it.each([
+    ['multiple series', { series: [{ type: 'graph' }, { type: 'graph' }] }, /exactly one series/],
+    ['wrong shape', { series: [{ type: 'tree' }] }, /requires an ECharts sankey or graph series/],
+    ['duplicate series facts', { series: [{ type: 'graph', data: [] }] }, /cannot be combined/],
+  ])('rejects structured %s without loading ECharts', async (_label, spec, message) => {
+    const loadECharts = vi.fn();
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({ loadECharts }));
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: canonical(spec, {
+        kind: 'inline',
+        shape: 'graph',
+        source: { nodes: [{ id: 'a', name: 'A' }], links: [] },
+      }),
+    });
+    expect(loadECharts).not.toHaveBeenCalled();
+    expect(element.querySelector('.markdown-chart-render-error')?.textContent).toMatch(message);
   });
 
   it('reserves a stable top region for the real 30-day trend option', () => {
@@ -1499,7 +1803,7 @@ describe('createEChartsRenderer', () => {
     expect(dataset?.source).toHaveLength(100_000);
   });
 
-  it('rejects resolved datasets beyond the default row and cell budgets', async () => {
+  it('preserves the ECharts row and cell budgets for resolved table datasets', async () => {
     const fake = fakeRuntime(() => undefined);
     const loadECharts = vi.fn(() => fake.runtime);
     const renderRef = (source: JsonPrimitive[][]) => {
