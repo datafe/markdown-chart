@@ -1,5 +1,7 @@
 # @datafe-open/markdown-chart
 
+## 0.1.19
+
 ## 0.1.18
 
 ## 0.1.17
