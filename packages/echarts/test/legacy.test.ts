@@ -52,6 +52,16 @@ describe('temporary legacy matcher', () => {
 });
 
 describe('temporary legacy CSV parser', () => {
+  it('publishes the 100k narrow-table legacy defaults', () => {
+    expect(DEFAULT_LEGACY_ARTIFACT_LIMITS).toEqual({
+      maxArtifactContentBytes: 64 * 1024 * 1024,
+      maxRows: 100_000,
+      maxColumns: 200,
+      maxCells: 1_000_000,
+      executionTimeoutMs: 5_000,
+    });
+  });
+
   it('preserves historical string cells and returns inspectable inline rows', () => {
     expect(parseLegacyArtifactCsv(
       'category,value,active,empty\nA,10,true,\nB,2.5,false,\n',

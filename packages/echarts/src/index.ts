@@ -115,10 +115,10 @@ export interface EChartsLimits {
 
 export const DEFAULT_ECHARTS_LIMITS: Readonly<EChartsLimits> = Object.freeze({
   maxRows: 100_000,
-  maxCells: 500_000,
+  maxCells: 1_000_000,
   maxSeries: 100,
   maxDepth: 40,
-  maxNodes: 700_000,
+  maxNodes: 1_200_000,
 });
 
 export interface CreateEChartsRendererOptions {
