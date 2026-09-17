@@ -9,7 +9,16 @@ import {
 } from '@datafe-open/markdown-chart-echarts';
 import * as echarts from 'echarts';
 
-const ROW_COUNT = 100_000;
+const ROW_COUNT = 99_000;
+const DIMENSIONS = [
+  'timestamp',
+  'value_1',
+  'value_2',
+  'value_3',
+  'value_4',
+  'value_5',
+  'value_6',
+] as const;
 const requestedRunCount = Number(new URLSearchParams(window.location.search).get('runs') ?? 3);
 const RUN_COUNT = Number.isInteger(requestedRunCount) && requestedRunCount > 0
   ? requestedRunCount
@@ -41,6 +50,11 @@ const createRows = (): JsonPrimitive[][] => {
     rows[index] = [
       new Date(start + index * 60_000).toISOString().slice(0, 16),
       Number((100 + Math.sin(index / 97) * 20 + Math.cos(index / 31) * 5).toFixed(3)),
+      Number((120 + Math.sin(index / 83) * 15).toFixed(3)),
+      Number((80 + Math.cos(index / 71) * 12).toFixed(3)),
+      Number((90 + Math.sin(index / 53) * 10).toFixed(3)),
+      Number((110 + Math.cos(index / 43) * 8).toFixed(3)),
+      Number((70 + Math.sin(index / 37) * 6).toFixed(3)),
     ];
   }
   return rows;
@@ -51,8 +65,8 @@ const canonicalRef = JSON.stringify({
   renderer: 'echarts',
   data: {
     kind: 'ref',
-    ref: 'benchmark:100k-trend',
-    dimensions: ['timestamp', 'value'],
+    ref: 'benchmark:99k-by-7-trend',
+    dimensions: DIMENSIONS,
   },
   spec: {
     animation: false,
@@ -63,13 +77,14 @@ const canonicalRef = JSON.stringify({
     ],
     xAxis: { type: 'category' },
     yAxis: { type: 'value', scale: true },
-    series: [{
+    series: DIMENSIONS.slice(1, 6).map((dimension) => ({
+      name: dimension,
       type: 'line',
-      encode: { x: 'timestamp', y: 'value' },
+      encode: { x: 'timestamp', y: dimension },
       showSymbol: false,
       sampling: 'lttb',
       lineStyle: { width: 1 },
-    }],
+    })),
   },
 });
 
@@ -91,7 +106,7 @@ const runOnce = async (rows: readonly JsonPrimitive[][], run: number) => {
   };
   const registry = new ChartRendererRegistry().register(createEChartsRenderer({
     loadECharts: () => runtime,
-    resolveDataRef: async () => ({ dimensions: ['timestamp', 'value'], source: rows }),
+    resolveDataRef: async () => ({ dimensions: DIMENSIONS, source: rows }),
     resizeObserver: false,
   }));
 
@@ -169,7 +184,7 @@ const runOnce = async (rows: readonly JsonPrimitive[][], run: number) => {
 };
 
 const runBenchmark = async () => {
-  statusNode.textContent = 'Generating 100,000-row dataset…';
+  statusNode.textContent = 'Generating 99,000×7 dataset…';
   const rows = createRows();
   const results = [];
   for (let run = 1; run <= RUN_COUNT; run += 1) {
@@ -181,7 +196,8 @@ const runBenchmark = async () => {
     hardwareConcurrency: navigator.hardwareConcurrency,
     deviceMemoryGiB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null,
     rowCount: ROW_COUNT,
-    cellCount: ROW_COUNT * 2,
+    columnCount: DIMENSIONS.length,
+    cellCount: ROW_COUNT * DIMENSIONS.length,
     echartsVersion: echarts.version,
     results,
   };
