@@ -2,10 +2,16 @@ import {
   MarkdownChartError,
   isJsonObject,
   materializeChartData,
+  parseChartData,
   validateChartJsonValue,
   type ChartHandle,
+  type ChartData,
+  type ChartMaterializeContext,
   type ChartDataRow,
   type ChartRenderer,
+  type GraphChartSource,
+  type HierarchyChartNode,
+  type InlineAnyChartData,
   type InlineChartData,
   type JsonPrimitive,
   type JsonValue,
@@ -65,7 +71,7 @@ export type DatasetRow = ChartDataRow;
 export type InlineDataset = InlineChartData;
 export type RefDataset = RefChartData;
 
-export type EChartsDataset = InlineDataset | RefDataset;
+export type EChartsDataset = ChartData;
 
 export interface CompactInlineData {
   readonly kind: 'inline';
@@ -385,30 +391,10 @@ function validateRows(
 }
 
 function parseData(value: unknown, limits: EChartsLimits): EChartsDataset {
-  if (!isJsonObject(value) || typeof value.kind !== 'string') {
-    return schemaError('echarts.data must be an inline or ref dataset object');
-  }
-  const dimensions = readDimensions(value.dimensions, 'echarts.data.dimensions');
-  if (value.kind === 'inline') {
-    const source = validateRows(value.source, limits, 'echarts.data.source');
-    return dimensions ? { kind: 'inline', dimensions, source } : { kind: 'inline', source };
-  }
-  if (value.kind === 'ref') {
-    if (typeof value.ref !== 'string' || value.ref.length === 0) {
-      return schemaError('echarts.data.ref must be a non-empty string');
-    }
-    if (value.format !== undefined && value.format !== 'csv' && value.format !== 'json') {
-      return schemaError('echarts.data.format must be csv or json');
-    }
-    const result: RefDataset = {
-      kind: 'ref',
-      ref: value.ref,
-      ...(value.format ? { format: value.format } : {}),
-      ...(dimensions ? { dimensions } : {}),
-    };
-    return result;
-  }
-  return schemaError(`Unsupported echarts.data.kind: ${value.kind}`);
+  return parseChartData(value, {
+    maxRows: limits.maxRows,
+    maxCells: limits.maxCells,
+  });
 }
 
 function assertSafeString(value: string, path: string): void {
@@ -497,7 +483,7 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
 
 function parseSpec(
   spec: JsonValue,
-  envelopeData: unknown,
+  envelopeData: ChartData | undefined,
   limits: EChartsLimits,
 ): ParsedEChartsSpec {
   if (!isJsonObject(spec)) {
@@ -513,7 +499,7 @@ function parseSpec(
     );
   }
   const option = cloneJson(spec);
-  const data = envelopeData === undefined ? undefined : parseData(envelopeData, limits);
+  const data = envelopeData;
 
   if (data && Object.prototype.hasOwnProperty.call(option, 'dataset')) {
     return schemaError('echarts.option.dataset cannot be combined with echarts.data');
@@ -596,7 +582,7 @@ function normalizeRuntime(loaded: LoadedEChartsRuntime): EChartsRuntime {
 }
 
 function materializeDataset(
-  dataset: ResolvedDataset,
+  dataset: InlineDataset,
   limits: EChartsLimits,
 ): { readonly data: InlineDataset; readonly option: Record<string, JsonValue> } {
   const source = validateRows(dataset.source, limits, 'resolvedDataset.source');
@@ -1021,6 +1007,187 @@ export function applyEChartsDefaultStyle(
   return styled;
 }
 
+interface StructuredEChartsMapping {
+  readonly option: Record<string, JsonValue>;
+  readonly preferredHeight: number;
+}
+
+function singleStructuredSeries(
+  option: Record<string, JsonValue>,
+): Record<string, JsonValue> {
+  if (!Array.isArray(option.series) || option.series.length !== 1 || !isJsonObject(option.series[0])) {
+    return schemaError('Structured ECharts data requires exactly one series');
+  }
+  const series = option.series[0] as Record<string, JsonValue>;
+  for (const key of ['data', 'nodes', 'links', 'edges']) {
+    if (Object.prototype.hasOwnProperty.call(series, key)) {
+      schemaError(`echarts.option.series[0].${key} cannot be combined with structured markdown-chart.data`);
+    }
+  }
+  return series;
+}
+
+function assertSankeyGraph(source: GraphChartSource): void {
+  if (source.links.length === 0) {
+    schemaError('Sankey data requires at least one link');
+  }
+  let total = 0;
+  const outgoing = new Map<string, string[]>();
+  source.nodes.forEach((node) => outgoing.set(node.id, []));
+  source.links.forEach((link, index) => {
+    if (link.source === link.target) {
+      schemaError(`markdown-chart.data.source.links[${index}] cannot be a self-loop for sankey`);
+    }
+    if (link.value === undefined) {
+      schemaError(`markdown-chart.data.source.links[${index}].value is required for sankey`);
+    }
+    total += link.value;
+    outgoing.get(link.source)?.push(link.target);
+  });
+  if (total <= 0) {
+    schemaError('Sankey link values must contain a positive total flow');
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): void => {
+    if (visiting.has(id)) {
+      schemaError('Sankey data must be acyclic');
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    for (const target of outgoing.get(id) ?? []) visit(target);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  source.nodes.forEach((node) => visit(node.id));
+}
+
+function mapGraphData(
+  option: Record<string, JsonValue>,
+  source: GraphChartSource,
+): StructuredEChartsMapping {
+  const series = singleStructuredSeries(option);
+  const type = series.type;
+  if (type !== 'sankey' && type !== 'graph') {
+    return schemaError('graph data requires an ECharts sankey or graph series');
+  }
+  if (type === 'sankey') {
+    assertSankeyGraph(source);
+    source.nodes.forEach((node, index) => {
+      assertSafeString(node.name, `markdown-chart.data.source.nodes[${index}].name`);
+    });
+  }
+  const indexById = new Map(source.nodes.map((node, index) => [node.id, index]));
+  const categoryNames: string[] = [];
+  const categoryIndex = new Map<string, number>();
+  source.nodes.forEach((node) => {
+    if (node.category !== undefined && !categoryIndex.has(node.category)) {
+      categoryIndex.set(node.category, categoryNames.length);
+      categoryNames.push(node.category);
+    }
+  });
+  const data: JsonValue[] = source.nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    ...(type === 'sankey' ? { label: { formatter: node.name } } : {}),
+    ...(type !== 'graph' || node.category === undefined
+      ? {}
+      : { category: categoryIndex.get(node.category) as number }),
+  }));
+  const links: JsonValue[] = source.links.map((link) => ({
+    source: indexById.get(link.source) as number,
+    target: indexById.get(link.target) as number,
+    ...(link.value === undefined ? {} : { value: link.value }),
+  }));
+  series.data = data;
+  series.links = links;
+  if (type === 'graph' && categoryNames.length > 0) {
+    series.categories = categoryNames.map((name) => ({ name }));
+  }
+  return {
+    option,
+    preferredHeight: Math.min(2_000, Math.max(360, 240 + source.nodes.length * (type === 'sankey' ? 18 : 5))),
+  };
+}
+
+function hierarchyNodeCount(nodes: readonly HierarchyChartNode[]): number {
+  return nodes.reduce(
+    (total, node) => total + 1 + hierarchyNodeCount(node.children ?? []),
+    0,
+  );
+}
+
+function mapHierarchyNode(
+  node: HierarchyChartNode,
+  requireLeafValue: boolean,
+): { readonly data: Record<string, JsonValue>; readonly total: number | undefined } {
+  const children = node.children ?? [];
+  if (children.length === 0) {
+    if (requireLeafValue && node.value === undefined) {
+      return schemaError(`Hierarchy leaf ${node.id} requires value for area charts`);
+    }
+    return {
+      data: {
+        id: node.id,
+        name: node.name,
+        ...(node.value === undefined ? {} : { value: node.value }),
+      },
+      total: node.value,
+    };
+  }
+  const mappedChildren = children.map((child) => mapHierarchyNode(child, requireLeafValue));
+  const total = mappedChildren.every((child) => child.total !== undefined)
+    ? mappedChildren.reduce<number>((sum, child) => sum + (child.total ?? 0), 0)
+    : undefined;
+  return {
+    data: {
+      id: node.id,
+      name: node.name,
+      ...(total === undefined ? {} : { value: total }),
+      children: mappedChildren.map((child) => child.data),
+    },
+    total,
+  };
+}
+
+function mapHierarchyData(
+  option: Record<string, JsonValue>,
+  source: readonly HierarchyChartNode[],
+): StructuredEChartsMapping {
+  const series = singleStructuredSeries(option);
+  const type = series.type;
+  if (type !== 'tree' && type !== 'treemap' && type !== 'sunburst') {
+    return schemaError('hierarchy data requires an ECharts tree, treemap, or sunburst series');
+  }
+  if (type === 'tree' && source.length !== 1) {
+    return schemaError('ECharts tree series requires exactly one hierarchy root');
+  }
+  const mapped = source.map((node) => mapHierarchyNode(node, type !== 'tree'));
+  if (type !== 'tree') {
+    const total = mapped.reduce((sum, node) => sum + (node.total ?? 0), 0);
+    if (total <= 0) {
+      return schemaError('Hierarchy area charts require a positive total leaf value');
+    }
+  }
+  series.data = mapped.map((node) => node.data);
+  const nodeCount = hierarchyNodeCount(source);
+  return {
+    option,
+    preferredHeight: type === 'tree'
+      ? Math.min(2_000, Math.max(360, 240 + nodeCount * 18))
+      : 460,
+  };
+}
+
+function mapStructuredData(
+  option: Record<string, JsonValue>,
+  data: InlineAnyChartData,
+): StructuredEChartsMapping | undefined {
+  if (data.shape === 'graph') return mapGraphData(option, data.source);
+  if (data.shape === 'hierarchy') return mapHierarchyData(option, data.source);
+  return undefined;
+}
+
 const EMPTY_HANDLE: ChartHandle = { dispose() {} };
 
 export function createEChartsRenderer(
@@ -1039,12 +1206,16 @@ export function createEChartsRenderer(
     await import('echarts') as unknown as LoadedEChartsRuntime
   ));
   const resolveReferencedData = async (
-    data: RefDataset,
+    data: Extract<ChartData, { readonly kind: 'ref' }>,
     signal: AbortSignal,
-  ): Promise<InlineDataset | undefined> => {
+    dataLimits?: ChartMaterializeContext['dataLimits'],
+  ): Promise<InlineAnyChartData | undefined> => {
+    const materializationLimits = (data.shape ?? 'table') === 'table'
+      ? { maxRows: limits.maxRows, maxCells: limits.maxCells }
+      : dataLimits;
     return materializeChartData(data, {
       signal,
-      limits: { maxRows: limits.maxRows, maxCells: limits.maxCells },
+      ...(materializationLimits ? { limits: materializationLimits } : {}),
       ...(options.resolveDataRef ? { resolveDataRef: options.resolveDataRef } : {}),
       ...(options.validateDataRef ? { validateDataRef: options.validateDataRef } : {}),
     });
@@ -1089,14 +1260,29 @@ export function createEChartsRenderer(
     },
     async materialize(parsed, context) {
       if (!parsed.legacyEChartQuery && !parsed.legacyEChartSandboxFile) {
-        if (parsed.data?.kind === 'ref') {
-          const data = await resolveReferencedData(parsed.data, context.signal);
-          if (!data) {
-            return { parsed, data: context.data };
-          }
-          return { parsed: { ...parsed, data }, data };
+        const data = parsed.data?.kind === 'ref'
+          ? await resolveReferencedData(parsed.data, context.signal, context.dataLimits)
+          : parsed.data;
+        if (!data) {
+          return { parsed, data: context.data };
         }
-        return { parsed, data: parsed.data };
+        if (data.shape === 'graph' || data.shape === 'hierarchy') {
+          const materializedParsed = { ...parsed, option: cloneJson(parsed.option), data };
+          try {
+            const mapping = mapStructuredData(materializedParsed.option, data);
+            return {
+              parsed: materializedParsed,
+              data,
+              ...(mapping ? { preferredHeight: mapping.preferredHeight } : {}),
+            };
+          } catch (cause) {
+            if (cause instanceof MarkdownChartError) {
+              return { parsed: materializedParsed, data, renderError: cause };
+            }
+            throw cause;
+          }
+        }
+        return { parsed: { ...parsed, data }, data };
       }
       if (
         parsed.legacyEChartQuery
@@ -1180,7 +1366,7 @@ export function createEChartsRenderer(
       }
       const resolvedSpec = parseSpec(
         normalized.spec as JsonValue,
-        normalized.data,
+        parseData(normalized.data, limits),
         limits,
       );
       if (resolvedSpec.data?.kind !== 'inline') {
@@ -1197,16 +1383,12 @@ export function createEChartsRenderer(
       if (context.externalizedTitle) {
         removeExternalizedEChartsTitle(option, context.externalizedTitle);
       }
-      if (parsed.data) {
+      if (parsed.data && (parsed.data.shape ?? 'table') === 'table') {
         let dataset: InlineDataset;
         if (parsed.data.kind === 'inline') {
-          dataset = parsed.data;
+          dataset = parsed.data as InlineDataset;
         } else {
-          const resolved = await resolveReferencedData(parsed.data, context.signal);
-          if (!resolved) {
-            return EMPTY_HANDLE;
-          }
-          dataset = resolved;
+          return schemaError('ECharts table data references must be materialized before mounting');
         }
         const resolved = materializeDataset(dataset, limits);
         option.dataset = resolved.option;

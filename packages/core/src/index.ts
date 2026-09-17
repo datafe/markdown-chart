@@ -7,29 +7,91 @@ export type JsonValue =
 
 export type ChartDataRow = JsonPrimitive[] | Record<string, JsonPrimitive>;
 
+export type ChartDataShape = 'table' | 'graph' | 'hierarchy';
+
 export interface InlineChartData {
   readonly kind: 'inline';
+  readonly shape?: 'table';
   readonly dimensions?: readonly string[];
   readonly source: readonly ChartDataRow[];
 }
 
 export interface RefChartData {
   readonly kind: 'ref';
+  readonly shape?: 'table';
   readonly ref: string;
   readonly format?: 'csv' | 'json';
   readonly dimensions?: readonly string[];
 }
 
-export type ChartData = InlineChartData | RefChartData;
+export interface GraphChartNode {
+  readonly id: string;
+  readonly name: string;
+  readonly category?: string;
+}
+
+export interface GraphChartLink {
+  readonly source: string;
+  readonly target: string;
+  readonly value?: number;
+}
+
+export interface GraphChartSource {
+  readonly nodes: readonly GraphChartNode[];
+  readonly links: readonly GraphChartLink[];
+}
+
+export interface HierarchyChartNode {
+  readonly id: string;
+  readonly name: string;
+  readonly value?: number;
+  readonly children?: readonly HierarchyChartNode[];
+}
+
+export type HierarchyChartSource = readonly HierarchyChartNode[];
+
+export interface InlineGraphChartData {
+  readonly kind: 'inline';
+  readonly shape: 'graph';
+  readonly source: GraphChartSource;
+}
+
+export interface RefGraphChartData {
+  readonly kind: 'ref';
+  readonly shape: 'graph';
+  readonly ref: string;
+  readonly format: 'json';
+}
+
+export interface InlineHierarchyChartData {
+  readonly kind: 'inline';
+  readonly shape: 'hierarchy';
+  readonly source: HierarchyChartSource;
+}
+
+export interface RefHierarchyChartData {
+  readonly kind: 'ref';
+  readonly shape: 'hierarchy';
+  readonly ref: string;
+  readonly format: 'json';
+}
+
+export type InlineStructuredChartData = InlineGraphChartData | InlineHierarchyChartData;
+export type RefStructuredChartData = RefGraphChartData | RefHierarchyChartData;
+export type InlineAnyChartData = InlineChartData | InlineStructuredChartData;
+export type ChartData = InlineAnyChartData | RefChartData | RefStructuredChartData;
 export type ChartDatasets = Readonly<Record<string, ChartData>>;
+
+export type ChartDataSource = readonly ChartDataRow[] | GraphChartSource | HierarchyChartSource;
 
 /** A host-materialized dataset. It intentionally contains no transport metadata. */
 export interface ResolvedChartData {
   readonly dimensions?: readonly string[];
-  readonly source: readonly ChartDataRow[];
+  readonly source: ChartDataSource;
 }
 
 export interface ResolveChartDataRefContext {
+  readonly shape: ChartDataShape;
   readonly format: 'csv' | 'json' | undefined;
   readonly dimensions: readonly string[] | undefined;
   readonly signal: AbortSignal;
@@ -44,11 +106,17 @@ export type ResolveChartDataRef = (
 export interface ChartDataMaterializationLimits {
   readonly maxRows: number;
   readonly maxCells: number;
+  readonly maxDataNodes: number;
+  readonly maxGraphLinks: number;
+  readonly maxHierarchyDepth: number;
 }
 
 export const DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS: Readonly<ChartDataMaterializationLimits> = Object.freeze({
   maxRows: 2_000,
   maxCells: 40_000,
+  maxDataNodes: 2_000,
+  maxGraphLinks: 4_000,
+  maxHierarchyDepth: 20,
 });
 
 export interface MaterializeChartDataOptions {
@@ -93,7 +161,7 @@ export interface JsonParseLimits {
 
 export const DEFAULT_JSON_LIMITS: Readonly<JsonParseLimits> = Object.freeze({
   maxCharacters: 500_000,
-  maxDepth: 40,
+  maxDepth: 64,
   maxNodes: 100_000,
 });
 
@@ -279,17 +347,255 @@ function parseChartDataRows(value: JsonValue | undefined): ChartDataRow[] {
   });
 }
 
-export function parseChartData(value: unknown): ChartData {
+function assertAllowedDataKeys(
+  value: Record<string, JsonValue>,
+  allowed: ReadonlySet<string>,
+  path: string,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${path}.${key} is not allowed`);
+    }
+  }
+}
+
+function parseNonEmptyString(value: JsonValue | undefined, path: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new MarkdownChartError('SCHEMA_INVALID', `${path} must be a non-empty string`);
+  }
+  return value;
+}
+
+function parseOptionalNonNegativeNumber(
+  value: JsonValue | undefined,
+  path: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      `${path} must be a finite non-negative number`,
+    );
+  }
+  return value;
+}
+
+function parseGraphSource(
+  value: unknown,
+  limits: ChartDataMaterializationLimits,
+  path = 'markdown-chart.data.source',
+): GraphChartSource {
+  if (!isJsonObject(value)) {
+    throw new MarkdownChartError('SCHEMA_INVALID', `${path} must be an object`);
+  }
+  assertAllowedDataKeys(value, new Set(['nodes', 'links']), path);
+  if (!Array.isArray(value.nodes) || value.nodes.length === 0) {
+    throw new MarkdownChartError('SCHEMA_INVALID', `${path}.nodes must be a non-empty array`);
+  }
+  if (value.nodes.length > limits.maxDataNodes) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `${path}.nodes exceeds the ${limits.maxDataNodes} node limit`,
+    );
+  }
+  if (!Array.isArray(value.links)) {
+    throw new MarkdownChartError('SCHEMA_INVALID', `${path}.links must be an array`);
+  }
+  if (value.links.length > limits.maxGraphLinks) {
+    throw new MarkdownChartError(
+      'LIMIT_EXCEEDED',
+      `${path}.links exceeds the ${limits.maxGraphLinks} link limit`,
+    );
+  }
+
+  const ids = new Set<string>();
+  const nodes = value.nodes.map((node, index): GraphChartNode => {
+    const nodePath = `${path}.nodes[${index}]`;
+    if (!isJsonObject(node)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${nodePath} must be an object`);
+    }
+    assertAllowedDataKeys(node, new Set(['id', 'name', 'category']), nodePath);
+    const id = parseNonEmptyString(node.id, `${nodePath}.id`);
+    if (ids.has(id)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${nodePath}.id must be unique`);
+    }
+    ids.add(id);
+    const name = parseNonEmptyString(node.name, `${nodePath}.name`);
+    const category = node.category === undefined
+      ? undefined
+      : parseNonEmptyString(node.category, `${nodePath}.category`);
+    return category === undefined ? { id, name } : { id, name, category };
+  });
+
+  const endpointPairs = new Set<string>();
+  const links = value.links.map((link, index): GraphChartLink => {
+    const linkPath = `${path}.links[${index}]`;
+    if (!isJsonObject(link)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${linkPath} must be an object`);
+    }
+    assertAllowedDataKeys(link, new Set(['source', 'target', 'value']), linkPath);
+    const source = parseNonEmptyString(link.source, `${linkPath}.source`);
+    const target = parseNonEmptyString(link.target, `${linkPath}.target`);
+    if (!ids.has(source)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${linkPath}.source references unknown node ${source}`);
+    }
+    if (!ids.has(target)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${linkPath}.target references unknown node ${target}`);
+    }
+    const endpointPair = `${source}\u0000${target}`;
+    if (endpointPairs.has(endpointPair)) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `${linkPath} duplicates the directed endpoint pair ${source} -> ${target}`,
+      );
+    }
+    endpointPairs.add(endpointPair);
+    const linkValue = parseOptionalNonNegativeNumber(link.value, `${linkPath}.value`);
+    return linkValue === undefined ? { source, target } : { source, target, value: linkValue };
+  });
+  return { nodes, links };
+}
+
+function parseHierarchySource(
+  value: unknown,
+  limits: ChartDataMaterializationLimits,
+  path = 'markdown-chart.data.source',
+): HierarchyChartSource {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new MarkdownChartError('SCHEMA_INVALID', `${path} must be a non-empty root array`);
+  }
+  const ids = new Set<string>();
+  let nodeCount = 0;
+  const visit = (node: unknown, nodePath: string, depth: number): HierarchyChartNode => {
+    if (depth > limits.maxHierarchyDepth) {
+      throw new MarkdownChartError(
+        'LIMIT_EXCEEDED',
+        `${nodePath} exceeds the ${limits.maxHierarchyDepth} hierarchy depth limit`,
+      );
+    }
+    nodeCount += 1;
+    if (nodeCount > limits.maxDataNodes) {
+      throw new MarkdownChartError(
+        'LIMIT_EXCEEDED',
+        `${path} exceeds the ${limits.maxDataNodes} node limit`,
+      );
+    }
+    if (!isJsonObject(node)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${nodePath} must be an object`);
+    }
+    assertAllowedDataKeys(node, new Set(['id', 'name', 'value', 'children']), nodePath);
+    const id = parseNonEmptyString(node.id, `${nodePath}.id`);
+    if (ids.has(id)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${nodePath}.id must be unique`);
+    }
+    ids.add(id);
+    const name = parseNonEmptyString(node.name, `${nodePath}.name`);
+    const childrenValue = node.children;
+    if (childrenValue !== undefined && !Array.isArray(childrenValue)) {
+      throw new MarkdownChartError('SCHEMA_INVALID', `${nodePath}.children must be an array`);
+    }
+    const hasChildren = Array.isArray(childrenValue) && childrenValue.length > 0;
+    if (hasChildren && node.value !== undefined) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        `${nodePath}.value is not allowed when children are present`,
+      );
+    }
+    const leafValue = hasChildren
+      ? undefined
+      : parseOptionalNonNegativeNumber(node.value, `${nodePath}.value`);
+    const children = hasChildren
+      ? childrenValue.map((child, index) => visit(child, `${nodePath}.children[${index}]`, depth + 1))
+      : undefined;
+    return {
+      id,
+      name,
+      ...(leafValue === undefined ? {} : { value: leafValue }),
+      ...(children ? { children } : {}),
+    };
+  };
+  return value.map((node, index) => visit(node, `${path}[${index}]`, 1));
+}
+
+export function parseChartData(
+  value: InlineChartData | RefChartData,
+  limitOverrides?: Partial<ChartDataMaterializationLimits>,
+): InlineChartData | RefChartData;
+export function parseChartData(
+  value: InlineGraphChartData | RefGraphChartData,
+  limitOverrides?: Partial<ChartDataMaterializationLimits>,
+): InlineGraphChartData | RefGraphChartData;
+export function parseChartData(
+  value: InlineHierarchyChartData | RefHierarchyChartData,
+  limitOverrides?: Partial<ChartDataMaterializationLimits>,
+): InlineHierarchyChartData | RefHierarchyChartData;
+export function parseChartData(
+  value: unknown,
+  limitOverrides?: Partial<ChartDataMaterializationLimits>,
+): ChartData;
+export function parseChartData(
+  value: unknown,
+  limitOverrides: Partial<ChartDataMaterializationLimits> = {},
+): ChartData {
   if (!isJsonObject(value) || typeof value.kind !== 'string') {
     throw new MarkdownChartError(
       'SCHEMA_INVALID',
       'markdown-chart.data must be an inline or ref dataset object',
     );
   }
+  const limits = { ...DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS, ...limitOverrides };
+  const shape = value.shape ?? 'table';
+  if (shape !== 'table' && shape !== 'graph' && shape !== 'hierarchy') {
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      'markdown-chart.data.shape must be table, graph, or hierarchy',
+    );
+  }
+  if (shape !== 'table') {
+    if (value.dimensions !== undefined) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        'markdown-chart.data.dimensions is only valid for table data',
+      );
+    }
+    assertAllowedDataKeys(
+      value,
+      value.kind === 'inline'
+        ? new Set(['kind', 'shape', 'source'])
+        : new Set(['kind', 'shape', 'ref', 'format']),
+      'markdown-chart.data',
+    );
+    if (value.kind === 'inline') {
+      return shape === 'graph'
+        ? { kind: 'inline', shape, source: parseGraphSource(value.source, limits) }
+        : { kind: 'inline', shape, source: parseHierarchySource(value.source, limits) };
+    }
+    if (value.kind === 'ref') {
+      if (typeof value.ref !== 'string' || value.ref.length === 0) {
+        throw new MarkdownChartError(
+          'SCHEMA_INVALID',
+          'markdown-chart.data.ref must be a non-empty string',
+        );
+      }
+      if (value.format !== 'json') {
+        throw new MarkdownChartError(
+          'SCHEMA_INVALID',
+          'Structured markdown-chart.data refs require format json',
+        );
+      }
+      return { kind: 'ref', shape, ref: value.ref, format: 'json' };
+    }
+    throw new MarkdownChartError(
+      'SCHEMA_INVALID',
+      `Unsupported markdown-chart.data.kind: ${value.kind}`,
+    );
+  }
   const dimensions = parseChartDataDimensions(value.dimensions);
   if (value.kind === 'inline') {
     const source = parseChartDataRows(value.source);
-    return dimensions ? { kind: 'inline', dimensions, source } : { kind: 'inline', source };
+    return dimensions
+      ? { kind: 'inline', ...(value.shape === 'table' ? { shape: 'table' as const } : {}), dimensions, source }
+      : { kind: 'inline', ...(value.shape === 'table' ? { shape: 'table' as const } : {}), source };
   }
   if (value.kind === 'ref') {
     if (typeof value.ref !== 'string' || value.ref.length === 0) {
@@ -309,6 +615,7 @@ export function parseChartData(value: unknown): ChartData {
       ref: value.ref,
       ...(value.format ? { format: value.format } : {}),
       ...(dimensions ? { dimensions } : {}),
+      ...(value.shape === 'table' ? { shape: 'table' as const } : {}),
     };
   }
   throw new MarkdownChartError(
@@ -319,7 +626,10 @@ export function parseChartData(value: unknown): ChartData {
 
 const CHART_DATASET_ID = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 
-export function parseChartDatasets(value: unknown): ChartDatasets {
+export function parseChartDatasets(
+  value: unknown,
+  dataLimits: Partial<ChartDataMaterializationLimits> = {},
+): ChartDatasets {
   if (!isJsonObject(value) || Object.keys(value).length === 0) {
     throw new MarkdownChartError(
       'SCHEMA_INVALID',
@@ -335,7 +645,7 @@ export function parseChartDatasets(value: unknown): ChartDatasets {
       );
     }
     Object.defineProperty(datasets, id, {
-      value: parseChartData(data),
+      value: parseChartData(data, dataLimits),
       enumerable: true,
       configurable: true,
       writable: true,
@@ -446,10 +756,26 @@ function validateMaterializedRows(
  * aborted resolution returns undefined so the lifecycle controller can quietly
  * discard stale work.
  */
+export function materializeChartData(
+  data: InlineChartData | RefChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineChartData | undefined>;
+export function materializeChartData(
+  data: InlineGraphChartData | RefGraphChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineGraphChartData | undefined>;
+export function materializeChartData(
+  data: InlineHierarchyChartData | RefHierarchyChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineHierarchyChartData | undefined>;
+export function materializeChartData(
+  data: ChartData,
+  options: MaterializeChartDataOptions,
+): Promise<InlineAnyChartData | undefined>;
 export async function materializeChartData(
   data: ChartData,
   options: MaterializeChartDataOptions,
-): Promise<InlineChartData | undefined> {
+): Promise<InlineAnyChartData | undefined> {
   const limits: ChartDataMaterializationLimits = {
     ...DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS,
     ...options.limits,
@@ -466,8 +792,11 @@ export async function materializeChartData(
     }
     try {
       resolved = await options.resolveDataRef(data.ref, {
+        shape: data.shape ?? 'table',
         format: data.format,
-        dimensions: data.dimensions,
+        dimensions: (data.shape ?? 'table') === 'table'
+          ? (data as RefChartData).dimensions
+          : undefined,
         signal: options.signal,
       });
     } catch (cause) {
@@ -487,13 +816,36 @@ export async function materializeChartData(
     }
   }
 
+  const shape = data.shape ?? 'table';
+  if (shape === 'graph') {
+    if (resolved.dimensions !== undefined) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        'resolvedChartData.dimensions is not valid for graph data',
+      );
+    }
+    return { kind: 'inline', shape, source: parseGraphSource(resolved.source, limits, 'resolvedChartData.source') };
+  }
+  if (shape === 'hierarchy') {
+    if (resolved.dimensions !== undefined) {
+      throw new MarkdownChartError(
+        'SCHEMA_INVALID',
+        'resolvedChartData.dimensions is not valid for hierarchy data',
+      );
+    }
+    return {
+      kind: 'inline',
+      shape,
+      source: parseHierarchySource(resolved.source, limits, 'resolvedChartData.source'),
+    };
+  }
   const dimensions = validateMaterializedDimensions(
-    resolved.dimensions ?? (data.kind === 'ref' ? data.dimensions : undefined),
+    resolved.dimensions ?? (data.kind === 'ref' ? (data as RefChartData).dimensions : undefined),
   );
-  const source = validateMaterializedRows(resolved.source, limits);
+  const source = validateMaterializedRows(resolved.source as readonly ChartDataRow[], limits);
   return dimensions
-    ? { kind: 'inline', dimensions, source }
-    : { kind: 'inline', source };
+    ? { kind: 'inline', ...(data.shape === 'table' ? { shape: 'table' as const } : {}), dimensions, source }
+    : { kind: 'inline', ...(data.shape === 'table' ? { shape: 'table' as const } : {}), source };
 }
 
 export interface ChartParseContext {
@@ -545,11 +897,17 @@ export interface ChartMaterializeContext extends ChartMountContext {
   readonly rendererId: string;
   readonly data: ChartData | undefined;
   readonly datasets?: ChartDatasets;
+  /** Canonical structured-data budgets normalized by the registry when present. */
+  readonly dataLimits?: Readonly<ChartDataMaterializationLimits>;
 }
 
 export interface MaterializedChart<Parsed = unknown> {
   readonly parsed: Parsed;
   readonly data: ChartData | undefined;
+  /** Renderer-requested inner canvas height. Core applies a bounded scroll viewport. */
+  readonly preferredHeight?: number;
+  /** A chart-specific constraint error that still permits the materialized Data view. */
+  readonly renderError?: MarkdownChartError;
 }
 
 export interface ChartHandle {
@@ -584,10 +942,12 @@ export interface PreparedChart {
   readonly language: string;
   readonly rawLanguage: string;
   readonly rendererId: string;
+  readonly dataLimits: Readonly<ChartDataMaterializationLimits>;
 }
 
 export interface ChartRegistryOptions {
   jsonLimits?: Partial<JsonParseLimits>;
+  dataLimits?: Partial<ChartDataMaterializationLimits>;
 }
 
 function normalizeName(name: string, label: string): string {
@@ -617,6 +977,7 @@ export interface MarkdownChartEnvelope {
 export function parseMarkdownChartEnvelope(
   source: string,
   jsonLimits: Partial<JsonParseLimits> = {},
+  dataLimits: Partial<ChartDataMaterializationLimits> = {},
 ): MarkdownChartEnvelope {
   const body = parseChartJson(source, jsonLimits);
   if (!isJsonObject(body)) {
@@ -640,8 +1001,8 @@ export function parseMarkdownChartEnvelope(
   return {
     version: 1,
     renderer: normalizeName(body.renderer, 'renderer id'),
-    data: body.data === undefined ? undefined : parseChartData(body.data),
-    ...(body.datasets === undefined ? {} : { datasets: parseChartDatasets(body.datasets) }),
+    data: body.data === undefined ? undefined : parseChartData(body.data, dataLimits),
+    ...(body.datasets === undefined ? {} : { datasets: parseChartDatasets(body.datasets, dataLimits) }),
     spec: body.spec as JsonValue,
   };
 }
@@ -650,9 +1011,14 @@ export class ChartRendererRegistry {
   readonly #renderers = new Map<string, ChartRenderer<unknown>>();
   readonly #aliases = new Map<string, string>();
   readonly #jsonLimits: Partial<JsonParseLimits>;
+  readonly #dataLimits: Readonly<ChartDataMaterializationLimits>;
 
   constructor(options: ChartRegistryOptions = {}) {
     this.#jsonLimits = options.jsonLimits ?? {};
+    this.#dataLimits = Object.freeze({
+      ...DEFAULT_CHART_DATA_MATERIALIZATION_LIMITS,
+      ...options.dataLimits,
+    });
   }
 
   register<Parsed>(renderer: ChartRenderer<Parsed>): this {
@@ -715,7 +1081,7 @@ export class ChartRendererRegistry {
     let datasets: ChartDatasets | undefined;
     let parseSource = false;
     if (language === MARKDOWN_CHART_LANGUAGE) {
-      const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits);
+      const envelope = parseMarkdownChartEnvelope(source, this.#jsonLimits, this.#dataLimits);
       rendererId = envelope.renderer;
       spec = envelope.spec;
       data = envelope.data;
@@ -770,6 +1136,7 @@ export class ChartRendererRegistry {
       language,
       rawLanguage,
       rendererId,
+      dataLimits: this.#dataLimits,
     };
   }
 }
@@ -801,6 +1168,18 @@ export interface MarkdownChartLabels {
   readonly showChart: string;
   readonly showData: string;
   readonly noData: string;
+  readonly nodes: string;
+  readonly links: string;
+  readonly name: string;
+  readonly category: string;
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly value: string;
+  readonly depth: string;
+  readonly path: string;
+  readonly idPath: string;
+  readonly subtreeTotal: string;
   readonly tableNotice: (context: MarkdownChartTableNoticeContext) => string;
 }
 
@@ -814,6 +1193,18 @@ export const DEFAULT_MARKDOWN_CHART_LABELS: Readonly<MarkdownChartLabels> = Obje
   showChart: 'Show chart',
   showData: 'Show data',
   noData: 'No data',
+  nodes: 'Nodes',
+  links: 'Links',
+  name: 'Name',
+  category: 'Category',
+  id: 'ID',
+  source: 'Source',
+  target: 'Target',
+  value: 'Value',
+  depth: 'Depth',
+  path: 'Path',
+  idPath: 'ID path',
+  subtreeTotal: 'Subtree total (derived)',
   tableNotice: ({
     visibleRows,
     totalRows,
@@ -1181,6 +1572,20 @@ function removeChartLoading(container: HTMLElement): void {
   container.removeAttribute('aria-busy');
 }
 
+function showMaterializedRenderError(container: HTMLElement, error: MarkdownChartError): void {
+  removeChartLoading(container);
+  const message = document.createElement('div');
+  message.className = 'markdown-chart-render-error';
+  message.dataset.markdownChartErrorCode = error.code;
+  message.setAttribute('role', 'alert');
+  message.textContent = error.message;
+  setStyles(message, {
+    display: 'grid', minHeight: '220px', placeItems: 'center', boxSizing: 'border-box',
+    padding: '24px', color: 'inherit', textAlign: 'center', opacity: '0.78',
+  });
+  container.replaceChildren(message);
+}
+
 function createViewButton(
   label: string,
   ariaLabel: string,
@@ -1211,6 +1616,7 @@ function createViewButton(
 interface ChartViewColors {
   readonly background: string;
   readonly subtleBackground: string;
+  readonly foreground: string;
 }
 
 function chartViewColors(theme: unknown): ChartViewColors {
@@ -1218,6 +1624,7 @@ function chartViewColors(theme: unknown): ChartViewColors {
   return {
     background: `var(--markdown-chart-background, ${dark ? '#0d0d0d' : '#ffffff'})`,
     subtleBackground: `var(--markdown-chart-subtle-background, ${dark ? '#161616' : '#f7f8fa'})`,
+    foreground: `var(--markdown-chart-foreground, ${dark ? '#e5e7eb' : '#111827'})`,
   };
 }
 
@@ -1332,6 +1739,132 @@ function createInlineDataTable(
   return wrapper;
 }
 
+function graphDataTables(
+  data: InlineGraphChartData,
+  labels: Readonly<MarkdownChartLabels>,
+): { readonly nodes: InlineChartData; readonly links: InlineChartData } {
+  const names = new Map(data.source.nodes.map((node) => [node.id, node.name]));
+  return {
+    nodes: {
+      kind: 'inline',
+      dimensions: [labels.name, labels.category, labels.id],
+      source: data.source.nodes.map((node) => [node.name, node.category ?? null, node.id]),
+    },
+    links: {
+      kind: 'inline',
+      dimensions: [labels.source, labels.target, labels.value, `${labels.source} ${labels.id}`, `${labels.target} ${labels.id}`],
+      source: data.source.links.map((link) => [
+        names.get(link.source) ?? link.source,
+        names.get(link.target) ?? link.target,
+        link.value ?? null,
+        link.source,
+        link.target,
+      ]),
+    },
+  };
+}
+
+function hierarchyDataTable(
+  data: InlineHierarchyChartData,
+  labels: Readonly<MarkdownChartLabels>,
+): InlineChartData {
+  const rows: JsonPrimitive[][] = [];
+  const visit = (
+    node: HierarchyChartNode,
+    depth: number,
+    namePath: readonly string[],
+    idPath: readonly string[],
+  ): number | undefined => {
+    const nextNamePath = [...namePath, node.name];
+    const nextIdPath = [...idPath, node.id];
+    const children = node.children ?? [];
+    const childTotals = children.map((child) => visit(child, depth + 1, nextNamePath, nextIdPath));
+    const subtreeTotal = children.length === 0
+      ? node.value
+      : childTotals.every((value) => value !== undefined)
+        ? childTotals.reduce<number>((total, value) => total + (value ?? 0), 0)
+        : undefined;
+    rows.push([
+      depth,
+      nextNamePath.join(' / '),
+      node.name,
+      node.value ?? null,
+      subtreeTotal ?? null,
+      nextIdPath.join(' / '),
+    ]);
+    return subtreeTotal;
+  };
+  data.source.forEach((root) => visit(root, 0, [], []));
+  rows.sort((left, right) => String(left[5]).localeCompare(String(right[5])));
+  return {
+    kind: 'inline',
+    dimensions: [labels.depth, labels.path, labels.name, labels.value, labels.subtreeTotal, labels.idPath],
+    source: rows,
+  };
+}
+
+function createGraphDataView(
+  data: InlineGraphChartData,
+  colors: ChartViewColors,
+  labels: Readonly<MarkdownChartLabels>,
+): HTMLElement {
+  const tables = graphDataTables(data, labels);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'markdown-chart-data-view markdown-chart-graph-data-view';
+  wrapper.dataset.markdownChartDataView = 'true';
+  const tabs = document.createElement('div');
+  tabs.setAttribute('role', 'tablist');
+  setStyles(tabs, {
+    display: 'flex', gap: '4px', padding: '8px 10px',
+    borderBottom: '1px solid color-mix(in srgb, currentColor 18%, transparent)',
+    background: colors.subtleBackground,
+  });
+  const nodeTable = createInlineDataTable(tables.nodes, colors, labels);
+  const linkTable = createInlineDataTable(tables.links, colors, labels);
+  const createTab = (label: string): HTMLButtonElement => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'tab');
+    button.textContent = label;
+    setStyles(button, {
+      padding: '4px 10px', border: '0', borderRadius: '5px',
+      background: 'transparent', color: 'inherit', cursor: 'pointer', font: 'inherit',
+    });
+    return button;
+  };
+  const nodesButton = createTab(labels.nodes);
+  const linksButton = createTab(labels.links);
+  const select = (mode: 'nodes' | 'links'): void => {
+    const nodesSelected = mode === 'nodes';
+    nodesButton.setAttribute('aria-selected', String(nodesSelected));
+    linksButton.setAttribute('aria-selected', String(!nodesSelected));
+    nodesButton.style.background = nodesSelected ? colors.background : 'transparent';
+    linksButton.style.background = nodesSelected ? 'transparent' : colors.background;
+    nodeTable.hidden = !nodesSelected;
+    linkTable.hidden = nodesSelected;
+  };
+  nodesButton.addEventListener('click', () => select('nodes'));
+  linksButton.addEventListener('click', () => select('links'));
+  tabs.append(nodesButton, linksButton);
+  wrapper.append(tabs, nodeTable, linkTable);
+  select('nodes');
+  return wrapper;
+}
+
+function createDataView(
+  data: InlineAnyChartData,
+  colors: ChartViewColors,
+  labels: Readonly<MarkdownChartLabels>,
+): HTMLElement {
+  if (data.shape === 'graph') {
+    return createGraphDataView(data, colors, labels);
+  }
+  if (data.shape === 'hierarchy') {
+    return createInlineDataTable(hierarchyDataTable(data, labels), colors, labels);
+  }
+  return createInlineDataTable(data, colors, labels);
+}
+
 interface ChartView {
   readonly chartContainer: HTMLElement;
   dispose(): void;
@@ -1339,11 +1872,12 @@ interface ChartView {
 
 function createChartView(
   container: HTMLElement,
-  data: InlineChartData,
+  data: InlineAnyChartData,
   chartTitle: string | undefined,
   onShowChart: () => void,
   theme: unknown,
   labels: Readonly<MarkdownChartLabels>,
+  preferredHeight?: number,
 ): ChartView {
   const colors = chartViewColors(theme);
   const hadCardClass = container.classList.contains('markdown-chart-card');
@@ -1355,6 +1889,7 @@ function createChartView(
     border: container.style.border,
     borderRadius: container.style.borderRadius,
     background: container.style.background,
+    color: container.style.color,
     boxShadow: container.style.boxShadow,
   };
   container.classList.add('markdown-chart-card');
@@ -1366,6 +1901,7 @@ function createChartView(
     border: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
     borderRadius: '8px',
     background: colors.background,
+    color: colors.foreground,
     boxShadow: '0 8px 22px rgb(15 23 42 / 5%)',
   });
 
@@ -1416,6 +1952,14 @@ function createChartView(
   });
   const chartButton = createViewButton(labels.chart, labels.showChart, createChartIcon());
   const dataButton = createViewButton(labels.data, labels.showData, createDataIcon());
+  const chartViewport = document.createElement('div');
+  chartViewport.className = 'markdown-chart-chart-viewport';
+  setStyles(chartViewport, {
+    width: '100%',
+    maxHeight: 'min(74vh, 740px)',
+    overflowY: 'auto',
+    background: colors.background,
+  });
   const chartContainer = document.createElement('div');
   chartContainer.className = 'markdown-chart-chart-view';
   chartContainer.dataset.markdownChartChartView = 'true';
@@ -1423,11 +1967,13 @@ function createChartView(
   chartContainer.setAttribute('aria-label', labels.chart);
   setStyles(chartContainer, {
     width: 'calc(100% - 20px)',
-    minHeight: 'inherit',
+    minHeight: preferredHeight ? `${Math.max(240, preferredHeight)}px` : 'inherit',
+    height: preferredHeight ? `${Math.max(240, preferredHeight)}px` : '',
     margin: '8px 10px',
     background: colors.background,
   });
-  const dataContainer = createInlineDataTable(data, colors, labels);
+  chartViewport.append(chartContainer);
+  const dataContainer = createDataView(data, colors, labels);
   dataContainer.hidden = true;
   const selectedBackground = 'var(--markdown-chart-accent, #0033ff)';
   const selectedForeground = 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
@@ -1445,6 +1991,7 @@ function createChartView(
       ? 'transparent'
       : selectedBackground;
     dataButton.style.color = chartSelected ? unselectedForeground : selectedForeground;
+    chartViewport.hidden = !chartSelected;
     chartContainer.hidden = !chartSelected;
     dataContainer.hidden = chartSelected;
   };
@@ -1460,7 +2007,7 @@ function createChartView(
     toolbar.append(title);
   }
   toolbar.append(toggle);
-  container.replaceChildren(toolbar, chartContainer, dataContainer);
+  container.replaceChildren(toolbar, chartViewport, dataContainer);
   select('chart');
 
   return {
@@ -1478,6 +2025,7 @@ function createChartView(
       container.style.border = previousStyles.border;
       container.style.borderRadius = previousStyles.borderRadius;
       container.style.background = previousStyles.background;
+      container.style.color = previousStyles.color;
       container.style.boxShadow = previousStyles.boxShadow;
     },
   };
@@ -1543,6 +2091,7 @@ export class ChartController {
             rawLanguage: prepared.rawLanguage,
             rendererId: prepared.rendererId,
             data: prepared.data,
+            dataLimits: prepared.dataLimits,
             ...(prepared.datasets ? { datasets: prepared.datasets } : {}),
           })
         : { parsed: prepared.parsed, data: prepared.data };
@@ -1561,10 +2110,20 @@ export class ChartController {
             () => this.#handle?.resize?.(),
             request.theme,
             labels,
+            materialized.preferredHeight,
           )
         : undefined;
       this.#view = view;
       const mountContainer = view?.chartContainer ?? container;
+      if (materialized.renderError) {
+        if (!view) {
+          throw materialized.renderError;
+        }
+        showMaterializedRenderError(mountContainer, materialized.renderError);
+        this.#hasCompletedRender = true;
+        container.removeAttribute('aria-busy');
+        return;
+      }
       showChartLoading(mountContainer, request.loadingLabel);
       const handle = await prepared.renderer.mount(mountContainer, materialized.parsed, {
         signal: abortController.signal,

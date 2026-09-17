@@ -54,6 +54,18 @@ When `resolveDataRef` materializes a referenced dataset, the renderer injects
 the validated rows into `option.dataset` and returns the same rows through the
 core materialization flow for the Chart/Data view.
 
+Canonical structured data is mapped without `option.dataset`:
+
+- `shape: "graph"` supports one Sankey or graph series. Node IDs, not display
+  names, determine numeric link endpoints; graph categories follow first use.
+- `shape: "hierarchy"` supports one tree, treemap, or sunburst series. Parent
+  totals are derived on a cloned option and never mutate canonical source.
+
+Structured series cannot contain `data`, `nodes`, `links`, or `edges`. Sankey
+cycles and missing flow values, tree root mismatches, and missing area leaf
+values are returned as chart constraint errors so the shared Data view remains
+inspectable.
+
 ## Temporary legacy adapter
 
 Hosts that need the temporary query and sandbox-file fences can share the file
