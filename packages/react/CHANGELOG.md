@@ -1,5 +1,14 @@
 # @datafe-open/markdown-chart-react
 
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [35913fa]
+  - @datafe-open/markdown-chart-echarts@0.1.19
+  - @datafe-open/markdown-chart@0.1.19
+  - @datafe-open/markdown-chart-kpi@0.1.19
+
 ## 0.1.18
 
 ### Patch Changes
