@@ -1523,6 +1523,7 @@ describe('createEChartsRenderer', () => {
       { length: 90_910 },
       () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     ))).rejects.toThrow(/1000000 cell limit/);
+    expect(loadECharts).not.toHaveBeenCalled();
   });
 
   it('rejects combined legacy data and options beyond the default node budget', async () => {

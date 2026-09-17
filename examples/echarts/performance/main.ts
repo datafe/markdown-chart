@@ -77,6 +77,8 @@ const canonicalRef = JSON.stringify({
     ],
     xAxis: { type: 'category' },
     yAxis: { type: 'value', scale: true },
+    // Render five trends while retaining all seven source columns in the
+    // dataset so the benchmark matches the reported 99k-by-7 input shape.
     series: DIMENSIONS.slice(1, 6).map((dimension) => ({
       name: dimension,
       type: 'line',
