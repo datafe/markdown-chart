@@ -1,5 +1,13 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.2.0
+
+### Patch Changes
+
+- b68be9c: Add renderer-neutral graph and hierarchy data, inspectable structured Data views, bounded chart layouts, and ECharts mappings for Sankey, graph, tree, treemap, and sunburst charts. KPI now rejects structured datasets explicitly.
+- Updated dependencies [b68be9c]
+  - @datafe-open/markdown-chart@0.2.0
+
 ## 0.1.19
 
 ### Patch Changes
