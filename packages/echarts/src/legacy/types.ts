@@ -176,10 +176,10 @@ export interface LegacyArtifactLimits {
 
 /** @deprecated Defaults for the temporary ChatBI adapter. */
 export const DEFAULT_LEGACY_ARTIFACT_LIMITS: Readonly<LegacyArtifactLimits> = Object.freeze({
-  maxArtifactContentBytes: 5 * 1024 * 1024,
-  maxRows: 2_000,
+  maxArtifactContentBytes: 64 * 1024 * 1024,
+  maxRows: 100_000,
   maxColumns: 200,
-  maxCells: 40_000,
+  maxCells: 1_000_000,
   executionTimeoutMs: 5_000,
 });
 

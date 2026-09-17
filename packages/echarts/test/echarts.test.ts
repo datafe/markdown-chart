@@ -218,10 +218,10 @@ describe('createEChartsRenderer', () => {
   it('defaults to the shared 100k-row narrow-table budget', () => {
     expect(DEFAULT_ECHARTS_LIMITS).toEqual({
       maxRows: 100_000,
-      maxCells: 500_000,
+      maxCells: 1_000_000,
       maxSeries: 100,
       maxDepth: 40,
-      maxNodes: 700_000,
+      maxNodes: 1_200_000,
     });
   });
 
@@ -1389,13 +1389,17 @@ describe('createEChartsRenderer', () => {
     expect(container.querySelector('.markdown-chart-loading')).not.toBeNull();
   });
 
-  it('accepts 100k legacySandbox rows at the default 500k-cell limit', async () => {
+  it('accepts the reported 99k-by-7 legacy CSV above the former 5 MiB limit', async () => {
     let rendered: Record<string, JsonValue> | undefined;
-    const rows = Array.from({ length: 100_000 }, () => ['1', '2', '3', '4', '5']);
-    const dimensions = ['timestamp', 'value_1', 'value_2', 'value_3', 'value_4'];
+    const rows = Array.from(
+      { length: 99_000 },
+      () => ['2026-01-01T00:00:00Z', '1000.123', '2000.234', '3000.345', '4000.456', '5000.567', 'A'],
+    );
+    const dimensions = ['timestamp', 'metric_1', 'metric_2', 'metric_3', 'metric_4', 'metric_5', 'category'];
     const csv = [dimensions, ...rows].map((row) => row.join(',')).join('\n');
-    expect(csv.length).toBeGreaterThan(500_000);
-    expect(new TextEncoder().encode(csv).byteLength).toBeLessThan(5 * 1024 * 1024);
+    const byteLength = new TextEncoder().encode(csv).byteLength;
+    expect(byteLength).toBeGreaterThan(5 * 1024 * 1024);
+    expect(byteLength).toBeLessThan(64 * 1024 * 1024);
     const fake = fakeRuntime((option) => { rendered = option; });
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts: () => fake.runtime,
@@ -1409,7 +1413,49 @@ describe('createEChartsRenderer', () => {
       language: 'echarts-chatbi_query_8660210443288600709-0',
       source: 'var option = {};',
     });
-    await answerLegacySandbox({ series: [{ type: 'bar' }] });
+    await answerLegacySandbox({
+      xAxis: { type: 'category' },
+      yAxis: { type: 'value' },
+      series: dimensions.slice(1, 6).map((dimension) => ({
+        type: 'line',
+        encode: { x: 'timestamp', y: dimension },
+      })),
+    });
+    await render;
+
+    const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
+    const series = rendered?.series as Record<string, JsonValue>[] | undefined;
+    expect(dataset?.source).toHaveLength(99_000);
+    expect(series).toHaveLength(5);
+    expect(series?.[0]?.encode).toEqual({ x: 'timestamp', y: 'metric_1' });
+  });
+
+  it('accepts 100k-by-10 legacy rows with dataset encode at the new cell and node limits', async () => {
+    let rendered: Record<string, JsonValue> | undefined;
+    const dimensions = Array.from({ length: 10 }, (_, index) => `column_${index}`);
+    const row = Array.from({ length: 10 }, (_, index) => String(index));
+    const csv = [dimensions.join(','), ...Array.from({ length: 100_000 }, () => row.join(','))].join('\n');
+    const fake = fakeRuntime((option) => { rendered = option; });
+    const registry = new ChartRendererRegistry().register(createEChartsRenderer({
+      loadECharts: () => fake.runtime,
+      legacySandbox: legacySandboxBinding({
+        resolveLegacyArtifactContent: async () => csv,
+      }),
+      resizeObserver: false,
+    }));
+
+    const render = new ChartController(registry).render(document.createElement('div'), {
+      language: 'echarts-chatbi_query_8660210443288600709-0',
+      source: 'var option = {};',
+    });
+    await answerLegacySandbox({
+      xAxis: { type: 'category' },
+      yAxis: { type: 'value' },
+      series: dimensions.slice(1).map((dimension) => ({
+        type: 'line',
+        encode: { x: 'column_0', y: dimension },
+      })),
+    });
     await render;
 
     const dataset = rendered?.dataset as Record<string, JsonValue> | undefined;
@@ -1454,7 +1500,8 @@ describe('createEChartsRenderer', () => {
   });
 
   it('rejects resolved datasets beyond the default row and cell budgets', async () => {
-    const loadECharts = vi.fn();
+    const fake = fakeRuntime(() => undefined);
+    const loadECharts = vi.fn(() => fake.runtime);
     const renderRef = (source: JsonPrimitive[][]) => {
       const registry = new ChartRendererRegistry().register(createEChartsRenderer({
         loadECharts,
@@ -1472,14 +1519,15 @@ describe('createEChartsRenderer', () => {
 
     await expect(renderRef(Array.from({ length: 100_001 }, () => [1])))
       .rejects.toThrow(/100000 row limit/);
-    await expect(renderRef(Array.from({ length: 83_334 }, () => [1, 2, 3, 4, 5, 6])))
-      .rejects.toThrow(/500000 cell limit/);
-    expect(loadECharts).not.toHaveBeenCalled();
+    await expect(renderRef(Array.from(
+      { length: 90_910 },
+      () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    ))).rejects.toThrow(/1000000 cell limit/);
   });
 
   it('rejects combined legacy data and options beyond the default node budget', async () => {
-    const rows = Array.from({ length: 100_000 }, () => '1,2,3,4,5');
-    const csv = ['timestamp,value_1,value_2,value_3,value_4', ...rows].join('\n');
+    const rows = Array.from({ length: 100_000 }, () => '1,2,3,4,5,6,7,8,9,10');
+    const csv = ['timestamp,value_1,value_2,value_3,value_4,value_5,value_6,value_7,value_8,value_9', ...rows].join('\n');
     const loadECharts = vi.fn();
     const registry = new ChartRendererRegistry().register(createEChartsRenderer({
       loadECharts,
@@ -1496,7 +1544,7 @@ describe('createEChartsRenderer', () => {
       series: [],
     });
 
-    await expect(render).rejects.toThrow(/700000 node limit/);
+    await expect(render).rejects.toThrow(/1200000 node limit/);
     expect(loadECharts).not.toHaveBeenCalled();
   });
 
