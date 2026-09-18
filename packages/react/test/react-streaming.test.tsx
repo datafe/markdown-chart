@@ -399,10 +399,10 @@ describe('MarkdownChart streaming lifecycle', () => {
       await vi.waitFor(() => {
         const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
         expect(dataView?.hidden).toBe(false);
-        expect(dataView?.textContent).toContain('A');
-        expect(dataView?.textContent).toContain('10');
-        expect(dataView?.textContent).toContain('B');
-        expect(dataView?.textContent).toContain('20');
+        const rowTexts = [...(dataView?.querySelectorAll('.ag-row, tbody tr') ?? [])]
+          .map((row) => row.textContent?.replace(/\s+/g, '') ?? '');
+        expect(rowTexts).toContain('A10');
+        expect(rowTexts).toContain('B20');
       });
     };
 

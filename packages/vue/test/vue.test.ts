@@ -377,10 +377,10 @@ describe('MarkdownChart reactive object props', () => {
       const dataView = root.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
       expect(dataView?.hidden).toBe(false);
       await vi.waitFor(() => {
-        expect(dataView?.textContent).toContain('A');
-        expect(dataView?.textContent).toContain('10');
-        expect(dataView?.textContent).toContain('B');
-        expect(dataView?.textContent).toContain('20');
+        const rowTexts = [...(dataView?.querySelectorAll('.ag-row, tbody tr') ?? [])]
+          .map((row) => row.textContent?.replace(/\s+/g, '') ?? '');
+        expect(rowTexts).toContain('A10');
+        expect(rowTexts).toContain('B20');
       });
     };
 
