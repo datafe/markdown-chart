@@ -109,6 +109,13 @@ virtualization, pinned columns, and CSV export. Structured cell options add
 change indicators, bars, progress, and inline SVG sparklines without requiring
 AG Grid Enterprise.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/markdown-chart-table-dark.png">
+    <img src="./docs/images/markdown-chart-table-light.png" alt="Markdown Chart interactive table with sorting, filters, semantic cells, progress bars, and sparklines" width="960" />
+  </picture>
+</p>
+
 ````markdown
 ```markdown-chart
 {

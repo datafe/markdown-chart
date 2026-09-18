@@ -105,6 +105,13 @@ Vue 组件会自动配置 markdown-it 和同一组内置渲染器。完整可运
 排序与筛选、快速搜索、虚拟滚动、冻结列和 CSV 导出；结构化 cell 配置还能展示
 变化方向、条形、进度和内联 SVG 小趋势图，不依赖 AG Grid Enterprise。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/markdown-chart-table-dark.png">
+    <img src="./docs/images/markdown-chart-table-light.png" alt="Markdown Chart 交互式表格，包含排序、筛选、语义单元格、进度条和小趋势图" width="960" />
+  </picture>
+</p>
+
 ````markdown
 ```markdown-chart
 {
