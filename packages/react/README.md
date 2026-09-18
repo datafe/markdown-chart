@@ -2,10 +2,13 @@
 
 Zero-config `<MarkdownChart source={markdown} />`, provider, chart block, and
 `createMarkdownChartComponents()` adapter for react-markdown. The zero-config
-component registers ECharts and KPI automatically and gives chart blocks a
-360px minimum height; KPI cards override it with their compact content height.
+component registers ECharts, KPI, and interactive table renderers automatically
+and gives chart blocks a 360px minimum height; KPI cards and tables override it
+with their own content height.
 Canonical inline datasets and renderer-resolved referenced datasets
-automatically include a Chart/Data icon switch.
+automatically include a Chart/Data icon switch. Tabular Data views load the
+interactive table on first use and fall back to the core HTML view if loading
+fails.
 
 Install the zero-config component with:
 
@@ -35,10 +38,14 @@ accessibility labels, empty/truncated data messages, and the
 Pass `referenceActions` to `MarkdownChart` or `MarkdownChartProvider` to expose
 renderer reference controls. The host selects supported refs with `canOpen` and
 handles clicks with `open`; the packages do not interpret or navigate refs.
-KPI referenced data uses the independent `kpi` renderer option:
+KPI and table referenced data use their independent renderer options:
 
 ```tsx
 const kpiOptions = useMemo(
+  () => ({ validateDataRef, resolveDataRef }),
+  [validateDataRef, resolveDataRef],
+);
+const tableOptions = useMemo(
   () => ({ validateDataRef, resolveDataRef }),
   [validateDataRef, resolveDataRef],
 );
@@ -46,10 +53,11 @@ const kpiOptions = useMemo(
 <MarkdownChart
   source={source}
   kpi={kpiOptions}
+  table={tableOptions}
 />
 ```
 
-Keep the `kpi` options, resolver callbacks, and `referenceActions.canOpen` / `open`
+Keep the `kpi` and `table` options, resolver callbacks, and `referenceActions.canOpen` / `open`
 callbacks stable across streaming renders so the automatic registry and completed
 chart mounts can be reused.
 

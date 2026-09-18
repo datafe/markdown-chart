@@ -106,8 +106,10 @@ export const DEFAULT_TABLE_LABELS: Readonly<TableLabels> = Object.freeze({
 type TableRow = Record<string, JsonPrimitive | undefined>;
 
 export interface TableGridRuntime {
-  readonly themeQuartz: Theme;
-  createGrid(container: HTMLElement, options: GridOptions<TableRow>): GridApi<TableRow>;
+  readonly themeQuartz: {
+    withParams(params: Readonly<Record<string, unknown>>): unknown;
+  };
+  createGrid(container: HTMLElement, options: unknown): unknown;
 }
 
 export interface CreateTableRendererOptions {
@@ -782,7 +784,13 @@ let defaultRuntimePromise: Promise<TableGridRuntime> | undefined;
 async function loadDefaultGridRuntime(): Promise<TableGridRuntime> {
   defaultRuntimePromise ??= import('ag-grid-community').then((runtime) => {
     runtime.ModuleRegistry.registerModules([runtime.AllCommunityModule]);
-    return { createGrid: runtime.createGrid, themeQuartz: runtime.themeQuartz };
+    return {
+      createGrid: (container, options) => runtime.createGrid(
+        container,
+        options as GridOptions<TableRow>,
+      ),
+      themeQuartz: runtime.themeQuartz,
+    };
   });
   return defaultRuntimePromise;
 }
@@ -871,8 +879,8 @@ async function mountTable(
     rowHeight: 34,
     headerHeight: 38,
   });
-  const api = runtime.createGrid(grid, {
-    theme,
+  const gridOptions: GridOptions<TableRow> = {
+    theme: theme as Theme,
     rowData: [...table.rows],
     columnDefs: gridColumnDefs(table),
     defaultColDef: { resizable: true },
@@ -888,7 +896,8 @@ async function mountTable(
     onGridReady: ({ api: eventApi }) => {
       count.textContent = labels.rowCount(eventApi.getDisplayedRowCount(), table.rows.length);
     },
-  });
+  };
+  const api = runtime.createGrid(grid, gridOptions) as GridApi<TableRow>;
   count.textContent = labels.rowCount(api.getDisplayedRowCount(), table.rows.length);
   const onSearch = (): void => api.setGridOption('quickFilterText', search.value);
   const onExport = (): void => {

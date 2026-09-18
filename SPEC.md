@@ -117,6 +117,59 @@ errors, and returns inline rows. It never interprets a ref, selects a transport,
 or performs a request. Renderer packages may retain renderer-specific aliases
 for backwards compatibility while sharing this boundary.
 
+## Table specification
+
+The table renderer uses `renderer: "table"` and requires canonical table-shaped
+`data`. It accepts inline data and host-resolved refs. The renderer owns a
+separate default budget of 10,000 rows and 200,000 cells because its virtualized
+grid does not share the core preview table's 2,000-row budget.
+
+```json
+{
+  "version": 1,
+  "renderer": "table",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "region": "East", "sales": 1280000, "growth": 0.18, "apr": 31, "may": 36, "jun": 42 },
+      { "region": "South", "sales": 960000, "growth": -0.04, "apr": 27, "may": 26, "jun": 25 }
+    ]
+  },
+  "spec": {
+    "title": "Regional sales",
+    "height": 420,
+    "columns": [
+      { "field": "region", "title": "Region", "pinned": "left" },
+      { "field": "sales", "title": "Sales", "type": "number", "format": { "style": "currency", "currency": "CNY", "notation": "compact" } },
+      { "field": "growth", "title": "YoY", "type": "number", "format": { "style": "percent" }, "cell": { "kind": "change", "polarity": "higher-is-better" } },
+      { "id": "trend", "title": "Three months", "cell": { "kind": "sparkline", "fields": ["apr", "may", "jun"], "labels": ["Apr", "May", "Jun"], "scale": "column" } }
+    ],
+    "initialSort": [{ "field": "sales", "direction": "desc" }]
+  }
+}
+```
+
+`spec.height` is 240–720 pixels and defaults to 420. `columns`, when present,
+contains 1–50 entries. A source column names `field`; a derived sparkline names
+an `id` and lists scalar source `fields`. Column types are `string`, `number`,
+`date`, and `boolean`. Omitted types infer number only when every non-null value
+is numeric and infer boolean only when every non-null value is boolean;
+otherwise they become strings. Dates are never inferred. Explicit date columns
+accept only ISO dates and ISO timestamps with a timezone and display in UTC.
+
+Number formatting is a validated `Intl.NumberFormat` subset. Cell kinds are
+`change`, `bar`, `progress`, and `sparkline`. Bars and progress cells accept
+optional bounds; sparklines use either a column-wide or row-local scale.
+`initialSort` contains 1–3 source fields. Sorting, filtering, quick search,
+virtualization, and pinned columns use AG Grid Community features.
+
+CSV export includes the currently filtered and sorted rows, writes canonical
+source fields rather than display formatting or derived cells, and prefixes
+formula-like strings with an apostrophe. The optional interactive Data-view
+provider uses the same table implementation and is loaded only when the user
+opens Data. Core falls back to its HTML view if the provider is unavailable or
+fails during loading.
+
 ## ECharts specification
 
 For the canonical fence, `spec` is the ECharts option object directly:

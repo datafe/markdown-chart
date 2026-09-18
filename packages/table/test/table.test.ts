@@ -49,7 +49,10 @@ function fakeGridRuntime(displayedRows?: readonly Row[]): {
     withParams: vi.fn(() => ({} as Theme)),
   } as unknown as Theme;
   return {
-    runtime: { createGrid, themeQuartz },
+    runtime: {
+      createGrid: (container, options) => createGrid(container, options as GridOptions<Row>),
+      themeQuartz,
+    },
     createGrid,
     setGridOption,
     destroy,

@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>面向 Markdown 的安全、流式图表渲染方案。</strong><br />
-  将严格 JSON 代码块渲染为可交互的 ECharts 图表和响应式 KPI 卡片。
+  将严格 JSON 代码块渲染为可交互图表、KPI 卡片和数据表格。
 </p>
 
 <p align="center">
@@ -33,7 +33,8 @@
   并对 schema、大小和图表配置设置明确限制。
 - **直接接入常见技术栈。** 提供 React + react-markdown、Vue 3 + markdown-it
   组件，也可以只使用与框架无关的核心包。
-- **同时覆盖图表和指标卡。** 内置 ECharts table、graph、hierarchy 图表与响应式多 KPI 渲染器。
+- **同时覆盖图表、指标卡和表格。** 内置 ECharts 可视化、响应式多 KPI 卡片和
+  基于 AG Grid Community 的数据表格。
 - **可扩展但不绑定宿主。** 可以注册其它渲染器、解析应用自有数据引用，
   或由宿主处理引用点击事件。
 
@@ -72,7 +73,7 @@ export function Report() {
 }
 ````
 
-这个组件会自动配置 react-markdown、ECharts 和 KPI 渲染器。如果应用已经管理
+这个组件会自动配置 react-markdown、ECharts、KPI 和表格渲染器。如果应用已经管理
 Markdown 解析器或渲染器注册表，请参考 [React 高级示例](./examples/react/advanced/)。
 
 ### Vue 3 + markdown-it
@@ -97,6 +98,40 @@ Vue 组件会自动配置 markdown-it 和同一组内置渲染器。完整可运
 [简单与高级示例](./examples/)。
 
 ## 可以渲染什么？
+
+### 交互式表格
+
+使用 `renderer: "table"` 展示需要直接探索的数据。AG Grid Community 提供类型化
+排序与筛选、快速搜索、虚拟滚动、冻结列和 CSV 导出；结构化 cell 配置还能展示
+变化方向、条形、进度和内联 SVG 小趋势图，不依赖 AG Grid Enterprise。
+
+````markdown
+```markdown-chart
+{
+  "version": 1,
+  "renderer": "table",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "region": "华东", "sales": 1280000, "growth": 0.18, "apr": 31, "may": 36, "jun": 42 },
+      { "region": "华南", "sales": 960000, "growth": -0.04, "apr": 27, "may": 26, "jun": 25 }
+    ]
+  },
+  "spec": {
+    "title": "区域销售",
+    "columns": [
+      { "field": "region", "title": "区域", "pinned": "left" },
+      { "field": "sales", "title": "销售额", "type": "number", "format": { "style": "currency", "currency": "CNY", "notation": "compact" } },
+      { "field": "growth", "title": "同比", "type": "number", "format": { "style": "percent" }, "cell": { "kind": "change", "polarity": "higher-is-better" } },
+      { "id": "trend", "title": "近三月", "cell": { "kind": "sparkline", "fields": ["apr", "may", "jun"], "scale": "column" } }
+    ]
+  }
+}
+```
+````
+
+标准表格数据的 Data 面板也会按需加载同一套交互表格。加载失败时仍显示 core
+提供的有界 HTML 表格。表格默认最多接收 10,000 行和 200,000 个单元格，宿主可以下调。
 
 ### ECharts 图表
 
@@ -188,6 +223,7 @@ ECharts 既有 table 行/单元格限制保持不变。
 | [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | 与框架无关的注册表、标准解析器、数据视图和生命周期控制器 |
 | [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | 严格 JSON ECharts 渲染器 |
 | [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | 响应式多 KPI 渲染器 |
+| [`@datafe-open/markdown-chart-table`](https://www.npmjs.com/package/@datafe-open/markdown-chart-table) | 基于 AG Grid Community 的交互表格渲染器与 Data 视图 provider |
 | [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | markdown-it 占位插件和环境通道 |
 | [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | React + react-markdown 组件和适配器 |
 | [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 + markdown-it 组件和 composable |
