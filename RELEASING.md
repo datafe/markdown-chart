@@ -1,6 +1,6 @@
 # Releasing
 
-The six public packages are versioned as one fixed group and are published to
+The seven public packages are versioned as one fixed group and are published to
 the public npm registry. Feature branches never publish packages.
 
 ## First release bootstrap
@@ -37,7 +37,7 @@ can be configured.
    Each package pins `publishConfig.registry` to the public npm registry, so a
    local mirror configuration cannot redirect publishing.
 
-6. Confirm that all six packages are public:
+6. Confirm that all seven packages are public:
 
    ```sh
    npm view @datafe-open/markdown-chart version --registry=https://registry.npmjs.org/
@@ -45,13 +45,14 @@ can be configured.
    npm view @datafe-open/markdown-chart-kpi version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-markdown-it version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-react version --registry=https://registry.npmjs.org/
+   npm view @datafe-open/markdown-chart-table version --registry=https://registry.npmjs.org/
    npm view @datafe-open/markdown-chart-vue version --registry=https://registry.npmjs.org/
    ```
 
 ## Enable Trusted Publishing
 
 After the first release, open **Settings → Trusted Publisher** on each of the
-six npm package pages and configure:
+seven npm package pages and configure:
 
 - Provider: GitHub Actions
 - Organization or user: `datafe`
@@ -65,7 +66,7 @@ organization that owns the repository. The npm package scope remains
 `@datafe-open`.
 
 The workflow uses GitHub OIDC and does not require an `NPM_TOKEN` secret. Run
-the Release workflow manually once after all six package settings are saved;
+the Release workflow manually once after all seven package settings are saved;
 it should complete without publishing an unchanged version.
 
 ## Regular releases
