@@ -9,6 +9,7 @@ import {
   type LegacySandboxBinding,
 } from '@datafe-open/markdown-chart-echarts';
 import { markdownChartPlugin } from '@datafe-open/markdown-chart-markdown-it';
+import type { TableGridRuntime } from '@datafe-open/markdown-chart-table';
 import {
   MarkdownChart,
   useMarkdownChart,
@@ -110,6 +111,38 @@ function legacySandboxBinding(
 }
 
 describe('MarkdownChart reactive object props', () => {
+  it('forwards table runtime options through the zero-config component', async () => {
+    const destroy = vi.fn();
+    const createGrid = vi.fn(() => ({
+      destroy,
+      setGridOption: vi.fn(),
+      getDisplayedRowCount: () => 1,
+      forEachNodeAfterFilterAndSort: vi.fn(),
+      sizeColumnsToFit: vi.fn(),
+    }));
+    const runtime = {
+      createGrid,
+      themeQuartz: { withParams: () => ({}) },
+    } as unknown as TableGridRuntime;
+    const source = `\`\`\`markdown-chart\n${JSON.stringify({
+      version: 1,
+      renderer: 'table',
+      data: { kind: 'inline', source: [{ name: 'A', value: 1 }] },
+      spec: {},
+    })}\n\`\`\``;
+    const app = createApp(defineComponent({
+      setup() {
+        return () => h(MarkdownChart, { source, table: { loadGrid: () => runtime } });
+      },
+    }));
+    const root = document.createElement('div');
+    app.mount(root);
+    await vi.waitFor(() => expect(createGrid).toHaveBeenCalledOnce());
+    expect(root.querySelector('[data-markdown-chart-table="standalone"]')).not.toBeNull();
+    app.unmount();
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
   it('forwards KPI ref resolver options through the zero-config component once', async () => {
     const resolveDataRef = vi.fn(async () => ({
       dimensions: ['day', 'value'],
@@ -343,8 +376,12 @@ describe('MarkdownChart reactive object props', () => {
       root.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
       const dataView = root.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
       expect(dataView?.hidden).toBe(false);
-      expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
-      expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
+      await vi.waitFor(() => {
+        const rowTexts = [...(dataView?.querySelectorAll('.ag-row, tbody tr') ?? [])]
+          .map((row) => row.textContent?.replace(/\s+/g, '') ?? '');
+        expect(rowTexts).toContain('A10');
+        expect(rowTexts).toContain('B20');
+      });
     };
 
     const simpleApp = createApp(defineComponent({

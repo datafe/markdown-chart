@@ -278,8 +278,8 @@ describe('MarkdownChart streaming lifecycle', () => {
     expect(dispose).not.toHaveBeenCalled();
 
     const showData = container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
-    const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     showData?.click();
+    const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     expect(dataView?.hidden).toBe(false);
     expect(dataView?.textContent).toContain('Jan');
 
@@ -396,10 +396,14 @@ describe('MarkdownChart streaming lifecycle', () => {
       });
       expect(container.querySelector('.markdown-chart-title')).toBeNull();
       container.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
-      const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
-      expect(dataView?.hidden).toBe(false);
-      expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
-      expect(dataView?.querySelector('tbody')?.textContent).toContain('B20');
+      await vi.waitFor(() => {
+        const dataView = container.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+        expect(dataView?.hidden).toBe(false);
+        const rowTexts = [...(dataView?.querySelectorAll('.ag-row, tbody tr') ?? [])]
+          .map((row) => row.textContent?.replace(/\s+/g, '') ?? '');
+        expect(rowTexts).toContain('A10');
+        expect(rowTexts).toContain('B20');
+      });
     };
 
     const simpleContainer = document.createElement('div');

@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Safe, streaming-ready charts for Markdown.</strong><br />
-  Turn strict JSON code fences into interactive ECharts visualizations and responsive KPI cards.
+  Turn strict JSON code fences into interactive charts, KPI cards, and data tables.
 </p>
 
 <p align="center">
@@ -34,8 +34,8 @@ renderer code outside your Markdown pipeline.
   executable JavaScript—and is protected by schema, size, and option limits.
 - **Works with your stack.** Use the ready-made React + react-markdown or Vue 3
   + markdown-it components, or integrate the framework-neutral core.
-- **Charts and KPIs.** ECharts table, graph, and hierarchy charts plus responsive
-  multi-KPI cards are included as independent renderers.
+- **Charts, KPIs, and tables.** ECharts visualizations, responsive multi-KPI
+  cards, and AG Grid Community data tables are included as independent renderers.
 - **Extensible without lock-in.** Register another renderer, resolve
   application-owned data references, or handle reference clicks in the host.
 
@@ -74,7 +74,7 @@ export function Report() {
 }
 ````
 
-The component configures react-markdown plus the ECharts and KPI renderers. If
+The component configures react-markdown plus the ECharts, KPI, and table renderers. If
 your application already owns the Markdown parser or renderer registry, use the
 [advanced React example](./examples/react/advanced/) instead.
 
@@ -100,6 +100,52 @@ The Vue component configures markdown-it plus the same built-in renderers. See
 the [simple and advanced examples](./examples/) for complete runnable apps.
 
 ## What you can render
+
+### Interactive tables
+
+Use `renderer: "table"` for data that needs direct exploration. The Community
+edition of AG Grid supplies typed sorting and filters, quick search,
+virtualization, pinned columns, and CSV export. Structured cell options add
+change indicators, bars, progress, and inline SVG sparklines without requiring
+AG Grid Enterprise.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/markdown-chart-table-dark.png">
+    <img src="./docs/images/markdown-chart-table-light.png" alt="Markdown Chart interactive table with sorting, filters, semantic cells, progress bars, and sparklines" width="960" />
+  </picture>
+</p>
+
+````markdown
+```markdown-chart
+{
+  "version": 1,
+  "renderer": "table",
+  "data": {
+    "kind": "inline",
+    "source": [
+      { "region": "East", "sales": 1280000, "growth": 0.18, "apr": 31, "may": 36, "jun": 42 },
+      { "region": "South", "sales": 960000, "growth": -0.04, "apr": 27, "may": 26, "jun": 25 }
+    ]
+  },
+  "spec": {
+    "title": "Regional sales",
+    "columns": [
+      { "field": "region", "title": "Region", "pinned": "left" },
+      { "field": "sales", "title": "Sales", "type": "number", "format": { "style": "currency", "currency": "CNY", "notation": "compact" } },
+      { "field": "growth", "title": "YoY", "type": "number", "format": { "style": "percent" }, "cell": { "kind": "change", "polarity": "higher-is-better" } },
+      { "id": "trend", "title": "Three months", "cell": { "kind": "sparkline", "fields": ["apr", "may", "jun"], "scale": "column" } }
+    ]
+  }
+}
+```
+````
+
+The same table is loaded lazily in the Data pane for canonical tabular data.
+If the interactive provider cannot load, the bounded core HTML view remains
+available. Table rendering accepts at most 10,000 rows and 200,000 materialized
+cells by default; hosts can lower these limits. Automatic column inference is
+capped at 50 fields.
 
 ### ECharts
 
@@ -203,6 +249,7 @@ row/cell limits retain their existing behavior.
 | [`@datafe-open/markdown-chart`](https://www.npmjs.com/package/@datafe-open/markdown-chart) | Framework-neutral registry, canonical parser, data view, and lifecycle controller |
 | [`@datafe-open/markdown-chart-echarts`](https://www.npmjs.com/package/@datafe-open/markdown-chart-echarts) | Strict JSON ECharts renderer |
 | [`@datafe-open/markdown-chart-kpi`](https://www.npmjs.com/package/@datafe-open/markdown-chart-kpi) | Responsive multi-KPI renderer |
+| [`@datafe-open/markdown-chart-table`](https://www.npmjs.com/package/@datafe-open/markdown-chart-table) | Interactive AG Grid Community table renderer and Data-view provider |
 | [`@datafe-open/markdown-chart-markdown-it`](https://www.npmjs.com/package/@datafe-open/markdown-chart-markdown-it) | markdown-it placeholder plugin and environment channel |
 | [`@datafe-open/markdown-chart-react`](https://www.npmjs.com/package/@datafe-open/markdown-chart-react) | React + react-markdown component and adapter |
 | [`@datafe-open/markdown-chart-vue`](https://www.npmjs.com/package/@datafe-open/markdown-chart-vue) | Vue 3 + markdown-it component and composable |

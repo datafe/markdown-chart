@@ -12,6 +12,7 @@
     "release": "changeset publish",
     "typecheck": "pnpm --filter './packages/**' typecheck && pnpm --filter './examples/**' typecheck",
     "test": "vitest run",
+    "test:skill": "node --test tests/skills/markdown-chart/*.test.mjs",
     "test:watch": "vitest",
     "version-packages": "changeset version"
   },

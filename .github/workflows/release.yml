@@ -40,7 +40,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: pnpm test
+        run: |
+          pnpm test
+          pnpm test:skill
 
       - name: Typecheck
         run: pnpm typecheck

@@ -188,6 +188,49 @@ const hierarchyChart = {
   },
 } as const;
 
+const tableChart = {
+  version: 1,
+  renderer: 'table',
+  data: {
+    kind: 'inline',
+    source: [
+      { region: '华东', sales: 1_280_000, growth: 0.18, target: 0.91, apr: 31, may: 36, jun: 42 },
+      { region: '华南', sales: 960_000, growth: -0.04, target: 0.74, apr: 27, may: 26, jun: 25 },
+      { region: '华北', sales: 1_120_000, growth: 0.07, target: 0.83, apr: 29, may: 31, jun: 34 },
+      { region: '西南', sales: 780_000, growth: 0.12, target: 0.68, apr: 18, may: 21, jun: 24 },
+    ],
+  },
+  spec: {
+    title: '区域经营明细',
+    height: 420,
+    columns: [
+      { field: 'region', title: '区域', pinned: 'left' },
+      {
+        field: 'sales', title: '销售额', type: 'number',
+        format: { style: 'currency', currency: 'CNY', notation: 'compact' },
+      },
+      {
+        field: 'growth', title: '同比', type: 'number',
+        format: { style: 'percent', maximumFractionDigits: 0 },
+        cell: { kind: 'change', polarity: 'higher-is-better' },
+      },
+      {
+        field: 'target', title: '目标完成', type: 'number',
+        format: { style: 'percent', maximumFractionDigits: 0 },
+        cell: { kind: 'progress', min: 0, max: 1, clamp: true },
+      },
+      {
+        id: 'trend', title: '近三月',
+        cell: {
+          kind: 'sparkline', fields: ['apr', 'may', 'jun'],
+          labels: ['4月', '5月', '6月'], scale: 'column',
+        },
+      },
+    ],
+    initialSort: [{ field: 'sales', direction: 'desc' }],
+  },
+} as const;
+
 function markdownSource(mode: 'inline' | 'ref'): string {
   const data = mode === 'inline'
     ? { kind: 'inline', dimensions, source: rows }
@@ -215,6 +258,14 @@ ${JSON.stringify(graphChart, null, 2)}
 
 \`\`\`markdown-chart
 ${JSON.stringify(hierarchyChart, null, 2)}
+\`\`\`
+
+## 可筛选经营表格
+
+表格支持排序、列筛选、搜索、CSV 导出，以及变化、进度和近三月小趋势图。
+
+\`\`\`markdown-chart
+${JSON.stringify(tableChart, null, 2)}
 \`\`\``;
 }
 

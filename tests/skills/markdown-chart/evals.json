@@ -1,0 +1,64 @@
+{
+  "skill_name": "markdown-chart",
+  "evals": [
+    {
+      "id": 1,
+      "name": "channel-gmv-dual-axis",
+      "prompt": "以下是已经查询确认的数据，GMV 单位为人民币元；占比已经乘以100：PC 635015803.28、20.07%；H5 633439879.24、20.03%；直播 632887721.59、20.01%；APP 630963255.48、19.95%；小程序 630931985.05、19.95%。请在回答中画一张各渠道 GMV 柱状图与占比折线的双轴组合图，左轴用亿元、右轴用百分比，柱子按渠道区分颜色，显示数值标签和 tooltip，并简短解释。不要生成 HTML 报告。",
+      "expected_output": "一个最终 markdown-chart ECharts 块；合法 JSON；数据换算正确、双轴单位明确；没有函数、formatter 或重复轴/系列数据。",
+      "files": [],
+      "renderer": "echarts",
+      "tooltip": true,
+      "labels": true,
+      "series": [
+        { "type": "bar", "categoryColors": true, "axisUnit": "亿元", "values": { "PC": 6.3501580328, "H5": 6.3343987924, "直播": 6.3288772159, "APP": 6.3096325548, "小程序": 6.3093198505 }, "tolerance": 0.005 },
+        { "type": "line", "axisUnit": "%", "values": { "PC": 20.07, "H5": 20.03, "直播": 20.01, "APP": 19.95, "小程序": 19.95 } }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "chinese-category-ranking",
+      "prompt": "画一张横向柱状图对比销量：办公用品320单、家居百货180单、数码配件250单。保留中文类别名，显示数值标签和 tooltip。给一句结论即可，不用另附表格。",
+      "expected_output": "一个 ECharts 横向柱状图，使用英文机器列键及中文数据类别，通过 encode 绑定且没有 axis.data、series.data 或 formatter。",
+      "files": [],
+      "renderer": "echarts",
+      "tooltip": true,
+      "labels": true,
+      "series": [
+        { "type": "bar", "categoryAxis": "y", "values": { "办公用品": 320, "家居百货": 180, "数码配件": 250 } }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "kpi-percent-scales",
+      "prompt": "请用一张 KPI 记分卡展示两项已确认指标：准时交付率的查询结果是91.89，已乘以100；增长率的查询结果是1.25，是原始增长比例。卡片标题分别为“准时交付率”“增长率”，都显示百分比，保留两位小数。没有知识库来源，不用编引用。",
+      "expected_output": "一个字段绑定的 KPI 块，分别展示91.89%和125.00%，不因数值大小误判尺度。",
+      "files": [],
+      "renderer": "kpi",
+      "fractionDigits": 2,
+      "kpis": [
+        { "title": "准时交付率", "displayValue": 91.89 },
+        { "title": "增长率", "displayValue": 125 }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "weekly-category-long-table-to-wide-series",
+      "prompt": "以下是已经查询确认的周均 GMV 长表（单位：元）：2025-05-26，月饼礼盒713791、坚果炒货374594、茶叶茶具447620、大闸蟹券285490、餐具套装99877；2025-07-14，月饼礼盒391199、坚果炒货282953、茶叶茶具826097、大闸蟹券468431、餐具套装100978。请画一张五个品类的周均 GMV 多折线图，显示 tooltip，并用一句话说明。不要另附表格，不要生成 HTML 报告。",
+      "expected_output": "一个最终 markdown-chart ECharts 块；先把 week/category/GMV 长表透视为 chart-ready 宽表；五个品类分别使用唯一 series.name 和不同的 y dimension；不使用 encode.seriesName；通过 validator。",
+      "files": [],
+      "renderer": "echarts",
+      "tooltip": true,
+      "wideSeries": {
+        "xValues": ["2025-05-26", "2025-07-14"],
+        "values": {
+          "月饼礼盒": [713791, 391199],
+          "坚果炒货": [374594, 282953],
+          "茶叶茶具": [447620, 826097],
+          "大闸蟹券": [285490, 468431],
+          "餐具套装": [99877, 100978]
+        }
+      }
+    }
+  ]
+}

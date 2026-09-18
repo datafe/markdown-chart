@@ -1919,10 +1919,9 @@ describe('createEChartsRenderer', () => {
       source: [['Jan', 100]],
     });
     const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
-    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     expect(chartView).not.toBeNull();
-    expect(dataView?.hidden).toBe(true);
     element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     expect(chartView?.hidden).toBe(true);
     expect(dataView?.hidden).toBe(false);
     expect(dataView?.textContent).toContain('Jan');

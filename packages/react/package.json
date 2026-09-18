@@ -32,13 +32,14 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.tsx --format esm --dts --clean --external react --external react-markdown --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts --external @datafe-open/markdown-chart-kpi",
+    "build": "tsup src/index.tsx --format esm --dts --clean --external react --external react-markdown --external @datafe-open/markdown-chart --external @datafe-open/markdown-chart-echarts --external @datafe-open/markdown-chart-kpi --external @datafe-open/markdown-chart-table",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@datafe-open/markdown-chart": "workspace:*",
     "@datafe-open/markdown-chart-echarts": "workspace:*",
     "@datafe-open/markdown-chart-kpi": "workspace:*",
+    "@datafe-open/markdown-chart-table": "workspace:*",
     "react-markdown": "^10.1.0"
   },
   "peerDependencies": {
