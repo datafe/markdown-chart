@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [eb68fa5]
+  - @datafe-open/markdown-chart@0.3.1
+
 ## 0.3.0
 
 ### Patch Changes
