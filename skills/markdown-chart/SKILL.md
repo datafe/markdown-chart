@@ -1,193 +1,62 @@
 ---
 name: markdown-chart
 description: >
-  Automatically generate renderable, dataset-backed charts with canonical
-  `markdown-chart` fenced code blocks and the ECharts renderer. Use for
-  statistical summaries, trends, time-series changes, comparisons, rankings,
-  distributions, composition/share, correlations, anomalies, and multi-metric
-  KPI analysis when a chart would make the answer easier to understand; also use
-  when the user explicitly asks for a chart, visualization, or ECharts output.
-  Assume that enabling this skill means the host can render `markdown-chart`;
-  do not try to detect renderer support. Do not use when the user asks for
-  text/table only.
+  使用规范的 markdown-chart 围栏直接生成可筛选数据表、KPI 指标卡（可带迷你趋势与变化对比）或 ECharts 图表。
+  适用于明细探索、独立指标、管理摘要、趋势、对比、排名、分布、构成或占比、相关性和异常等可视化有助于理解
+  的场景；用户明确要求交互表格、图表、KPI 展示、记分卡、可视化或 ECharts 输出时也应使用。
 ---
 
-# Markdown Chart Skill
+# Markdown 图表
 
-Use this skill to emit dataset-backed **`markdown-chart` chart blocks** that
-select the ECharts renderer. This skill defines only the model output contract;
-it does not load or execute the chart runtime.
+在回答中直接输出图表 JSON。宿主已支持 `markdown-chart`，无需探测渲染器；
+本 Skill 定义生成格式，宿主负责解析和渲染。
 
-Assume that installing or enabling this skill means the host environment is
-prepared to render `markdown-chart` blocks. Do not ask whether renderer support
-is available and do not condition chart output on client detection.
+## 输出契约
 
-## Use Criteria
+- 每张图用独立的 `markdown-chart` 围栏，内容是一个可被 `JSON.parse` 解析的对象。
+  设置 `version: 1`、`renderer: "table" | "echarts" | "kpi"`、`data` 和 `spec`。
+- 只写 JSON 值。函数、回调、表达式、注释和尾随逗号均不可用；任何层级都不写
+  `formatter`，包括字符串模板。格式化能力按所选 renderer 的 reference 使用。
+- 数值来自本轮真实数据，数据与配置分离。机器列键使用
+  `^[A-Za-z_][A-Za-z0-9_]*$`；标题、图例和轴名称保留用户可读的业务名称。
+- 币种、单位和比例尺度来自用户、元数据或已确认的指标定义。未知时保留源值、
+  省略未经确认的单位；不要因为字段叫 sales 或用户用中文就假设人民币。
+- 简单图直接在最终回答生成，不为出图默认写草稿或调用 validator。
+  输出前核对数据、字段映射、单位与正文一致；只有实际执行过校验才声称“已校验”。
+- 先给简短结论，再给图表，按需说明口径和限制。图表不嵌套在列表、引用或其它
+  代码块中；宿主已有 Chart/Data 切换，通常不再重复整张 Markdown 表格。
 
-Use this skill when either condition is true:
+## 选型与按需读取
 
-- The response contains structured quantitative data where a chart would improve
-  understanding.
-- The user explicitly asks for visual output, a chart, visualization, or ECharts.
+数据足够且可视化有助于理解时默认出图：完整时间序列趋势用折线、比较/排名用柱状、
+少量类别构成用饼图、相关性用散点。流向使用桑基，任意关系使用关系图，明确父子
+结构使用树/矩形树/旭日。分布先分桶；箱线图需要真实五数。
+多指标比较优先分组柱或多折线；双轴只用于不同单位或量级，并标明两侧单位。
 
-If the user asks for plain text/table output, or if the answer is not
-chart-worthy, use normal Markdown, tables, or prose instead.
+- **交互表格**：用户需要查看明细、按列排序筛选、搜索、冻结关键列或导出 CSV 时，
+  使用 `renderer: "table"`。生成前读取 [Table 契约](references/table.md)，按其中的
+  列类型、格式、变化/条形/进度/sparkline 单元格和受控 ref 规则配置。
+- **ECharts**：生成前读取 [ECharts 契约与示例](references/echarts.md)；其中包含最小模板、
+  长表处理、多系列映射、组合图和预检要求。
+- **分布、矩阵与阶段**：直方、箱线、散点、热力、雷达、仪表、漏斗、瀑布图读取
+  [分布与矩阵](references/distribution-and-matrix.md)。
+- **流向与关系**：桑基或关系图读取 [Graph 与 Flow](references/graph-and-flow.md)。
+  这两类使用 `shape: "graph"`，必须执行 validator。
+- **层级**：树、矩形树或旭日图读取 [Hierarchy](references/hierarchy.md)。
+  这三类使用 `shape: "hierarchy"`，必须执行 validator。
+- **KPI**：展示一个或多个指标的当前值，也支持卡片内的迷你折线/面积趋势和变化对比。
+  “当前值 + 近期走势/较上期变化”可用 KPI，不必另画 ECharts；需要完整坐标轴或复杂序列时再用 ECharts。
+  生成指标卡（包括带趋势的指标卡）前读取 [KPI 契约](references/kpi.md)，
+  按其中的 `trend`、`compare`、时间字段与数据点要求配置；字段绑定、百分比尺度、独立数据集和 Wiki 引用也见该页。
 
-## Chart Automatically For
+纯定性说明、数据不足或需要猜数时使用普通 Markdown。用户明确只要普通 Markdown
+表格时不要替换成交互表格；少量静态值无需排序、筛选或导出时也优先普通 Markdown。
+类别/序列过多先聚合或采样，说明处理方式；不为了出图制造比较。结构化图校验通过
+只证明信封契约，不证明数据来源、业务口径或线上浏览器展示。
 
-Emit a chart by default when the answer includes enough data for any of these
-patterns:
+## 先准备 render-ready 数据
 
-- Trend or time-series change: line chart with time on the x-axis.
-- Category comparison, period-over-period comparison, or ranking: bar chart,
-  sorted by the main metric when order matters.
-- Distribution: histogram-style bar chart with explicit bins, or a box plot
-  only when the data already supports quartiles.
-- Composition, share, or percentage contribution: pie chart for a few categories,
-  or stacked/regular bar chart when there are many categories.
-- Correlation between paired numeric measures: scatter plot.
-- Multi-metric KPI analysis: grouped bars or multiple lines; use dual y-axes
-  only when units or scales differ, and label both axes clearly.
-- Anomaly or metric movement explanation: chart the movement and emphasize the
-  affected point or period with ECharts annotations when useful.
-
-Do not chart automatically when the response is purely qualitative or procedural,
-has only one or two scalar values without a meaningful comparison, has ambiguous
-or insufficient data, would require guessing values, has too many categories or
-series without aggregation, or the user asks for plain text/table output.
-
-## Output Contract
-
-Emit one fenced code block whose language tag is exactly `markdown-chart`.
-
-The block body must be **one valid JSON object** that can be parsed directly with
-`JSON.parse`. That object is the canonical Markdown Chart envelope, not the
-Apache ECharts option itself. Always use this top-level shape:
-
-- Set `"version": 1`.
-- Set `"renderer": "echarts"`. Never omit `renderer` or use a different value.
-- Set `"data.kind": "inline"` for normal generated output.
-- Put stable ASCII column keys in `"data.dimensions"` as a string array.
-- Put complete small tabular data in `"data.source"` as array-of-arrays, with
-  each row in the exact same order and length as `"data.dimensions"`.
-- Put the native ECharts option in `"spec"`, excluding `spec.dataset`; the
-  renderer injects the canonical dataset before rendering the chart or data
-  table.
-- Use `series.encode` to map dimensions to axes, values, labels, tooltips, or
-  other visual channels.
-- Use only one dataset. Do not output multiple datasets, transforms, or dataset
-  refs unless the host has provided a real supported ref.
-- Do not set duplicate category data in `xAxis.data` or values in `series.data`
-  when the injected dataset plus `series.encode` already defines them.
-
-```markdown-chart
-{
-  "version": 1,
-  "renderer": "echarts",
-  "data": {
-    "kind": "inline",
-    "dimensions": ["day", "orders"],
-    "source": [
-      ["Mon", 120],
-      ["Tue", 200],
-      ["Wed", 150],
-      ["Thu", 80],
-      ["Fri", 240]
-    ]
-  },
-  "spec": {
-    "title": { "text": "Weekly orders" },
-    "tooltip": { "trigger": "axis" },
-    "xAxis": { "type": "category" },
-    "yAxis": { "type": "value" },
-    "series": [{ "type": "bar", "encode": { "x": "day", "y": "orders" } }]
-  }
-}
-```
-
-Inline data is for small chart-ready tables only. For medium data, aggregate,
-rank, bucket, or sample first and explain the treatment outside the block. For
-large data, use `"data.kind": "ref"` only when the host has already provided a
-real usable controlled reference such as `artifact://...` or
-`session-file://...`; include the provided `ref`, `"format": "csv"` or
-`"format": "json"`, and `dimensions`. Never invent or pretend an artifact ref
-exists.
-
-Reference data envelope example, only when a real host-provided ref exists:
-
-```markdown-chart
-{
-  "version": 1,
-  "renderer": "echarts",
-  "data": {
-    "kind": "ref",
-    "ref": "artifact://chart-data/sales-q1.csv",
-    "format": "csv",
-    "dimensions": ["day", "orders"]
-  },
-  "spec": {
-    "title": { "text": "Weekly orders" },
-    "xAxis": { "type": "category" },
-    "yAxis": { "type": "value" },
-    "series": [{ "type": "bar", "encode": { "x": "day", "y": "orders" } }]
-  }
-}
-```
-
-## Safety Rules
-
-- Output JSON data only, not JavaScript.
-- Do not output `const option = ...`, expressions, comments, trailing commas,
-  functions, or callbacks.
-- Do not ask the host to use `eval`, `new Function`, or script injection.
-- Do not reference local files, URLs, the DOM, globals, network requests,
-  randomness, timers, `document`, `window`, or the filesystem. For ref data,
-  only use a real controlled ref, format, and dimensions that the host
-  explicitly made available.
-- Put all inline chart data inside `data.source`. Avoid duplicating the same
-  data in `xAxis.data` or `series.data` when the injected dataset plus `encode`
-  can express it.
-- Do not set `spec.dataset`; canonical `data` is the only dataset source.
-- Do not emit large `data.source` payloads, and strictly do not use large
-  object-row datasets. Inline rows must be arrays, not objects.
-- For visible value labels, use `"label": { "show": true }`; do not emit
-  `label.formatter`, because formatter fields are rejected by the renderer's
-  safety policy. Put units in axis names, chart titles, or the surrounding
-  explanation instead.
-- If the data is too large, aggregate or sample it first, and explain that
-  treatment outside the block.
-
-## Response Format
-
-When a chart is appropriate, including automatic chart-worthy analysis scenarios,
-respond in this order:
-
-1. One short takeaway describing the main point shown by the chart.
-2. One `markdown-chart` fenced code block containing the complete JSON envelope
-   with `"renderer": "echarts"` and either inline array rows or a real
-   host-provided controlled ref.
-3. Optional notes such as metric definitions, aggregation choices, or reading
-   guidance.
-
-Do not nest the chart block inside any other Markdown container. Because the
-renderer can switch between chart and data views from the canonical dataset, do
-not add a separate Markdown table unless the user asks for one or a tiny table is
-essential to the explanation.
-
-## Chart Guidance
-
-- Trends: Prefer a line chart with time on the x-axis and the metric on the
-  y-axis.
-- Rankings: Prefer a bar chart sorted by the metric in descending order.
-- Composition: Use a pie chart for a small number of categories; use a bar chart
-  when there are many categories.
-- Multi-metric comparisons: Prefer grouped bars or multiple lines, and avoid
-  overcrowding the chart with too many series.
-- Annotations: Use `markPoint`, `markLine`, or `markArea` for notable peaks,
-  thresholds, targets, or changed periods when they help explain the insight.
-- Keep titles, axes, units, and legends clear.
-
-## When Unsure
-
-If there is not enough data to draw a chart, explain the reason in normal
-Markdown first. Do not guess by emitting a `markdown-chart` block.
+`markdown-chart` 只渲染已经准备好的 canonical dataset，不负责数据处理。生成 JSON
+之前，由分析过程完成需要的聚合、去重、排序、Top N、分桶、补点、单位换算和 pivot；
+renderer、协议和 validator 都不会自动 group by、拆系列或改变事实。graph/hierarchy 的
+节点、边、children 和叶子值也必须在分析阶段准备完成。无法可靠准备时改用表格或文字。

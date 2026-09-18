@@ -1,9 +1,12 @@
 {
   "name": "markdown-chart",
-  "version": "0.1.0",
-  "description": "Skill for canonical dataset-backed markdown-chart blocks using the ECharts renderer.",
+  "version": "0.3.0",
+  "description": "使用 Table、KPI 或 ECharts 渲染器生成规范数据集驱动的 markdown-chart 块，并提供确定性校验器。",
+  "type": "module",
   "license": "MIT",
   "files": [
-    "SKILL.md"
+    "SKILL.md",
+    "references/",
+    "scripts/validate_chart.mjs"
   ]
 }

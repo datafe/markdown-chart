@@ -1,75 +1,77 @@
 # Markdown Chart Skill
 
-`markdown-chart` teaches an agent to emit dataset-backed canonical
-`markdown-chart` fenced code blocks that explicitly select the ECharts renderer.
+`markdown-chart` teaches an agent to emit canonical `markdown-chart` fenced
+blocks for interactive tables, KPI cards, and ECharts visualizations. The Skill
+contains the generation contract, renderer-specific references, examples, and a
+deterministic validator.
 
-Installing this skill is the signal that the host can render those blocks. The
-agent should not be expected to detect whether the renderer is available.
+The maintained distribution source is the `agentworks-assets` repository. This
+copy stays in the public renderer repository so protocol authors and host
+integrators can inspect and test the exact agent output contract beside the
+implementation.
 
-## Host Requirements
+## Host requirements
 
-Use this skill with a client that implements the Markdown Chart v1 protocol and
-registers the `echarts` renderer. The packages in this repository provide that
-support for React + react-markdown and Vue 3 + markdown-it.
+Use this Skill with a client that implements the Markdown Chart v1 protocol and
+registers the renderers the agent may select:
 
-The host should:
+- `table` for sortable, filterable, searchable, exportable data tables with
+  change, bar, progress, and sparkline cells;
+- `kpi` for current metrics, comparisons, and compact trends;
+- `echarts` for charts, graphs, flows, and hierarchies.
 
-- Register a Markdown code block renderer for the language tag `markdown-chart`.
-- Parse the block body as a strict JSON envelope.
-- Require `version: 1` and dispatch `renderer: "echarts"` to the ECharts renderer.
-- Read renderer-neutral tabular data from `data.dimensions` and `data.source`.
-- Inject the resolved dataset into the ECharts option stored in `spec` without
-  evaluating JavaScript.
-- Resolve `data.kind="ref"` only through a host-controlled resolver when real
-  controlled refs are available; ref envelopes include `ref`, `format`, and
-  `dimensions`, and the resolver should receive those as metadata.
-- Support switching between chart and data views from the same canonical dataset
-  when the client wants a table view.
-- Hide incomplete streaming chart blocks until valid JSON is available.
+The host parses strict JSON, dispatches by `renderer`, applies resource limits,
+and renders only complete streaming fences. It also owns data access. A
+`data.kind: "ref"` envelope is opaque to the library and must be resolved by a
+host-controlled resolver; the agent may use only a real reference already
+provided by the host.
 
-## Output Shape
+## Agent output
 
-The skill emits one block like this:
+The Skill emits one block per visual:
 
 ````markdown
 ```markdown-chart
 {
   "version": 1,
-  "renderer": "echarts",
+  "renderer": "table",
   "data": {
-    "kind": "inline",
-    "dimensions": ["day", "orders"],
-    "source": [
-      ["Mon", 120],
-      ["Tue", 200]
-    ]
+    "kind": "ref",
+    "ref": "artifact://reports/regional-sales.json",
+    "format": "json"
   },
   "spec": {
-    "title": { "text": "Weekly orders" },
-    "tooltip": { "trigger": "axis" },
-    "xAxis": { "type": "category" },
-    "yAxis": { "type": "value" },
-    "series": [{ "type": "bar", "encode": { "x": "day", "y": "orders" } }]
+    "title": "Regional sales",
+    "columns": [
+      { "field": "region", "title": "Region", "pinned": "left" },
+      { "field": "sales", "title": "Sales", "type": "number", "sortable": true, "filter": true }
+    ],
+    "quickFilter": true,
+    "exportCsv": true
   }
 }
 ```
 ````
 
-The block body must be valid JSON, not JavaScript. `renderer` is always
-`"echarts"`; inline rows are arrays in the same order as `data.dimensions`; and
-the ECharts option belongs in `spec`, without `spec.dataset`.
+The body must be valid JSON rather than JavaScript. See [SKILL.md](./SKILL.md)
+for renderer selection and response rules, and
+[references/table.md](./references/table.md) for the interactive table contract.
+The repository [protocol specification](../../SPEC.md) defines the shared
+envelope and host boundary.
 
-For large data, the skill may emit `data.kind="ref"` only when the host has
-provided a real controlled ref, for example:
+## Validation
 
-```json
-{
-  "kind": "ref",
-  "ref": "artifact://chart-data/sales-q1.csv",
-  "format": "csv",
-  "dimensions": ["day", "orders"]
-}
+Validate one or more envelope files with:
+
+```sh
+node skills/markdown-chart/scripts/validate_chart.mjs chart.json
 ```
 
-See the repository's [protocol specification](../../SPEC.md) for the complete
-canonical envelope and data rules.
+Run the Skill regression suite from the repository root:
+
+```sh
+node --test tests/skills/markdown-chart/*.test.mjs
+```
+
+The package includes `SKILL.md`, `references/`, and the validator. Repository
+tests and evaluation fixtures are excluded from the distributed Skill package.
