@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-table",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Interactive AG Grid Community table renderer for Markdown Chart",
   "license": "MIT",
   "repository": {
