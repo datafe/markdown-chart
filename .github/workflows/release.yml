@@ -63,6 +63,7 @@ jobs:
             "@datafe-open/markdown-chart-kpi"
             "@datafe-open/markdown-chart-markdown-it"
             "@datafe-open/markdown-chart-react"
+            "@datafe-open/markdown-chart-table"
             "@datafe-open/markdown-chart-vue"
           )
           all_published=true
