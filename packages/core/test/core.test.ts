@@ -619,6 +619,116 @@ describe('ChartController', () => {
     expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
   });
 
+  it('loads a registered Data view provider only when Data is first selected', async () => {
+    const providerDispose = vi.fn();
+    const providerMount = vi.fn((container: HTMLElement) => {
+      container.textContent = 'Interactive data';
+      return { dispose: providerDispose };
+    });
+    const registry = new ChartRendererRegistry()
+      .register({ id: 'test', parse: (spec) => spec, mount() {} })
+      .registerDataViewProvider({
+        supports: (data) => (data.shape ?? 'table') === 'table',
+        mount: providerMount,
+      });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', dimensions: ['name', 'value'], source: [['A', 1]] },
+        spec: {},
+      }),
+    });
+
+    expect(providerMount).not.toHaveBeenCalled();
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    await vi.waitFor(() => expect(providerMount).toHaveBeenCalledOnce());
+    expect(element.querySelector('[data-markdown-chart-data-view]')?.textContent)
+      .toBe('Interactive data');
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show chart"]')?.click();
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    expect(providerMount).toHaveBeenCalledOnce();
+    controller.dispose();
+    expect(providerDispose).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to the bounded HTML Data view when a provider fails', async () => {
+    const registry = new ChartRendererRegistry()
+      .register({ id: 'test', parse: (spec) => spec, mount() {} })
+      .registerDataViewProvider({
+        supports: () => true,
+        mount: async () => { throw new Error('runtime unavailable'); },
+      });
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', dimensions: ['name', 'value'], source: [['Fallback', 7]] },
+        spec: {},
+      }),
+    });
+
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    await vi.waitFor(() => expect(element.querySelector('tbody')?.textContent).toContain('Fallback7'));
+  });
+
+  it('disposes a Data view handle that resolves after the chart is disposed', async () => {
+    let finishMount: ((handle: { dispose(): void }) => void) | undefined;
+    const lateDispose = vi.fn();
+    const registry = new ChartRendererRegistry()
+      .register({ id: 'test', parse: (spec) => spec, mount() {} })
+      .registerDataViewProvider({
+        supports: () => true,
+        mount: () => new Promise((resolve) => { finishMount = resolve; }),
+      });
+    const controller = new ChartController(registry);
+    const element = document.createElement('div');
+    await controller.render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'test',
+        data: { kind: 'inline', source: [{ value: 1 }] },
+        spec: {},
+      }),
+    });
+    element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]')?.click();
+    await vi.waitFor(() => expect(finishMount).toBeTypeOf('function'));
+    controller.dispose();
+    finishMount?.({ dispose: lateDispose });
+    await vi.waitFor(() => expect(lateDispose).toHaveBeenCalledOnce());
+  });
+
+  it('mounts data renderers directly without a duplicate Chart/Data toggle', async () => {
+    const mount = vi.fn((container: HTMLElement) => { container.dataset.table = 'true'; });
+    const registry = new ChartRendererRegistry().register({
+      id: 'table',
+      presentation: 'data',
+      parse: (spec) => spec,
+      materialize: (parsed, context) => ({ parsed, data: context.data }),
+      mount,
+    });
+    const element = document.createElement('div');
+    await new ChartController(registry).render(element, {
+      language: 'markdown-chart',
+      source: JSON.stringify({
+        version: 1,
+        renderer: 'table',
+        data: { kind: 'inline', source: [{ value: 1 }] },
+        spec: {},
+      }),
+    });
+
+    expect(mount).toHaveBeenCalledOnce();
+    expect(element.dataset.table).toBe('true');
+    expect(element.querySelector('.markdown-chart-toggle')).toBeNull();
+  });
+
   it('keeps structured Data visible with a renderer constraint error and bounded canvas height', async () => {
     const mount = vi.fn();
     const registry = new ChartRendererRegistry().register({
@@ -727,13 +837,13 @@ describe('ChartController', () => {
     });
 
     const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
-    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    const dataSlot = element.querySelector<HTMLElement>('.markdown-chart-data-slot');
     const showChart = element.querySelector<HTMLButtonElement>('button[aria-label="Show chart"]');
     const showData = element.querySelector<HTMLButtonElement>('button[aria-label="Show data"]');
     expect(element.querySelector('.markdown-chart-title')?.textContent).toBe('Monthly sales');
     expect(chartView?.style.margin).toBe('8px 10px');
     expect(chartView?.dataset.mounted).toBe('true');
-    expect(dataView?.hidden).toBe(true);
+    expect(dataSlot?.hidden).toBe(true);
     expect(showChart?.title).toBe('Chart');
     expect(showData?.title).toBe('Data');
     expect(showChart?.textContent).toBe('');
@@ -751,8 +861,9 @@ describe('ChartController', () => {
     expect(showData?.style.color).toBe('color-mix(in srgb, currentcolor 68%, transparent)');
 
     showData?.click();
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
     expect(chartView?.hidden).toBe(true);
-    expect(dataView?.hidden).toBe(false);
+    expect(dataSlot?.hidden).toBe(false);
     expect(showChart?.getAttribute('aria-pressed')).toBe('false');
     expect(showChart?.style.background).toBe('transparent');
     expect(showChart?.style.color).toBe('color-mix(in srgb, currentcolor 68%, transparent)');
@@ -835,6 +946,7 @@ describe('ChartController', () => {
       .toBe('图表');
     expect(element.querySelector<HTMLButtonElement>('button[aria-label="显示数据"]')?.title)
       .toBe('数据');
+    element.querySelector<HTMLButtonElement>('button[aria-label="显示数据"]')?.click();
     expect(element.querySelector('.markdown-chart-data-notice')?.textContent)
       .toBe('显示 500/501 行，50/51 列');
 
@@ -848,6 +960,7 @@ describe('ChartController', () => {
       }),
       labels,
     });
+    element.querySelector<HTMLButtonElement>('button[aria-label="显示数据"]')?.click();
     expect(element.querySelector('.markdown-chart-data-view')?.textContent).toBe('暂无数据');
     controller.dispose();
   }, 15_000);

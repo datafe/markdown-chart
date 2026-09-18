@@ -915,10 +915,28 @@ export interface ChartHandle {
   resize?(): void;
 }
 
+export interface ChartDataViewProviderContext {
+  readonly signal: AbortSignal;
+  readonly theme: unknown;
+  readonly labels: Readonly<MarkdownChartLabels>;
+}
+
+/** Optional lazy replacement for Core's bounded HTML Data view. */
+export interface ChartDataViewProvider {
+  supports(data: InlineAnyChartData): boolean;
+  mount(
+    container: HTMLElement,
+    data: InlineAnyChartData,
+    context: ChartDataViewProviderContext,
+  ): ChartHandle | void | Promise<ChartHandle | void>;
+}
+
 export interface ChartRenderer<Parsed = unknown> {
   readonly id: string;
   readonly aliases?: readonly string[];
   readonly matchLanguage?: (language: string) => boolean;
+  /** Data renderers mount directly without Core's Chart/Data toggle. */
+  readonly presentation?: 'visualization' | 'data';
   parse(spec: JsonValue, context: ChartParseContext): Parsed | Promise<Parsed>;
   parseSource?(source: string, context: ChartParseContext): Parsed | Promise<Parsed>;
   /** Return a concise title for host-provided chart chrome. */
@@ -1012,6 +1030,7 @@ export class ChartRendererRegistry {
   readonly #aliases = new Map<string, string>();
   readonly #jsonLimits: Partial<JsonParseLimits>;
   readonly #dataLimits: Readonly<ChartDataMaterializationLimits>;
+  #dataViewProvider: ChartDataViewProvider | undefined;
 
   constructor(options: ChartRegistryOptions = {}) {
     this.#jsonLimits = options.jsonLimits ?? {};
@@ -1058,6 +1077,18 @@ export class ChartRendererRegistry {
     this.#renderers.set(id, erased);
     aliases.forEach((alias) => this.#aliases.set(alias, id));
     return this;
+  }
+
+  registerDataViewProvider(provider: ChartDataViewProvider): this {
+    if (this.#dataViewProvider) {
+      throw new MarkdownChartError('RENDERER_CONFLICT', 'A Data view provider is already registered');
+    }
+    this.#dataViewProvider = provider;
+    return this;
+  }
+
+  get dataViewProvider(): ChartDataViewProvider | undefined {
+    return this.#dataViewProvider;
   }
 
   has(name: string): boolean {
@@ -1877,6 +1908,8 @@ function createChartView(
   onShowChart: () => void,
   theme: unknown,
   labels: Readonly<MarkdownChartLabels>,
+  signal: AbortSignal,
+  dataViewProvider?: ChartDataViewProvider,
   preferredHeight?: number,
 ): ChartView {
   const colors = chartViewColors(theme);
@@ -1973,8 +2006,52 @@ function createChartView(
     background: colors.background,
   });
   chartViewport.append(chartContainer);
-  const dataContainer = createDataView(data, colors, labels);
+  const dataContainer = document.createElement('div');
+  dataContainer.className = 'markdown-chart-data-slot';
   dataContainer.hidden = true;
+  let dataViewHandle: ChartHandle | undefined;
+  let dataViewStarted = false;
+  let disposed = false;
+  const dataViewAbortController = new AbortController();
+  const abortDataView = (): void => dataViewAbortController.abort();
+  signal.addEventListener('abort', abortDataView, { once: true });
+  const mountFallbackDataView = (): void => {
+    if (disposed || dataViewAbortController.signal.aborted) return;
+    dataContainer.replaceChildren(createDataView(data, colors, labels));
+  };
+  const activateDataView = (): void => {
+    if (dataViewStarted) return;
+    dataViewStarted = true;
+    let providerSupported = false;
+    try {
+      providerSupported = dataViewProvider?.supports(data) === true;
+    } catch {
+      providerSupported = false;
+    }
+    if (!providerSupported || !dataViewProvider) {
+      mountFallbackDataView();
+      return;
+    }
+    const providerContainer = document.createElement('div');
+    providerContainer.className = 'markdown-chart-data-view';
+    providerContainer.dataset.markdownChartDataView = 'true';
+    dataContainer.replaceChildren(providerContainer);
+    Promise.resolve().then(() => dataViewProvider.mount(providerContainer, data, {
+      signal: dataViewAbortController.signal,
+      theme,
+      labels,
+    })).then((handle) => {
+      if (disposed || dataViewAbortController.signal.aborted) {
+        handle?.dispose();
+        return;
+      }
+      dataViewHandle = handle || undefined;
+    }).catch(() => {
+      if (!disposed && !dataViewAbortController.signal.aborted) {
+        mountFallbackDataView();
+      }
+    });
+  };
   const selectedBackground = 'var(--markdown-chart-accent, #0033ff)';
   const selectedForeground = 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
   const unselectedForeground = 'color-mix(in srgb, currentColor 68%, transparent)';
@@ -1999,7 +2076,10 @@ function createChartView(
     select('chart');
     onShowChart();
   };
-  const showData = (): void => select('data');
+  const showData = (): void => {
+    select('data');
+    activateDataView();
+  };
   chartButton.addEventListener('click', showChart);
   dataButton.addEventListener('click', showData);
   toggle.append(chartButton, dataButton);
@@ -2013,6 +2093,10 @@ function createChartView(
   return {
     chartContainer,
     dispose() {
+      disposed = true;
+      signal.removeEventListener('abort', abortDataView);
+      dataViewAbortController.abort();
+      dataViewHandle?.dispose();
       chartButton.removeEventListener('click', showChart);
       dataButton.removeEventListener('click', showData);
       if (!hadCardClass) {
@@ -2102,7 +2186,7 @@ export class ChartController {
       const inlineData = materialized.data?.kind === 'inline' ? materialized.data : undefined;
       const chartTitle = prepared.renderer.getTitle?.(materialized.parsed)?.trim() || undefined;
       const labels = resolveMarkdownChartLabels(request.labels);
-      const view = inlineData
+      const view = inlineData && prepared.renderer.presentation !== 'data'
         ? createChartView(
             container,
             inlineData,
@@ -2110,6 +2194,8 @@ export class ChartController {
             () => this.#handle?.resize?.(),
             request.theme,
             labels,
+            abortController.signal,
+            this.#registry.dataViewProvider,
             materialized.preferredHeight,
           )
         : undefined;
