@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart
 
+## 0.3.1
+
+### Patch Changes
+
+- eb68fa5: Preserve the host minimum height through the chart viewport so ordinary ECharts charts do not mount into a zero-height canvas.
+
 ## 0.3.0
 
 ### Minor Changes
