@@ -45,9 +45,7 @@ The Skill emits one block per visual:
     "columns": [
       { "field": "region", "title": "Region", "pinned": "left" },
       { "field": "sales", "title": "Sales", "type": "number", "sortable": true, "filter": true }
-    ],
-    "quickFilter": true,
-    "exportCsv": true
+    ]
   }
 }
 ```
@@ -57,7 +55,8 @@ The body must be valid JSON rather than JavaScript. See [SKILL.md](./SKILL.md)
 for renderer selection and response rules, and
 [references/table.md](./references/table.md) for the interactive table contract.
 The repository [protocol specification](../../SPEC.md) defines the shared
-envelope and host boundary.
+envelope and host boundary. Search and CSV export are built-in table controls;
+they do not require additional `spec` fields.
 
 ## Validation
 

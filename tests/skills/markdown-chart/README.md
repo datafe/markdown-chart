@@ -9,7 +9,6 @@
 
 ```bash
 node --test tests/skills/markdown-chart/*.test.mjs
-python3 -m unittest discover -s tests -p test_distribution_layout.py
 ```
 
 覆盖 Skill/reference 中的完整样例、原故障的 JavaScript formatter、字符串 formatter、

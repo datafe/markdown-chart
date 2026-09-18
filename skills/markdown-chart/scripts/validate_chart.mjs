@@ -441,13 +441,18 @@ function validateSpec(spec, dimensions, errors) {
     addError(errors, "FORBIDDEN_DATASET", "$.spec.dataset", "canonical data is the only dataset source.");
   }
 
-  const xAxes = Array.isArray(spec.xAxis) ? spec.xAxis : [spec.xAxis].filter(Boolean);
-  xAxes.forEach((axis, index) => {
-    if (isPlainObject(axis) && Object.hasOwn(axis, "data")) {
-      const axisPath = Array.isArray(spec.xAxis) ? `$.spec.xAxis[${index}].data` : "$.spec.xAxis.data";
-      addError(errors, "DUPLICATE_AXIS_DATA", axisPath, "xAxis.data duplicates the canonical dataset.");
-    }
-  });
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axisValue = spec[axisName];
+    const axes = Array.isArray(axisValue) ? axisValue : [axisValue].filter(Boolean);
+    axes.forEach((axis, index) => {
+      if (isPlainObject(axis) && Object.hasOwn(axis, "data")) {
+        const axisPath = Array.isArray(axisValue)
+          ? `$.spec.${axisName}[${index}].data`
+          : `$.spec.${axisName}.data`;
+        addError(errors, "DUPLICATE_AXIS_DATA", axisPath, `${axisName}.data duplicates the canonical dataset.`);
+      }
+    });
+  }
 
   if (!Array.isArray(spec.series) || spec.series.length === 0) {
     addError(errors, "INVALID_SERIES", "$.spec.series", "spec.series must be a non-empty array.");

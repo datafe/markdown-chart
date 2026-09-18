@@ -211,6 +211,19 @@ test("keeps existing ECharts formatter and dataset safeguards", () => {
   );
 });
 
+test("rejects duplicate category data on a horizontal chart y-axis", () => {
+  const envelope = validEnvelope();
+  envelope.spec.xAxis = { type: "value" };
+  envelope.spec.yAxis = { type: "category", data: ["A", "B"] };
+  envelope.spec.series[0].encode = { x: "value", y: "period" };
+
+  assert.deepEqual(validateEnvelope(envelope), [{
+    code: "DUPLICATE_AXIS_DATA",
+    path: "$.spec.yAxis.data",
+    message: "yAxis.data duplicates the canonical dataset.",
+  }]);
+});
+
 test("keeps controlled ECharts ref validation", () => {
   const envelope = validEnvelope();
   envelope.data = {
