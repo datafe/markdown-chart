@@ -21,6 +21,13 @@ describe('react-markdown runtime adapter', () => {
     expect(html).not.toContain('<pre>');
   });
 
+  it('routes the zero-config table renderer', () => {
+    const source = '```markdown-chart\n{"version":1,"renderer":"table","data":{"kind":"inline","source":[{"name":"A","value":1}]},"spec":{}}\n```';
+    const html = renderToStaticMarkup(<MarkdownChart source={source} />);
+    expect(html).toContain('markdown-chart-placeholder');
+    expect(html).not.toContain('<pre>');
+  });
+
   it('leaves the removed echarts shorthand as code', () => {
     const language = 'echarts';
     const source = `\`\`\`${language}\n{"series":[]}\n\`\`\``;

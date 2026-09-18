@@ -310,6 +310,9 @@ importers:
       '@datafe-open/markdown-chart-kpi':
         specifier: workspace:*
         version: link:../kpi
+      '@datafe-open/markdown-chart-table':
+        specifier: workspace:*
+        version: link:../table
       echarts:
         specifier: '>=5.5 <7'
         version: 6.1.0
@@ -330,6 +333,15 @@ importers:
         specifier: ^19.1.0
         version: 19.2.7(react@19.2.7)
 
+  packages/table:
+    dependencies:
+      '@datafe-open/markdown-chart':
+        specifier: workspace:*
+        version: link:../core
+      ag-grid-community:
+        specifier: ^36.2.0
+        version: 36.2.0
+
   packages/vue:
     dependencies:
       '@datafe-open/markdown-chart':
@@ -344,6 +356,9 @@ importers:
       '@datafe-open/markdown-chart-markdown-it':
         specifier: workspace:*
         version: link:../markdown-it
+      '@datafe-open/markdown-chart-table':
+        specifier: workspace:*
+        version: link:../table
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
@@ -1349,6 +1364,15 @@ packages:
     resolution: {integrity: sha512-xRQbDb9BnwDafYNn6Vwl839DYVjqXYb1XVGtWAZ1kcDc6iwAL4hg3B1dZlRiuENFeO2H53gFG3in621AdERVAg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  ag-charts-types@14.2.0:
+    resolution: {integrity: sha512-4pDV6/4zbzPN7t607Gr1o6DO9RhmPafQGr+hIpTJBaerbaMoC+WOO3v/wkxFbvCNrHKOexEKSfNTH7PaAR4UzA==}
+
+  ag-grid-community@36.2.0:
+    resolution: {integrity: sha512-tK0Toj7t0fV/OMLPnDc0xlYKAqDbnCT3iJodYSn2TJ541caU8jPdYwWhMdW+AP2+pUNwFiJVgc04eJNfvBPsWw==}
+
+  ag-stack@36.2.0:
+    resolution: {integrity: sha512-f3XT2htFs9dUPcHni2z9ak69QNta5ODEpooHuuNvbjN98JkokpEqRQ9YLQHQJFdCcgi9Ybs/j3zkkvmNRamIPg==}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -3415,6 +3439,15 @@ snapshots:
   '@vue/shared@3.5.40': {}
 
   acorn@8.17.0: {}
+
+  ag-charts-types@14.2.0: {}
+
+  ag-grid-community@36.2.0:
+    dependencies:
+      ag-charts-types: 14.2.0
+      ag-stack: 36.2.0
+
+  ag-stack@36.2.0: {}
 
   agent-base@7.1.4: {}
 
