@@ -619,6 +619,35 @@ describe('ChartController', () => {
     expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
   });
 
+  it('carries the host minimum height through the chart viewport', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse: (spec) => spec,
+      materialize: (parsed) => ({
+        parsed,
+        data: {
+          kind: 'inline' as const,
+          dimensions: ['name', 'value'],
+          source: [['A', 10]],
+        },
+      }),
+      mount() {},
+    });
+    const element = document.createElement('div');
+    element.style.minHeight = '360px';
+
+    await new ChartController(registry).render(element, {
+      language: 'test',
+      source: '{}',
+    });
+
+    const viewport = element.querySelector<HTMLElement>('.markdown-chart-chart-viewport');
+    const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
+    expect(viewport?.style.minHeight).toBe('inherit');
+    expect(chartView?.style.minHeight).toBe('inherit');
+  });
+
   it('loads a registered Data view provider only when Data is first selected', async () => {
     const providerDispose = vi.fn();
     const providerMount = vi.fn((container: HTMLElement) => {
