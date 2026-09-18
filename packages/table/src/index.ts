@@ -154,6 +154,10 @@ function schemaError(message: string): never {
   throw new MarkdownChartError('SCHEMA_INVALID', message);
 }
 
+function limitError(message: string): never {
+  throw new MarkdownChartError('LIMIT_EXCEEDED', message);
+}
+
 function assertOwnKeys(value: Record<string, JsonValue>, allowed: ReadonlySet<string>, path: string): void {
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) schemaError(`${path}.${key} is not allowed`);
@@ -496,8 +500,13 @@ function validateColumnValues(
 
 function numericExtent(values: readonly number[]): readonly [number, number] {
   if (values.length === 0) return [0, 1];
-  const minimum = Math.min(...values);
-  const maximum = Math.max(...values);
+  let minimum = values[0] as number;
+  let maximum = minimum;
+  for (let index = 1; index < values.length; index += 1) {
+    const value = values[index] as number;
+    if (value < minimum) minimum = value;
+    if (value > maximum) maximum = value;
+  }
   return minimum === maximum ? [minimum - 0.5, maximum + 0.5] : [minimum, maximum];
 }
 
@@ -531,7 +540,9 @@ function materializeColumn(
       .map((row) => column.field ? row[column.field] : undefined)
       .filter((value): value is number => typeof value === 'number');
     resolvedMin = column.cell.min ?? 0;
-    resolvedMax = column.cell.max ?? (values.length > 0 ? Math.max(...values) : 1);
+    resolvedMax = column.cell.max ?? (values.length > 0
+      ? values.reduce((maximum, value) => Math.max(maximum, value), values[0] as number)
+      : 1);
     if (resolvedMax <= resolvedMin) return schemaError(`${path}.cell max must be greater than min`);
     if (!column.cell.clamp && values.some((value) => value < resolvedMin! || value > resolvedMax!)) {
       return schemaError(`${path}.cell contains a value outside min/max while clamp is false`);
@@ -564,8 +575,21 @@ function materializeColumn(
   };
 }
 
-function materializeTable(spec: TableSpec, data: InlineChartData): MaterializedTable {
+function materializeTable(
+  spec: TableSpec,
+  data: InlineChartData,
+  limits: Readonly<TableLimits>,
+): MaterializedTable {
   const fields = tableFields(data);
+  if (data.source.length > limits.maxRows) {
+    return limitError(`Table data exceeds the ${limits.maxRows} row limit`);
+  }
+  if (data.source.length * fields.length > limits.maxCells) {
+    return limitError(`Table data exceeds the ${limits.maxCells} materialized cell limit`);
+  }
+  if (!spec.columns && fields.length > 50) {
+    return schemaError('markdown-chart.spec inferred columns must not exceed 50 fields');
+  }
   const rows = tableRows(data, fields);
   const sourceColumns = spec.columns ?? fields.map((field): TableColumn => ({ field }));
   const fieldSet = new Set(fields);
@@ -692,6 +716,8 @@ function nullLastComparator(
   _rightNode: unknown,
   descending: boolean,
 ): number {
+  // AG Grid reverses non-empty comparator results for descending sorts. The
+  // direction is used here only to keep empty values last in both directions.
   const leftEmpty = left === null || left === undefined;
   const rightEmpty = right === null || right === undefined;
   if (leftEmpty || rightEmpty) {
@@ -699,6 +725,7 @@ function nullLastComparator(
     const ascendingResult = leftEmpty ? 1 : -1;
     return descending ? -ascendingResult : ascendingResult;
   }
+  if (left instanceof Date && right instanceof Date) return left.getTime() - right.getTime();
   if (typeof left === 'number' && typeof right === 'number') return left - right;
   if (typeof left === 'boolean' && typeof right === 'boolean') return Number(left) - Number(right);
   return String(left).localeCompare(String(right));
@@ -919,11 +946,15 @@ async function mountTable(
   };
 }
 
-function countTableCells(data: InlineChartData): number {
-  return data.source.reduce(
-    (total, row) => total + (Array.isArray(row) ? row.length : Object.keys(row).length),
-    0,
-  );
+function supportsTableData(data: InlineChartData, limits: Readonly<TableLimits>): boolean {
+  try {
+    const fields = tableFields(data);
+    return data.source.length <= limits.maxRows
+      && fields.length <= 50
+      && data.source.length * fields.length <= limits.maxCells;
+  } catch {
+    return false;
+  }
 }
 
 export function createTableDataViewProvider(
@@ -934,13 +965,12 @@ export function createTableDataViewProvider(
     supports(data) {
       if ((data.shape ?? 'table') !== 'table') return false;
       const tableData = data as InlineChartData;
-      return tableData.source.length <= limits.maxRows
-        && countTableCells(tableData) <= limits.maxCells;
+      return supportsTableData(tableData, limits);
     },
     async mount(container, data, context) {
       if ((data.shape ?? 'table') !== 'table') return undefined;
       const tableData = data as InlineChartData;
-      const table = materializeTable(parseTableSpec({}), tableData);
+      const table = materializeTable(parseTableSpec({}), tableData, limits);
       return mountTable(container, table, context, options, 'data-view');
     },
   };
@@ -971,7 +1001,10 @@ export function createTableRenderer(
       if (!data) return { parsed, data: context.data };
       if ((data.shape ?? 'table') !== 'table') return schemaError('The table renderer accepts only table data');
       const tableData = data as InlineChartData;
-      return { parsed: { ...parsed, data: tableData, table: materializeTable(parsed.spec, tableData) }, data: tableData };
+      return {
+        parsed: { ...parsed, data: tableData, table: materializeTable(parsed.spec, tableData, limits) },
+        data: tableData,
+      };
     },
     async mount(container, parsed, context) {
       if (!parsed.table) return schemaError('Table data must be materialized before mounting');

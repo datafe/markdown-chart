@@ -121,8 +121,10 @@ for backwards compatibility while sharing this boundary.
 
 The table renderer uses `renderer: "table"` and requires canonical table-shaped
 `data`. It accepts inline data and host-resolved refs. The renderer owns a
-separate default budget of 10,000 rows and 200,000 cells because its virtualized
-grid does not share the core preview table's 2,000-row budget.
+separate default budget of 10,000 rows and 200,000 materialized cells (row count
+multiplied by the union of source fields) because its virtualized grid does not
+share the core preview table's 2,000-row budget. Inferred columns are capped at
+50.
 
 ```json
 {

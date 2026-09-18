@@ -136,8 +136,9 @@ AG Grid Enterprise.
 
 The same table is loaded lazily in the Data pane for canonical tabular data.
 If the interactive provider cannot load, the bounded core HTML view remains
-available. Table rendering accepts at most 10,000 rows and 200,000 cells by
-default; hosts can lower these limits.
+available. Table rendering accepts at most 10,000 rows and 200,000 materialized
+cells by default; hosts can lower these limits. Automatic column inference is
+capped at 50 fields.
 
 ### ECharts
 

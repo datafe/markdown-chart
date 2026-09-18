@@ -180,6 +180,43 @@ describe('table renderer protocol', () => {
     ]);
     const amountComparator = defs[0]?.comparator as (...args: unknown[]) => number;
     expect(amountComparator(2, 10, undefined, undefined, false)).toBeLessThan(0);
+    expect(amountComparator(2, 10, undefined, undefined, true)).toBeLessThan(0);
+    expect(amountComparator(null, 10, undefined, undefined, false)).toBeGreaterThan(0);
+    expect(amountComparator(null, 10, undefined, undefined, true)).toBeLessThan(0);
+  });
+
+  it('sorts explicit dates chronologically', async () => {
+    const fake = fakeGridRuntime();
+    await render(envelope({
+      kind: 'inline',
+      source: [{ day: '2026-01-01' }, { day: '2025-12-31' }],
+    }, {
+      columns: [{ field: 'day', type: 'date' }],
+    }), { loadGrid: () => fake.runtime });
+    const defs = (fake.options().columnDefs ?? []) as ColDef<Row>[];
+    const comparator = defs[0]?.comparator as (...args: unknown[]) => number;
+    expect(comparator(
+      new Date('2026-01-01T00:00:00Z'),
+      new Date('2025-12-31T00:00:00Z'),
+      undefined,
+      undefined,
+      false,
+    )).toBeGreaterThan(0);
+  });
+
+  it('computes a column sparkline extent without spreading large value arrays', async () => {
+    const fake = fakeGridRuntime();
+    const fields = Array.from({ length: 50 }, (_, index) => `v${index}`);
+    const source = Array.from({ length: 4_000 }, (_, rowIndex) => Object.fromEntries(
+      fields.map((field, fieldIndex) => [field, rowIndex + fieldIndex]),
+    ));
+    await render(envelope({ kind: 'ref', ref: 'dataset:wide', format: 'json' }, {
+      columns: [{ id: 'trend', cell: { kind: 'sparkline', fields } }],
+    }), {
+      resolveDataRef: async () => ({ source }),
+      loadGrid: () => fake.runtime,
+    });
+    expect(fake.createGrid).toHaveBeenCalledOnce();
   });
 
   it('materializes referenced data with independent table limits', async () => {
@@ -229,6 +266,23 @@ describe('table Data view provider and CSV helper', () => {
       source: { nodes: [{ id: 'a', name: 'A' }], links: [] },
     } satisfies ChartData;
     expect(provider.supports(graph)).toBe(false);
+  });
+
+  it('budgets the dense materialized table and bounds inferred columns', async () => {
+    const provider = createTableDataViewProvider({ limits: { maxRows: 2, maxCells: 4 } });
+    const sparseRows = { kind: 'inline', source: [{ first: 1, second: 2 }, { third: 3, fourth: 4 }] } as const;
+    expect(provider.supports(sparseRows)).toBe(false);
+
+    await expect(render(envelope(sparseRows, {}), {
+      limits: { maxRows: 2, maxCells: 4 },
+      loadGrid: () => fakeGridRuntime().runtime,
+    })).rejects.toMatchObject({ code: 'LIMIT_EXCEEDED' });
+
+    const tooWide = Object.fromEntries(Array.from({ length: 51 }, (_, index) => [`field_${index}`, index]));
+    expect(createTableDataViewProvider().supports({ kind: 'inline', source: [tooWide] })).toBe(false);
+    await expect(render(envelope({ kind: 'inline', source: [tooWide] }, {}), {
+      loadGrid: () => fakeGridRuntime().runtime,
+    })).rejects.toMatchObject({ code: 'SCHEMA_INVALID' });
   });
 
   it('serializes raw values with CSV escaping and formula text protection', () => {

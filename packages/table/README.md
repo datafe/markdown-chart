@@ -64,7 +64,9 @@ displayed in UTC. Omitted types infer number only when every non-null value is
 numeric and boolean only when every non-null value is boolean; dates are never
 inferred.
 
-The default table budget is 10,000 rows and 200,000 cells. Override it with
+The default table budget is 10,000 rows and 200,000 materialized cells (row
+count multiplied by the union of source fields). Inferred columns are capped at
+50. Override the row and cell limits with
 `createTableRenderer({ limits })` and pass the same options to
 `createTableDataViewProvider`. CSV export uses filtered and sorted source rows,
 keeps raw canonical values, and protects formula-like strings.
