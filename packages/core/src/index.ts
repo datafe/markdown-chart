@@ -1989,6 +1989,7 @@ function createChartView(
   chartViewport.className = 'markdown-chart-chart-viewport';
   setStyles(chartViewport, {
     width: '100%',
+    minHeight: 'inherit',
     maxHeight: 'min(74vh, 740px)',
     overflowY: 'auto',
     background: colors.background,
