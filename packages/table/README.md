@@ -1,7 +1,7 @@
 # @datafe-open/markdown-chart-table
 
 Interactive table renderer for Markdown Chart, built on AG Grid Community. It
-supports typed sorting and filters, quick search, CSV export, pinned columns,
+supports typed sorting and filters, on-demand quick search, pinned columns,
 structured number/date formatting, change indicators, bars, progress cells,
 and inline SVG sparklines.
 
@@ -68,5 +68,7 @@ The default table budget is 10,000 rows and 200,000 materialized cells (row
 count multiplied by the union of source fields). Inferred columns are capped at
 50. Override the row and cell limits with
 `createTableRenderer({ limits })` and pass the same options to
-`createTableDataViewProvider`. CSV export uses filtered and sorted source rows,
-keeps raw canonical values, and protects formula-like strings.
+`createTableDataViewProvider`. Search opens from the compact footer and closes
+with Escape or the toggle, clearing the quick filter. Column filters open from
+the headers; floating filter inputs are hidden. The UI does not offer export.
+The existing `serializeTableCsv` helper remains available to callers.
