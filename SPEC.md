@@ -165,9 +165,9 @@ optional bounds; sparklines use either a column-wide or row-local scale.
 `initialSort` contains 1–3 source fields. Sorting, filtering, quick search,
 virtualization, and pinned columns use AG Grid Community features.
 
-CSV export includes the currently filtered and sorted rows, writes canonical
-source fields rather than display formatting or derived cells, and prefixes
-formula-like strings with an apostrophe. The optional interactive Data-view
+Search opens on demand in the compact footer; closing it clears the quick
+filter. Column filters open from headers rather than a permanent input row.
+The table UI does not offer export. The optional interactive Data-view
 provider uses the same table implementation and is loaded only when the user
 opens Data. Core falls back to its HTML view if the provider is unavailable or
 fails during loading.

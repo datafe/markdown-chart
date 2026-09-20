@@ -769,12 +769,12 @@ function gridColumnDefs(table: MaterializedTable): ColDef<TableRow>[] {
           : column.resolvedType === 'date'
             ? 'agDateColumnFilter'
             : 'agTextColumnFilter',
-      floatingFilter: column.cell?.kind !== 'sparkline' && column.filter !== false,
+      floatingFilter: false,
       comparator: nullLastComparator,
       ...(column.cell?.kind !== 'sparkline' ? { valueFormatter } : {}),
       ...(cellRenderer ? { cellRenderer } : {}),
       ...(sort ? { sort, sortIndex } : {}),
-      suppressHeaderMenuButton: true,
+      suppressHeaderMenuButton: false,
     };
   });
 }
@@ -791,19 +791,6 @@ export function serializeTableCsv(rows: readonly TableRow[], fields: readonly st
     fields.map(csvCell).join(','),
     ...rows.map((row) => fields.map((field) => csvCell(row[field])).join(',')),
   ].join('\r\n');
-}
-
-function defaultDownloadCsv(csv: string, filename: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = 'none';
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 let defaultRuntimePromise: Promise<TableGridRuntime> | undefined;
@@ -824,13 +811,6 @@ async function loadDefaultGridRuntime(): Promise<TableGridRuntime> {
 
 function resolvedLabels(overrides: Partial<TableLabels> | undefined): Readonly<TableLabels> {
   return Object.freeze({ ...DEFAULT_TABLE_LABELS, ...overrides });
-}
-
-function safeFilename(title: string | undefined): string {
-  const base = title?.trim().replace(/[^\p{L}\p{N}._-]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return `${base || 'data'}.csv`;
 }
 
 async function mountTable(
@@ -856,42 +836,64 @@ async function mountTable(
   const toolbar = document.createElement('div');
   toolbar.className = 'markdown-chart-table-toolbar';
   setStyles(toolbar, {
-    display: 'flex', minWidth: '0', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '8px 10px',
-    borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
+    display: 'flex', minWidth: '0', alignItems: 'center', gap: '8px', padding: '4px 10px',
+    borderTop: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
     background: `var(--markdown-chart-subtle-background, ${context.theme === 'dark' ? '#161616' : '#f7f8fa'})`,
   });
   if (table.spec.title && mode === 'standalone') {
     const title = document.createElement('div');
     title.className = 'markdown-chart-table-title';
     title.textContent = table.spec.title;
-    setStyles(title, { minWidth: '120px', flex: '1 1 auto', fontSize: '13px', fontWeight: '600' });
-    toolbar.append(title);
+    setStyles(title, {
+      minWidth: '0', padding: '10px', fontSize: '13px', fontWeight: '600',
+      borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
+    });
+    root.append(title);
   }
   const search = document.createElement('input');
   search.type = 'search';
+  search.hidden = true;
   search.className = 'markdown-chart-table-search';
   search.placeholder = labels.searchPlaceholder;
   search.setAttribute('aria-label', labels.searchPlaceholder);
   setStyles(search, {
-    width: 'min(220px, 100%)', height: '30px', padding: '0 9px', border: '1px solid color-mix(in srgb, currentColor 20%, transparent)',
-    borderRadius: '6px', background: 'var(--markdown-chart-background, white)', color: 'inherit', font: 'inherit', fontSize: '12px',
+    width: '180px', minWidth: '0', height: '28px', padding: '0 9px', border: '1px solid color-mix(in srgb, currentColor 20%, transparent)',
+    borderRadius: '6px', background: `var(--markdown-chart-background, ${context.theme === 'dark' ? '#0d0d0d' : '#ffffff'})`, color: 'inherit', font: 'inherit', fontSize: '12px',
   });
   const count = document.createElement('span');
   count.className = 'markdown-chart-table-row-count';
-  setStyles(count, { marginLeft: 'auto', fontSize: '11px', opacity: '0.68', whiteSpace: 'nowrap' });
-  const exportButton = document.createElement('button');
-  exportButton.type = 'button';
-  exportButton.className = 'markdown-chart-table-export';
-  exportButton.textContent = labels.exportCsv;
-  setStyles(exportButton, {
-    height: '30px', padding: '0 10px', border: '1px solid color-mix(in srgb, currentColor 20%, transparent)',
-    borderRadius: '6px', background: 'transparent', color: 'inherit', cursor: 'pointer', font: 'inherit', fontSize: '12px',
+  setStyles(count, { marginRight: 'auto', fontSize: '11px', opacity: '0.68', whiteSpace: 'nowrap' });
+  const searchButton = document.createElement('button');
+  searchButton.type = 'button';
+  searchButton.className = 'markdown-chart-table-search-toggle';
+  searchButton.title = labels.searchPlaceholder;
+  searchButton.setAttribute('aria-label', labels.searchPlaceholder);
+  searchButton.setAttribute('aria-expanded', 'false');
+  setStyles(searchButton, {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 28px',
+    width: '28px', height: '28px', padding: '0', border: '0', borderRadius: '4px',
+    background: 'transparent', color: 'inherit', cursor: 'pointer',
   });
-  toolbar.append(search, count, exportButton);
+  const namespace = 'http://www.w3.org/2000/svg';
+  const searchIcon = document.createElementNS(namespace, 'svg');
+  searchIcon.setAttribute('viewBox', '0 0 24 24');
+  searchIcon.setAttribute('width', '16');
+  searchIcon.setAttribute('height', '16');
+  searchIcon.setAttribute('fill', 'none');
+  searchIcon.setAttribute('stroke', 'currentColor');
+  searchIcon.setAttribute('stroke-width', '1.8');
+  searchIcon.setAttribute('stroke-linecap', 'round');
+  searchIcon.setAttribute('aria-hidden', 'true');
+  const iconPath = document.createElementNS(namespace, 'path');
+  const magnifierPath = 'M21 21l-5.2-5.2M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0';
+  iconPath.setAttribute('d', magnifierPath);
+  searchIcon.append(iconPath);
+  searchButton.append(searchIcon);
+  toolbar.append(count, search, searchButton);
   const grid = document.createElement('div');
   grid.className = 'markdown-chart-table-grid';
   setStyles(grid, { width: '100%', height: `${table.spec.height}px`, minWidth: '0' });
-  root.append(toolbar, grid);
+  root.append(grid, toolbar);
   container.replaceChildren(root);
 
   const dark = context.theme === 'dark';
@@ -927,17 +929,34 @@ async function mountTable(
   const api = runtime.createGrid(grid, gridOptions) as GridApi<TableRow>;
   count.textContent = labels.rowCount(api.getDisplayedRowCount(), table.rows.length);
   const onSearch = (): void => api.setGridOption('quickFilterText', search.value);
-  const onExport = (): void => {
-    const rows: TableRow[] = [];
-    api.forEachNodeAfterFilterAndSort((node) => { if (node.data) rows.push(node.data); });
-    (options.downloadCsv ?? defaultDownloadCsv)(serializeTableCsv(rows, table.fields), safeFilename(table.spec.title));
+  const setSearchOpen = (open: boolean): void => {
+    search.hidden = !open;
+    searchButton.setAttribute('aria-expanded', String(open));
+    iconPath.setAttribute('d', open ? 'M6 6l12 12M6 18L18 6' : magnifierPath);
+    if (open) {
+      search.focus();
+    } else {
+      search.value = '';
+      onSearch();
+      searchButton.focus();
+    }
+  };
+  const onToggleSearch = (): void => setSearchOpen(search.hidden);
+  const onSearchKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setSearchOpen(false);
+    }
   };
   search.addEventListener('input', onSearch);
-  exportButton.addEventListener('click', onExport);
+  search.addEventListener('keydown', onSearchKeyDown);
+  searchButton.addEventListener('click', onToggleSearch);
   return {
     dispose() {
       search.removeEventListener('input', onSearch);
-      exportButton.removeEventListener('click', onExport);
+      search.removeEventListener('keydown', onSearchKeyDown);
+      searchButton.removeEventListener('click', onToggleSearch);
       api.destroy();
     },
     resize() {

@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ChartController,
+  DEFAULT_MARKDOWN_CHART_LABELS,
   ChartRendererRegistry,
   type ChartData,
 } from '@datafe-open/markdown-chart';
@@ -102,7 +103,7 @@ describe('table renderer protocol', () => {
       .toThrow(/2-50 fields/);
   });
 
-  it('builds typed AG Grid columns, custom cells, search, raw CSV, and direct presentation', async () => {
+  it('builds typed AG Grid columns and custom cells without expanded filters or export', async () => {
     const east: Row = {
       region: 'East', sales: 1_280_000, growth: 0.126, apr: 92, may: 105, jun: 128, note: '=SUM(A1:A2)',
     };
@@ -146,23 +147,72 @@ describe('table renderer protocol', () => {
     expect(sparkline.querySelector('path')?.getAttribute('d')).toContain('M');
     expect(sparkline.querySelector('title')?.textContent).toContain('May: —');
 
-    const search = container.querySelector<HTMLInputElement>('.markdown-chart-table-search') as HTMLInputElement;
-    search.value = 'south';
-    search.dispatchEvent(new Event('input'));
-    expect(fake.setGridOption).toHaveBeenCalledWith('quickFilterText', 'south');
-
-    container.querySelector<HTMLButtonElement>('.markdown-chart-table-export')?.click();
-    expect(downloadCsv).toHaveBeenCalledOnce();
-    const [csv, filename] = downloadCsv.mock.calls[0] as [string, string];
-    expect(filename).toBe('Regional-performance.csv');
-    expect(csv.split('\r\n')[0]).toBe('region,sales,growth,apr,may,jun,note');
-    expect(csv.split('\r\n')[1]).toBe('South,960000,-0.035,103,,96,review');
-    expect(csv.split('\r\n')[2]).toContain("'=SUM(A1:A2)");
-    expect(csv).not.toContain('¥');
-    expect(csv).not.toContain('trend');
+    expect(columnDefs.every((column) => column.floatingFilter === false)).toBe(true);
+    expect(columnDefs[0]?.suppressHeaderMenuButton).toBe(false);
+    expect(container.querySelector('.markdown-chart-table-export')).toBeNull();
+    expect(downloadCsv).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLInputElement>('.markdown-chart-table-search')?.hidden).toBe(true);
+    const root = container.querySelector('.markdown-chart-table')!;
+    expect(Array.from(root.children).map((child) => child.className)).toEqual([
+      'markdown-chart-table-title', 'markdown-chart-table-grid', 'markdown-chart-table-toolbar',
+    ]);
 
     controller.dispose();
     expect(fake.destroy).toHaveBeenCalledOnce();
+  });
+
+  it.each(['standalone', 'data-view'] as const)('opens and clears search on demand in %s, with keyboard focus and disposal', async (mode) => {
+    const fake = fakeGridRuntime();
+    const data = { kind: 'inline', source: [{ region: 'East' }, { region: 'South' }] } as const;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const registry = new ChartRendererRegistry().register(createTableRenderer({ loadGrid: () => fake.runtime }));
+    const controller = new ChartController(registry);
+    const provider = createTableDataViewProvider({
+      loadGrid: () => fake.runtime,
+      labels: { searchPlaceholder: '搜索数据', rowCount: (visible, total) => `${visible} / ${total} 行` },
+    });
+    const handle = mode === 'data-view'
+      ? await provider.mount(container, data, { signal: new AbortController().signal, theme: 'dark', labels: DEFAULT_MARKDOWN_CHART_LABELS })
+      : (await controller.render(container, { language: 'markdown-chart', source: envelope(data, {}) }), controller);
+    const search = container.querySelector<HTMLInputElement>('.markdown-chart-table-search')!;
+    const toggle = container.querySelector<HTMLButtonElement>('.markdown-chart-table-search-toggle')!;
+    expect(search.hidden).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe(mode === 'data-view' ? '搜索数据' : 'Search data');
+    expect(container.querySelector('.markdown-chart-table-export')).toBeNull();
+    expect(container.querySelector('.markdown-chart-table-title')).toBeNull();
+    expect(container.querySelector('.markdown-chart-table-row-count')?.textContent).toBe(mode === 'data-view' ? '2 / 2 行' : '2 of 2 rows');
+    toggle.click();
+    expect(search.hidden).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(search);
+    search.value = 'south';
+    search.dispatchEvent(new Event('input'));
+    expect(fake.setGridOption).toHaveBeenLastCalledWith('quickFilterText', 'south');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    expect(search.hidden).toBe(false);
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(search.hidden).toBe(true);
+    expect(search.value).toBe('');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(toggle);
+    expect(fake.setGridOption).toHaveBeenLastCalledWith('quickFilterText', '');
+    toggle.click();
+    search.value = 'east';
+    search.dispatchEvent(new Event('input'));
+    toggle.click();
+    expect(search.hidden).toBe(true);
+    expect(search.value).toBe('');
+    expect(fake.setGridOption).toHaveBeenLastCalledWith('quickFilterText', '');
+    handle?.dispose();
+    const calls = fake.setGridOption.mock.calls.length;
+    toggle.click();
+    search.dispatchEvent(new Event('input'));
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(fake.setGridOption).toHaveBeenCalledTimes(calls);
+    expect(fake.destroy).toHaveBeenCalledOnce();
+    container.remove();
   });
 
   it('infers numeric and boolean columns while keeping strings and all-null columns textual', async () => {

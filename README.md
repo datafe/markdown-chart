@@ -105,7 +105,8 @@ the [simple and advanced examples](./examples/) for complete runnable apps.
 
 Use `renderer: "table"` for data that needs direct exploration. The Community
 edition of AG Grid supplies typed sorting and filters, quick search,
-virtualization, pinned columns, and CSV export. Structured cell options add
+virtualization, and pinned columns. Search expands on demand from the compact
+footer; column filters open from the headers. No export action is shown. Structured cell options add
 change indicators, bars, progress, and inline SVG sparklines without requiring
 AG Grid Enterprise.
 

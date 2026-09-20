@@ -262,7 +262,7 @@ ${JSON.stringify(hierarchyChart, null, 2)}
 
 ## 可筛选经营表格
 
-表格支持排序、列筛选、搜索、CSV 导出，以及变化、进度和近三月小趋势图。
+表格支持排序、按需列筛选与搜索，以及变化、进度和近三月小趋势图。
 
 \`\`\`markdown-chart
 ${JSON.stringify(tableChart, null, 2)}
