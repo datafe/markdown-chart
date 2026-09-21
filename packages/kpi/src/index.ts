@@ -175,12 +175,11 @@ function assertOwnKeys(value: Record<string, JsonValue>, allowed: ReadonlySet<st
 function readDisplayString(value: JsonValue | undefined, path: string, maxCodePoints: number): string {
   if (
     typeof value !== 'string'
-    || value.length === 0
-    || value.trim() !== value
+    || value.trim().length === 0
     || [...value].length > maxCodePoints
     || DISPLAY_CONTROL_CHARACTER.test(value)
   ) {
-    return schemaError(`${path} must be a trimmed display string of 1-${maxCodePoints} code points`);
+    return schemaError(`${path} must be a non-blank display string of 1-${maxCodePoints} code points`);
   }
   return value;
 }
@@ -194,7 +193,11 @@ function readOptionalDisplayString(
 }
 
 function readField(value: JsonValue | undefined, path: string): string {
-  return readDisplayString(value, path, MAX_FIELD_CODE_POINTS);
+  const field = readDisplayString(value, path, MAX_FIELD_CODE_POINTS);
+  if (field.trim() !== field) {
+    return schemaError(`${path} must not contain surrounding whitespace`);
+  }
+  return field;
 }
 
 function readOptionalInteger(value: JsonValue | undefined, path: string): number | undefined {

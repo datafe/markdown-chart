@@ -113,6 +113,57 @@ describe('KPI data/config contract', () => {
       .toContain('较昨日');
   });
 
+  it('preserves surrounding spaces in display text through rendering and reference actions', async () => {
+    const open = vi.fn();
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ day: 1, amount: 10, missing: null }, { day: 2, amount: 12, missing: null }] },
+      {
+        timeField: 'day',
+        items: [
+          {
+            id: 'amount', title: ' Revenue ',
+            value: { field: 'amount', format: { style: 'decimal', prefix: ' USD ', suffix: ' million ' } },
+            status: { text: { literal: ' On track ' }, tone: { literal: 'positive' } },
+            trend: { type: 'line', compare: { lag: 1, mode: 'absolute', label: ' vs yesterday ' } },
+            references: [{ ref: 'opaque:revenue', label: ' Definition ' }],
+          },
+          {
+            id: 'missing', title: 'Missing',
+            value: { field: 'missing', format: { style: 'decimal', nullDisplay: ' No data ' } },
+          },
+        ],
+      },
+    ), {}, { open });
+
+    expect(container.querySelector('.markdown-chart-kpi-title')?.textContent).toBe(' Revenue ');
+    expect([...container.querySelectorAll('[data-markdown-chart-kpi-value]')].map((node) => node.textContent))
+      .toEqual([' USD 12 million ', ' No data ']);
+    expect(container.querySelector('.markdown-chart-kpi-status')?.textContent).toBe(' On track ');
+    expect(container.querySelector('.markdown-chart-kpi-compare')?.textContent).toBe(' vs yesterday  + USD 2 million ');
+    container.querySelector<HTMLButtonElement>('.markdown-chart-kpi-reference')?.click();
+    expect(open).toHaveBeenCalledWith({
+      rendererId: 'kpi', reference: { ref: 'opaque:revenue', label: ' Definition ' },
+    });
+  });
+
+  it('renders a multi-KPI group with spaced unit suffixes', async () => {
+    const suffixes = [' 万元', ' 人', ' 次', ' 次', ' 分', ' 个'];
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ day: 1, value: 10 }, { day: 2, value: 12 }] },
+      {
+        timeField: 'day',
+        items: suffixes.map((suffix, index) => ({
+          id: `metric_${index}`, title: `Metric ${index}`,
+          value: { field: 'value', format: { style: 'decimal', suffix } },
+          trend: { type: 'line', compare: { lag: 1, mode: 'relative' } },
+        })),
+      },
+    ));
+    expect([...container.querySelectorAll('[data-markdown-chart-kpi-value]')].map((node) => node.textContent))
+      .toEqual(suffixes.map((suffix) => `12${suffix}`));
+    expect(container.querySelectorAll('.markdown-chart-kpi-sparkline')).toHaveLength(6);
+  });
+
   it('uses one ref resolution for values, trend, compare, and the core Data view', async () => {
     const resolveDataRef = vi.fn(async () => ({
       dimensions: wideData.dimensions,
@@ -375,6 +426,33 @@ describe('KPI validation and security boundaries', () => {
       .toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
     expect(() => parseKpiSpec({ items: [{ id: 'old', title: 'Old', value: { field: 'value' }, prefix: '¥' }] }))
       .toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+  });
+
+  it.each(['', '   ', 'line\nbreak', 'tab\t', 'x'.repeat(33)])(
+    'still rejects invalid affix display text %j', (affix) => {
+      for (const key of ['prefix', 'suffix']) {
+        expect(() => parseKpiSpec({ items: [{
+          id: 'x', title: 'X', value: { field: 'x', format: { style: 'decimal', [key]: affix } },
+        }] })).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+      }
+    },
+  );
+
+  it('keeps surrounding whitespace invalid for identifiers, field bindings, refs, and enums', () => {
+    const item = { id: 'x', title: 'X', value: { field: 'x' } };
+    const invalidSpecs = [
+      { items: [{ ...item, id: ' x ' }] },
+      { items: [{ ...item, dataset: ' data ' }] },
+      { items: [{ ...item, value: { field: ' x ' } }] },
+      { items: [item], timeField: ' day ' },
+      { items: [{ ...item, trend: { type: 'line', timeField: ' day ' } }] },
+      { items: [{ ...item, status: { text: { field: ' status ' } } }] },
+      { items: [{ ...item, references: [{ ref: ' opaque:x ', label: 'X' }] }] },
+      { items: [{ ...item, status: { text: { literal: 'OK' }, tone: { literal: ' positive ' } } }] },
+    ];
+    for (const spec of invalidSpecs) {
+      expect(() => parseKpiSpec(spec)).toThrowError(expect.objectContaining({ code: 'SCHEMA_INVALID' }));
+    }
   });
 
   it('requires canonical data', async () => {
