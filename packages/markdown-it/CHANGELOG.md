@@ -1,5 +1,11 @@
 # @datafe-open/markdown-chart-markdown-it
 
+## 0.3.3
+
+### Patch Changes
+
+- @datafe-open/markdown-chart@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes
