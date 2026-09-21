@@ -261,6 +261,12 @@ contains 1–12 entries:
 notation, fraction digits, prefix, suffix, and null display. Functions,
 expressions, locale injection, and JavaScript formatters are not supported.
 
+KPI display strings (titles, format prefix/suffix/null display, literal status
+text, comparison labels, and reference labels) preserve surrounding spaces.
+They MUST contain non-whitespace text and remain within their length and
+control-character limits. Identifiers, field bindings, opaque refs, and enum
+values do not accept surrounding whitespace.
+
 An item without `dataset` reads the default top-level `data`. An item with
 `dataset` MUST name an entry in the top-level `datasets` map. Multiple items MAY
 select the same named dataset, which is materialized once. Prefer shared default
