@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.3.3
+
+### Patch Changes
+
+- c8f02d1: Allow surrounding spaces in KPI display text, including unit prefixes and suffixes, titles, status text, comparison labels, null placeholders, and reference labels. Preserve the supplied text while retaining non-blank, length, and control-character checks and strict identifier validation.
+  - @datafe-open/markdown-chart@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes
