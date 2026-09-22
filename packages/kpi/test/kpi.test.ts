@@ -98,6 +98,62 @@ const mixedSpec = {
 };
 
 describe('KPI data/config contract', () => {
+  it('keeps a compact toolbar through data toggles and restores the host on disposal', async () => {
+    const { container, controller } = await render(envelope(wideData, mixedSpec));
+    const toolbar = container.querySelector<HTMLElement>('.markdown-chart-toolbar')!;
+    expect(toolbar.style.minHeight).toBe('36px');
+    expect(toolbar.style.background).toBe('transparent');
+    expect(toolbar.style.borderBottomWidth).toBe('0px');
+    const buttons = container.querySelectorAll<HTMLButtonElement>('.markdown-chart-toggle-button');
+    const chart = container.querySelector<HTMLElement>('.markdown-chart-chart-view')!;
+    const firstValue = chart.querySelector('.markdown-chart-kpi-value');
+    buttons[1]!.click();
+    expect(chart.hidden).toBe(true);
+    expect(buttons[1]!.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('table')?.textContent).toContain('revenue');
+    buttons[0]!.click();
+    expect(chart.hidden).toBe(false);
+    expect(chart.querySelector('.markdown-chart-kpi-value')).toBe(firstValue);
+    expect(buttons[0]!.getAttribute('aria-pressed')).toBe('true');
+    controller.dispose();
+    expect(container.classList.contains('markdown-chart-card')).toBe(false);
+    expect(container.style.border).toBe('');
+    expect(container.dataset.markdownChartIntrinsicHeight).toBeUndefined();
+  });
+
+  it('renders seven borderless metrics with compact trends and preserves formatted affixes', async () => {
+    const { container } = await render(envelope(
+      { kind: 'inline', source: [{ day: 1, amount: 100, missing: null }, { day: 2, amount: 156.4, missing: null }] },
+      { timeField: 'day', items: Array.from({ length: 7 }, (_, index) => ({
+        id: `metric${index}`, title: `指标 ${index}`,
+        value: { field: index === 6 ? 'missing' : 'amount', format: {
+          style: 'decimal', prefix: '约 ', suffix: ' 万元', nullDisplay: ' 暂无 ',
+        } },
+        status: { text: { literal: '低于上周日' }, tone: { literal: 'negative' } },
+        ...(index === 0 ? { trend: { type: 'line' } } : {}),
+      })) },
+    ));
+    const grid = container.querySelector<HTMLElement>('.markdown-chart-kpi-grid')!;
+    expect(grid.children).toHaveLength(7);
+    expect(grid.style.border).toBe('');
+    for (const card of grid.querySelectorAll<HTMLElement>('.markdown-chart-kpi-item')) {
+      expect(card.style.boxShadow).toBe('');
+      expect(card.style.minHeight).toBe('');
+    }
+    const value = grid.querySelector<HTMLElement>('.markdown-chart-kpi-value')!;
+    expect(value.textContent).toBe('约 156.4 万元');
+    expect(value.dataset.markdownChartKpiValue).toBe(value.textContent);
+    expect([...value.querySelectorAll('.markdown-chart-kpi-affix')].map(node => node.textContent))
+      .toEqual(['约 ', ' 万元']);
+    const missing = grid.querySelector('[data-markdown-chart-kpi-id="metric6"]')!;
+    expect(missing.querySelector('.markdown-chart-kpi-value')?.textContent).toBe(' 暂无 ');
+    expect(missing.querySelector('.markdown-chart-kpi-affix')).toBeNull();
+    expect(grid.querySelector<HTMLElement>('.markdown-chart-kpi-status')?.style.background).toBe('');
+    expect(grid.querySelector<SVGElement>('.markdown-chart-kpi-sparkline')?.style.height).toBe('44px');
+    expect(grid.querySelector('.markdown-chart-kpi-sparkline polyline')?.getAttribute('points'))
+      .toBe('2,42 158,2');
+  });
+
   it('renders mixed area, line, and no-trend cards from one wide inline dataset', async () => {
     const { container } = await render(envelope(wideData, mixedSpec));
     const values = [...container.querySelectorAll<HTMLElement>('[data-markdown-chart-kpi-value]')]

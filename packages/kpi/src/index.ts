@@ -127,6 +127,8 @@ interface MaterializedKpiItem {
   readonly id: string;
   readonly title: string;
   readonly displayValue: string;
+  readonly prefix?: string;
+  readonly suffix?: string;
   readonly status?: { readonly text: string; readonly tone: KpiTone };
   readonly trend?: MaterializedTrend;
   readonly references?: readonly KpiReference[];
@@ -626,6 +628,9 @@ function materializeItems(
       id: item.id,
       title: item.title,
       displayValue: formatValue(current.value, item.value.format),
+      ...(current.value !== null && current.value !== undefined
+        ? { prefix: item.value.format?.prefix ?? '', suffix: item.value.format?.suffix ?? '' }
+        : {}),
       ...(item.status && statusText
         ? { status: { text: statusText, tone: resolveToneBinding(data, item.status.tone) } }
         : {}),
@@ -789,11 +794,11 @@ function createReferenceControls(
   return { element, controls };
 }
 
-function toneColor(tone: KpiTone): string {
-  if (tone === 'positive') return variable('--markdown-chart-kpi-positive', '#138a55');
-  if (tone === 'warning') return variable('--markdown-chart-kpi-warning', '#b35c00');
-  if (tone === 'negative') return variable('--markdown-chart-kpi-negative', '#d93025');
-  return variable('--markdown-chart-kpi-muted', '#687386');
+function toneColor(tone: KpiTone, theme: unknown): string {
+  if (tone === 'positive') return variable('--markdown-chart-kpi-positive', themeFallback(theme, '#138a55', '#62c795'));
+  if (tone === 'warning') return variable('--markdown-chart-kpi-warning', themeFallback(theme, '#b35c00', '#e9b16a'));
+  if (tone === 'negative') return variable('--markdown-chart-kpi-negative', themeFallback(theme, '#d93025', '#ff8b82'));
+  return variable('--markdown-chart-kpi-muted', themeFallback(theme, '#687386', '#aeb5c2'));
 }
 
 function createSparkline(trend: MaterializedTrend): SVGSVGElement {
@@ -863,20 +868,18 @@ function createCard(
   card.dataset.markdownChartKpiId = item.id;
   card.setAttribute('role', 'listitem');
   setStyles(card, {
-    display: 'flex', minWidth: '0', minHeight: item.trend ? '172px' : '128px', boxSizing: 'border-box',
-    flexDirection: 'column', padding: '16px 16px 14px',
-    background: variable('--markdown-chart-kpi-background', themeFallback(context.theme, '#ffffff', '#17191f')),
-    boxShadow: `0 0 0 1px ${variable('--markdown-chart-kpi-border', themeFallback(context.theme, '#d9deea', '#343943'))}`,
+    display: 'flex', minWidth: '0', boxSizing: 'border-box',
+    flexDirection: 'column',
   });
   const heading = document.createElement('div');
-  setStyles(heading, { display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: '0' });
+  setStyles(heading, { display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: '0', minHeight: '24px' });
   const title = document.createElement('div');
   title.className = 'markdown-chart-kpi-title';
   title.textContent = item.title;
   setStyles(title, {
     minWidth: '0', overflowWrap: 'anywhere',
     color: variable('--markdown-chart-kpi-muted', themeFallback(context.theme, '#596273', '#aeb5c2')),
-    fontSize: '13px', fontWeight: '550', lineHeight: '1.45',
+    fontSize: '13px', fontWeight: '400', lineHeight: '1.45',
   });
   heading.append(title);
   const referenceControls = createReferenceControls(item.references, context, referenceIcon);
@@ -885,11 +888,23 @@ function createCard(
   const value = document.createElement('div');
   value.className = 'markdown-chart-kpi-value';
   value.dataset.markdownChartKpiValue = item.displayValue;
-  value.textContent = item.displayValue;
+  const prefixLength = item.prefix?.length ?? 0;
+  const suffixLength = item.suffix?.length ?? 0;
+  const body = item.displayValue.slice(prefixLength, item.displayValue.length - suffixLength);
+  for (const [text, isAffix] of [[item.prefix, true], [body, false], [item.suffix, true]] as const) {
+    if (!text) continue;
+    const part = document.createElement('span');
+    part.textContent = text;
+    if (isAffix) {
+      part.className = 'markdown-chart-kpi-affix';
+      setStyles(part, { fontSize: '14px', fontWeight: '400', letterSpacing: 'normal' });
+    }
+    value.append(part);
+  }
   setStyles(value, {
     marginTop: '8px', overflowWrap: 'anywhere',
     color: variable('--markdown-chart-kpi-foreground', themeFallback(context.theme, '#20242c', '#f4f6fa')),
-    fontSize: '28px', fontWeight: '650', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: '1.16',
+    fontSize: '28px', fontWeight: '600', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', lineHeight: '1.2',
   });
   card.append(heading, value);
 
@@ -899,16 +914,16 @@ function createCard(
     status.dataset.markdownChartKpiTone = item.status.tone;
     status.textContent = item.status.text;
     setStyles(status, {
-      alignSelf: 'flex-start', marginTop: '8px', padding: '2px 7px', borderRadius: '4px',
-      background: 'color-mix(in srgb, currentColor 10%, transparent)', color: toneColor(item.status.tone),
-      fontSize: '11px', fontWeight: '550', lineHeight: '1.5',
+      alignSelf: 'flex-start', marginTop: '8px', overflowWrap: 'anywhere',
+      color: toneColor(item.status.tone, context.theme),
+      fontSize: '12px', fontWeight: '400', lineHeight: '1.5',
     });
     card.append(status);
   }
   if (item.trend) {
     const trend = document.createElement('div');
     trend.className = 'markdown-chart-kpi-trend';
-    setStyles(trend, { display: 'grid', gap: '4px', marginTop: 'auto', paddingTop: '10px' });
+    setStyles(trend, { display: 'grid', gap: '4px', marginTop: '12px' });
     trend.append(createSparkline(item.trend));
     if (item.trend.comparison) {
       const comparison = document.createElement('div');
@@ -916,7 +931,7 @@ function createCard(
       comparison.dataset.markdownChartKpiTone = item.trend.comparison.tone;
       comparison.textContent = item.trend.comparison.text;
       setStyles(comparison, {
-        color: toneColor(item.trend.comparison.tone), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
+        color: toneColor(item.trend.comparison.tone, context.theme), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
       });
       trend.append(comparison);
     }
@@ -1009,11 +1024,9 @@ export function createKpiRenderer(options: CreateKpiRendererOptions = {}): Chart
       grid.setAttribute('role', 'list');
       setStyles(grid, {
         display: 'grid', width: '100%', minWidth: '0', overflow: 'hidden', boxSizing: 'border-box',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '1px',
-        border: `1px solid ${variable('--markdown-chart-kpi-border', themeFallback(context.theme, '#d9deea', '#343943'))}`,
-        borderRadius: '8px',
-        // Unfilled cells share the card surface; card shadows draw the separators.
-        background: variable('--markdown-chart-kpi-background', themeFallback(context.theme, '#ffffff', '#17191f')),
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '28px 24px',
+        padding: '12px', alignItems: 'start',
+        background: variable('--markdown-chart-kpi-background', 'transparent'),
       });
       const controls: ReferenceControl[] = [];
       parsed.items.forEach((item) => {
