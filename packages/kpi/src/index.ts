@@ -872,7 +872,7 @@ function createCard(
     flexDirection: 'column',
   });
   const heading = document.createElement('div');
-  setStyles(heading, { display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: '0' });
+  setStyles(heading, { display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: '0', minHeight: '24px' });
   const title = document.createElement('div');
   title.className = 'markdown-chart-kpi-title';
   title.textContent = item.title;
