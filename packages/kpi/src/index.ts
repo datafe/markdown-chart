@@ -794,11 +794,11 @@ function createReferenceControls(
   return { element, controls };
 }
 
-function toneColor(tone: KpiTone): string {
-  if (tone === 'positive') return variable('--markdown-chart-kpi-positive', '#138a55');
-  if (tone === 'warning') return variable('--markdown-chart-kpi-warning', '#b35c00');
-  if (tone === 'negative') return variable('--markdown-chart-kpi-negative', '#d93025');
-  return variable('--markdown-chart-kpi-muted', '#687386');
+function toneColor(tone: KpiTone, theme: unknown): string {
+  if (tone === 'positive') return variable('--markdown-chart-kpi-positive', themeFallback(theme, '#138a55', '#62c795'));
+  if (tone === 'warning') return variable('--markdown-chart-kpi-warning', themeFallback(theme, '#b35c00', '#e9b16a'));
+  if (tone === 'negative') return variable('--markdown-chart-kpi-negative', themeFallback(theme, '#d93025', '#ff8b82'));
+  return variable('--markdown-chart-kpi-muted', themeFallback(theme, '#687386', '#aeb5c2'));
 }
 
 function createSparkline(trend: MaterializedTrend): SVGSVGElement {
@@ -915,7 +915,7 @@ function createCard(
     status.textContent = item.status.text;
     setStyles(status, {
       alignSelf: 'flex-start', marginTop: '8px', overflowWrap: 'anywhere',
-      color: toneColor(item.status.tone),
+      color: toneColor(item.status.tone, context.theme),
       fontSize: '12px', fontWeight: '400', lineHeight: '1.5',
     });
     card.append(status);
@@ -931,7 +931,7 @@ function createCard(
       comparison.dataset.markdownChartKpiTone = item.trend.comparison.tone;
       comparison.textContent = item.trend.comparison.text;
       setStyles(comparison, {
-        color: toneColor(item.trend.comparison.tone), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
+        color: toneColor(item.trend.comparison.tone, context.theme), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
       });
       trend.append(comparison);
     }
