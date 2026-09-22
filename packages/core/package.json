@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Framework-neutral registry and lifecycle controller for JSON charts in Markdown",
   "license": "MIT",
   "repository": {

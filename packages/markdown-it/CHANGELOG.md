@@ -1,5 +1,12 @@
 # @datafe-open/markdown-chart-markdown-it
 
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [e825d78]
+  - @datafe-open/markdown-chart@0.3.4
+
 ## 0.3.3
 
 ### Patch Changes

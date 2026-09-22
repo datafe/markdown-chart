@@ -1,5 +1,15 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.3.4
+
+### Patch Changes
+
+- e825d78: Simplify KPI groups with borderless metrics, whitespace spacing, plain status text,
+  smaller explicit value affixes, and a compact neutral Chart/Data toolbar. Preserve
+  44px line/area trends, formatted text, reference actions, and other chart toolbars.
+- Updated dependencies [e825d78]
+  - @datafe-open/markdown-chart@0.3.4
+
 ## 0.3.3
 
 ### Patch Changes
