@@ -3,6 +3,11 @@
 Strict, framework-neutral KPI card renderer for
 [`@datafe-open/markdown-chart`](../core/README.md).
 
+Metrics share a single outer chart frame with whitespace between items, plain
+status text, and a compact Chart/Data toolbar. Explicit format prefixes and
+suffixes use smaller type without changing their text or spaces. Line and area
+sparklines stay 44px high; metrics without trends need no reserved trend space.
+
 ```ts
 import { ChartRendererRegistry } from '@datafe-open/markdown-chart';
 import { createKpiRenderer } from '@datafe-open/markdown-chart-kpi';

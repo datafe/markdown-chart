@@ -1911,6 +1911,7 @@ function createChartView(
   signal: AbortSignal,
   dataViewProvider?: ChartDataViewProvider,
   preferredHeight?: number,
+  compact = false,
 ): ChartView {
   const colors = chartViewColors(theme);
   const hadCardClass = container.classList.contains('markdown-chart-card');
@@ -1942,13 +1943,13 @@ function createChartView(
   toolbar.className = 'markdown-chart-toolbar';
   setStyles(toolbar, {
     display: 'flex',
-    minHeight: '44px',
+    minHeight: compact ? '36px' : '44px',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '12px',
     padding: '0 10px 0 14px',
-    borderBottom: '1px solid color-mix(in srgb, currentColor 14%, transparent)',
-    background: colors.subtleBackground,
+    borderBottom: compact ? '0' : '1px solid color-mix(in srgb, currentColor 14%, transparent)',
+    background: compact ? 'transparent' : colors.subtleBackground,
   });
   const normalizedTitle = chartTitle?.trim();
   let title: HTMLDivElement | undefined;
@@ -1979,7 +1980,7 @@ function createChartView(
     gap: '2px',
     padding: '2px',
     overflow: 'hidden',
-    border: '1px solid color-mix(in srgb, currentColor 16%, transparent)',
+    border: compact ? '0' : '1px solid color-mix(in srgb, currentColor 16%, transparent)',
     borderRadius: '6px',
     background: colors.background,
   });
@@ -2053,8 +2054,10 @@ function createChartView(
       }
     });
   };
-  const selectedBackground = 'var(--markdown-chart-accent, #0033ff)';
-  const selectedForeground = 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
+  const selectedBackground = compact ? colors.subtleBackground : 'var(--markdown-chart-accent, #0033ff)';
+  const selectedForeground = compact
+    ? colors.foreground
+    : 'var(--markdown-chart-accent-foreground, var(--markdown-chart-background, #ffffff))';
   const unselectedForeground = 'color-mix(in srgb, currentColor 68%, transparent)';
 
   const select = (mode: 'chart' | 'data'): void => {
@@ -2198,6 +2201,7 @@ export class ChartController {
             abortController.signal,
             this.#registry.dataViewProvider,
             materialized.preferredHeight,
+            prepared.rendererId === 'kpi',
           )
         : undefined;
       this.#view = view;

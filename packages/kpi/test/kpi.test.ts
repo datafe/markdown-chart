@@ -98,6 +98,29 @@ const mixedSpec = {
 };
 
 describe('KPI data/config contract', () => {
+  it('keeps a compact toolbar through data toggles and restores the host on disposal', async () => {
+    const { container, controller } = await render(envelope(wideData, mixedSpec));
+    const toolbar = container.querySelector<HTMLElement>('.markdown-chart-toolbar')!;
+    expect(toolbar.style.minHeight).toBe('36px');
+    expect(toolbar.style.background).toBe('transparent');
+    expect(toolbar.style.borderBottomWidth).toBe('0px');
+    const buttons = container.querySelectorAll<HTMLButtonElement>('.markdown-chart-toggle-button');
+    const chart = container.querySelector<HTMLElement>('.markdown-chart-chart-view')!;
+    const firstValue = chart.querySelector('.markdown-chart-kpi-value');
+    buttons[1]!.click();
+    expect(chart.hidden).toBe(true);
+    expect(buttons[1]!.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('table')?.textContent).toContain('revenue');
+    buttons[0]!.click();
+    expect(chart.hidden).toBe(false);
+    expect(chart.querySelector('.markdown-chart-kpi-value')).toBe(firstValue);
+    expect(buttons[0]!.getAttribute('aria-pressed')).toBe('true');
+    controller.dispose();
+    expect(container.classList.contains('markdown-chart-card')).toBe(false);
+    expect(container.style.border).toBe('');
+    expect(container.dataset.markdownChartIntrinsicHeight).toBeUndefined();
+  });
+
   it('renders seven borderless metrics with compact trends and preserves formatted affixes', async () => {
     const { container } = await render(envelope(
       { kind: 'inline', source: [{ day: 1, amount: 100, missing: null }, { day: 2, amount: 156.4, missing: null }] },
