@@ -11,6 +11,8 @@ description: >
 在回答中直接输出图表 JSON。宿主已支持 `markdown-chart`，无需探测渲染器；
 本 Skill 定义生成格式，宿主负责解析和渲染。
 
+生成 KPI 或 waterfall 前读取 [涨跌语义色](references/semantic-colors.md)：中文红涨绿跌，英文绿涨红跌；同一回答共用约定。
+
 ## 输出契约
 
 - 每张图用独立的 `markdown-chart` 围栏，内容是一个可被 `JSON.parse` 解析的对象。
@@ -38,8 +40,9 @@ description: >
   列类型、格式、变化/条形/进度/sparkline 单元格和受控 ref 规则配置。
 - **ECharts**：生成前读取 [ECharts 契约与示例](references/echarts.md)；其中包含最小模板、
   长表处理、多系列映射、组合图和预检要求。
-- **分布、矩阵与阶段**：直方、箱线、散点、热力、雷达、仪表、漏斗、瀑布图读取
+- **分布、矩阵与阶段**：直方、箱线、散点、热力、雷达、仪表、漏斗图读取
   [分布与矩阵](references/distribution-and-matrix.md)。
+- **瀑布图 / waterfall**：累计增减分解读取 [标准 Waterfall](references/waterfall.md)，按完整模板准备数据并执行 validator。
 - **流向与关系**：桑基或关系图读取 [Graph 与 Flow](references/graph-and-flow.md)。
   这两类使用 `shape: "graph"`，必须执行 validator。
 - **层级**：树、矩形树或旭日图读取 [Hierarchy](references/hierarchy.md)。

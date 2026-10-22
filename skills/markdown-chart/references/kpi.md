@@ -2,6 +2,10 @@
 
 与 [Skill 主入口](../SKILL.md) 的通用输出契约一起使用；本页只在生成 KPI 时读取。
 
+先读 [涨跌语义色](semantic-colors.md)。新 KPI 信封必须显式设置 `spec.colorConvention`；中文为
+`red-up-green-down`，英文为 `green-up-red-down`。compare 和趋势线按实际数值方向着色，
+不由 polarity 反转；status.tone 继续表示业务状态。
+
 ## KPI 输出契约
 
 KPI 记分卡必须使用以下严格的顶层结构：
@@ -15,6 +19,7 @@ KPI 记分卡必须使用以下严格的顶层结构：
     "source": [{ "metric_a": 1, "metric_b": 2 }]
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "items": [
       {
         "id": "metric_a",
@@ -105,6 +110,7 @@ day         channel  orders
     "source": [["2026-09-01", 100], ["2026-09-02", 150]]
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "timeField": "day",
     "items": [{
       "id": "daily_orders",
@@ -150,6 +156,7 @@ day         channel  orders
     "source": [[91.89, 8.11]]
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "items": [
       {
         "id": "ontime_rate",
@@ -203,6 +210,7 @@ day         channel  orders
     ]
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "timeField": "day",
     "items": [
       {
@@ -291,6 +299,7 @@ KPI 条目需要独立结果时，数据名称与证据名称必须清晰区分�
     }
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "items": [
       {
         "id": "revenue",

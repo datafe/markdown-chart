@@ -11,8 +11,30 @@
       "tooltip": true,
       "labels": true,
       "series": [
-        { "type": "bar", "categoryColors": true, "axisUnit": "亿元", "values": { "PC": 6.3501580328, "H5": 6.3343987924, "直播": 6.3288772159, "APP": 6.3096325548, "小程序": 6.3093198505 }, "tolerance": 0.005 },
-        { "type": "line", "axisUnit": "%", "values": { "PC": 20.07, "H5": 20.03, "直播": 20.01, "APP": 19.95, "小程序": 19.95 } }
+        {
+          "type": "bar",
+          "categoryColors": true,
+          "axisUnit": "亿元",
+          "values": {
+            "PC": 6.3501580328,
+            "H5": 6.3343987924,
+            "直播": 6.3288772159,
+            "APP": 6.3096325548,
+            "小程序": 6.3093198505
+          },
+          "tolerance": 0.005
+        },
+        {
+          "type": "line",
+          "axisUnit": "%",
+          "values": {
+            "PC": 20.07,
+            "H5": 20.03,
+            "直播": 20.01,
+            "APP": 19.95,
+            "小程序": 19.95
+          }
+        }
       ]
     },
     {
@@ -25,7 +47,15 @@
       "tooltip": true,
       "labels": true,
       "series": [
-        { "type": "bar", "categoryAxis": "y", "values": { "办公用品": 320, "家居百货": 180, "数码配件": 250 } }
+        {
+          "type": "bar",
+          "categoryAxis": "y",
+          "values": {
+            "办公用品": 320,
+            "家居百货": 180,
+            "数码配件": 250
+          }
+        }
       ]
     },
     {
@@ -37,8 +67,14 @@
       "renderer": "kpi",
       "fractionDigits": 2,
       "kpis": [
-        { "title": "准时交付率", "displayValue": 91.89 },
-        { "title": "增长率", "displayValue": 125 }
+        {
+          "title": "准时交付率",
+          "displayValue": 91.89
+        },
+        {
+          "title": "增长率",
+          "displayValue": 125
+        }
       ]
     },
     {
@@ -50,15 +86,177 @@
       "renderer": "echarts",
       "tooltip": true,
       "wideSeries": {
-        "xValues": ["2025-05-26", "2025-07-14"],
+        "xValues": [
+          "2025-05-26",
+          "2025-07-14"
+        ],
         "values": {
-          "月饼礼盒": [713791, 391199],
-          "坚果炒货": [374594, 282953],
-          "茶叶茶具": [447620, 826097],
-          "大闸蟹券": [285490, 468431],
-          "餐具套装": [99877, 100978]
+          "月饼礼盒": [
+            713791,
+            391199
+          ],
+          "坚果炒货": [
+            374594,
+            282953
+          ],
+          "茶叶茶具": [
+            447620,
+            826097
+          ],
+          "大闸蟹券": [
+            285490,
+            468431
+          ],
+          "餐具套装": [
+            99877,
+            100978
+          ]
         }
       }
+    },
+    {
+      "id": 5,
+      "name": "waterfall-zh",
+      "language": "zh",
+      "renderer": "echarts",
+      "waterfall": [
+        {
+          "name": "期初",
+          "change": null,
+          "balance": 100
+        },
+        {
+          "name": "收入",
+          "change": 40,
+          "balance": 140
+        },
+        {
+          "name": "成本",
+          "change": -180,
+          "balance": -40
+        },
+        {
+          "name": "小计",
+          "change": null,
+          "balance": -40
+        },
+        {
+          "name": "回收",
+          "change": 70,
+          "balance": 30
+        },
+        {
+          "name": "期末",
+          "change": null,
+          "balance": 30
+        }
+      ],
+      "prompt": "请用中文生成一张标准瀑布图。已确认数据：期初100，收入增加40，成本减少180，小计-40，回收增加70，期末30。小计仅为当前余额快照，不重置累计。显示带符号标签和 tooltip，用一句话解释。"
+    },
+    {
+      "id": 6,
+      "name": "kpi-zh",
+      "language": "zh",
+      "renderer": "kpi",
+      "directionKpis": [
+        {
+          "title": "收入",
+          "values": [
+            100,
+            120
+          ],
+          "polarity": "higher-is-better"
+        },
+        {
+          "title": "成本",
+          "values": [
+            80,
+            60
+          ],
+          "polarity": "lower-is-better"
+        },
+        {
+          "title": "持平",
+          "values": [
+            30,
+            30
+          ],
+          "polarity": "neutral"
+        }
+      ],
+      "prompt": "请用中文生成一组 KPI，标题为收入、成本、持平。10月21日至22日已确认数据：收入100→120，成本80→60，持平30→30。收入越高越好、成本越低越好，持平为中性。每项显示两日趋势和较上一行的绝对变化，不需要猜币种。"
+    },
+    {
+      "id": 7,
+      "name": "waterfall-en",
+      "language": "en",
+      "renderer": "echarts",
+      "waterfall": [
+        {
+          "name": "Opening",
+          "change": null,
+          "balance": 100
+        },
+        {
+          "name": "Revenue",
+          "change": 40,
+          "balance": 140
+        },
+        {
+          "name": "Cost",
+          "change": -180,
+          "balance": -40
+        },
+        {
+          "name": "Subtotal",
+          "change": null,
+          "balance": -40
+        },
+        {
+          "name": "Recovery",
+          "change": 70,
+          "balance": 30
+        },
+        {
+          "name": "Closing",
+          "change": null,
+          "balance": 30
+        }
+      ],
+      "prompt": "Answer in English with one standard waterfall chart: Opening 100, Income +40, Costs -180, Subtotal -40, Recovery +70, Closing 30. Subtotal is a balance snapshot, not a reset. Include signed labels, tooltips, and a one-sentence explanation."
+    },
+    {
+      "id": 8,
+      "name": "kpi-en",
+      "language": "en",
+      "renderer": "kpi",
+      "directionKpis": [
+        {
+          "title": "Revenue",
+          "values": [
+            100,
+            120
+          ],
+          "polarity": "higher-is-better"
+        },
+        {
+          "title": "Cost",
+          "values": [
+            80,
+            60
+          ],
+          "polarity": "lower-is-better"
+        },
+        {
+          "title": "Unchanged",
+          "values": [
+            30,
+            30
+          ],
+          "polarity": "neutral"
+        }
+      ],
+      "prompt": "Answer in English with one KPI group titled Revenue, Cost, Unchanged. Confirmed data for Oct 21 to Oct 22: Revenue 100 to 120, Cost 80 to 60, Unchanged 30 to 30. Revenue is higher-is-better, Cost lower-is-better, Unchanged neutral. Show two-day trends and absolute changes from the preceding row. Do not invent a currency."
     }
   ]
 }

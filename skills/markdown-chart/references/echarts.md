@@ -184,3 +184,5 @@ node "<Base directory>/scripts/validate_chart.mjs" "chart-draft.json"
 不要在最终输出中重新添加未经校验的格式化配置。工具不可用时保留简单已知格式；
 无法可靠表达的图表降级为表格/文字。对于两个及以上 line/bar 系列，validator 不可用
 也必须降级，不能跳过门禁输出未经校验的多系列图。
+
+标准累计增减分解使用 [Waterfall 模板](waterfall.md)，并遵循 [涨跌语义色](semantic-colors.md)。不要输出不存在的 `series.type:"waterfall"`。
