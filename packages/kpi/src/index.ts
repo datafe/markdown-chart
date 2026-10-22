@@ -611,7 +611,7 @@ function materializeTrend(
   }
   return {
     type: trend.type,
-    colorConvention: spec.colorConvention,
+    ...(spec.colorConvention ? { colorConvention: spec.colorConvention } : {}),
     values,
     includeZero: trend.yScale?.includeZero ?? false,
     ...(comparison ? { comparison } : {}),
