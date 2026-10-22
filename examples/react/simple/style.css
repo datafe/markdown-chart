@@ -26,6 +26,7 @@ button {
 }
 
 .conversation-card {
+  min-width: 0;
   width: min(100%, 980px);
   margin: 0 auto;
   padding: 28px 30px;
@@ -183,7 +184,7 @@ button {
 
 @media (max-width: 960px) {
   .demo-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding: 24px;
   }
 
@@ -191,4 +192,10 @@ button {
     position: static;
     width: 100%;
   }
+}
+
+@media (max-width: 600px) {
+  .demo-shell { padding: 12px; }
+  .conversation-card { padding: 16px 12px; }
+  .message-header, .demo-actions { flex-wrap: wrap; }
 }

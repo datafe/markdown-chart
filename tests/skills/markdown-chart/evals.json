@@ -223,7 +223,7 @@
           "balance": 30
         }
       ],
-      "prompt": "Answer in English with one standard waterfall chart: Opening 100, Income +40, Costs -180, Subtotal -40, Recovery +70, Closing 30. Subtotal is a balance snapshot, not a reset. Include signed labels, tooltips, and a one-sentence explanation."
+      "prompt": "Answer in English with one standard waterfall chart: Opening 100, Revenue +40, Cost -180, Subtotal -40, Recovery +70, Closing 30. Subtotal is a balance snapshot, not a reset. Include signed labels, tooltips, and a one-sentence explanation."
     },
     {
       "id": 8,
