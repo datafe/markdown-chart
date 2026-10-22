@@ -1,3 +1,4 @@
+import { checkSemantics } from "./check_semantics.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -139,6 +140,7 @@ export function checkCase(markdown, testCase) {
       }
     }
   }
+  result.errors.push(...checkSemantics(chart, testCase));
   result.ok = result.errors.length === 0;
   return result;
 }

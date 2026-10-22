@@ -12,7 +12,7 @@ table canonical data；分析过程先准备可直接绘制的数值，series �
 | 阶段转化 | 漏斗 | 真实阶段顺序和每阶段值，不按数值自动改业务顺序 |
 | 多维画像 | 雷达 | 同量纲或已解释量纲、indicator 名称和真实上限 |
 | 单值相对区间 | 仪表 | 当前值、业务最小/最大范围和单位 |
-| 累计增减 | 瀑布 | 每步基座、增加、减少列；不在 renderer 内累计 |
+| 累计增减 | 瀑布 | 每步基座、增加、减少、合计与有符号标签；见 [标准 Waterfall](waterfall.md) |
 
 ## 完整示例：已分桶直方图
 
@@ -43,7 +43,7 @@ table canonical data；分析过程先准备可直接绘制的数值，series �
 - 箱线：source 每行包含类别和五数；encode 的 y 指向五数列数组。
 - 雷达/仪表若当前 ECharts dataset encode 无法稳定表达，应改用其它受支持图或文字，
   不能把第二份事实写入 `series.data` 绕开单一事实源。
-- 瀑布：使用相同 stack 的透明基座、增加、减少三个 bar series，各自 encode 到准备列。
+- 瀑布：必须读取 [标准 Waterfall](waterfall.md) 与 [涨跌语义色](semantic-colors.md)，使用四个 bar 和完整累计规则。
 
 包含多条 line/bar 时执行 validator。任何图若需要猜分桶、分位、阶段顺序、上限或基座，
 先回到分析步骤补齐；validator 只能检查字段是否存在，不能证明业务计算正确。

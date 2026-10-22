@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "dimensions": [
+      "day",
+      "revenue",
+      "cost",
+      "flat"
+    ],
+    "source": [
+      [
+        "2026-10-21",
+        100,
+        80,
+        30
+      ],
+      [
+        "2026-10-22",
+        120,
+        60,
+        30
+      ]
+    ]
+  },
+  "spec": {
+    "colorConvention": "green-up-red-down",
+    "timeField": "day",
+    "items": [
+      {
+        "id": "revenue",
+        "title": "Revenue",
+        "value": {
+          "field": "revenue"
+        },
+        "trend": {
+          "type": "area",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "vs previous",
+            "polarity": "higher-is-better"
+          }
+        },
+        "status": {
+          "text": {
+            "literal": "On track"
+          },
+          "tone": {
+            "literal": "positive"
+          }
+        }
+      },
+      {
+        "id": "cost",
+        "title": "Cost",
+        "value": {
+          "field": "cost"
+        },
+        "trend": {
+          "type": "line",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "vs previous",
+            "polarity": "lower-is-better"
+          }
+        }
+      },
+      {
+        "id": "flat",
+        "title": "Unchanged",
+        "value": {
+          "field": "flat"
+        },
+        "trend": {
+          "type": "line",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "vs previous",
+            "polarity": "neutral"
+          }
+        }
+      }
+    ]
+  }
+}

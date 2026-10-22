@@ -1,26 +1,8 @@
 <script setup lang="ts">
 import { MarkdownChart } from '@datafe-open/markdown-chart-vue';
-
-const source = `# Sales
-
-\`\`\`markdown-chart
-{
-  "version": 1,
-  "renderer": "echarts",
-  "data": {
-    "kind": "inline",
-    "dimensions": ["category", "value"],
-    "source": [["A", 10], ["B", 20]]
-  },
-  "spec": {
-    "xAxis": { "type": "category" },
-    "yAxis": {},
-    "series": [{ "type": "bar", "encode": { "x": "category", "y": "value" } }]
-  }
-}
-\`\`\``;
+import { semanticExamples } from '../../shared/semantic-examples';
 </script>
 
 <template>
-  <MarkdownChart :source="source" />
+  <MarkdownChart :source="semanticExamples" />
 </template>

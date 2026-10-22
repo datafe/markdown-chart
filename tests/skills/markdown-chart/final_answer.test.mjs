@@ -13,7 +13,7 @@ const valid = () => ({
 
 test("validates all complete chart examples shipped with the skill", () => {
   let total = 0;
-  for (const name of ["SKILL.md", "references/echarts.md", "references/kpi.md", "references/table.md"]) {
+  for (const name of ["SKILL.md", "references/echarts.md", "references/kpi.md", "references/table.md", "references/waterfall.md"]) {
     const markdown = fs.readFileSync(new URL(name, skillRoot), "utf8");
     const count = (markdown.match(/^```markdown-chart$/gm) ?? []).length;
     total += count;

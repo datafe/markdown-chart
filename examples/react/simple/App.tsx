@@ -1,3 +1,4 @@
+import { semanticExamples } from '../../shared/semantic-examples';
 import { useCallback, useMemo, useState } from 'react';
 import type {
   ChartDataRow,
@@ -54,6 +55,7 @@ const inventoryRows: readonly ChartDataRow[] = [
 ];
 
 const spec = {
+  colorConvention: 'red-up-green-down',
   timeField: 'day',
   items: [
     {
@@ -240,7 +242,9 @@ function markdownSource(mode: 'inline' | 'ref'): string {
       ? { kind: 'inline', dimensions: inventoryDimensions, source: inventoryRows }
       : { kind: 'ref', ref: 'demo://门店库存', format: 'json', dimensions: inventoryDimensions },
   };
-  return `## 经营风险概览
+  return `${semanticExamples}
+
+## 经营风险概览
 
 同一组中同时展示默认数据和独立库存数据集。右上角引用由宿主打开 Wiki，图表包不解析 Wiki。
 

@@ -171,6 +171,7 @@ ECharts 与 Nodes/Links 或扁平层级 Data 视图，结构化 series 不再复
     ]
   },
   "spec": {
+    "colorConvention": "red-up-green-down",
     "timeField": "day",
     "items": [
       {
@@ -263,3 +264,14 @@ pnpm check:pack
 
 MIT。部分实现改编自采用 Apache-2.0 许可证的 Qwen Code，详见
 [第三方声明](./THIRD_PARTY_NOTICES.md)。
+
+### 标准 Waterfall 与涨跌语义色
+
+标准瀑布图使用现有 ECharts table dataset 与四个堆叠 bar（透明基座、增加、减少、合计），
+支持跨零、负余额及小计。见 [完整模板](skills/markdown-chart/references/waterfall.md)。
+分析过程先准备累计值，所有系列使用 `stackStrategy:"all"`；不存在原生 `type:"waterfall"`。
+
+KPI 新输出设置 `spec.colorConvention`：中文 `red-up-green-down`、英文
+`green-up-red-down`，比较文字和趋势线一致着色。颜色按数值方向，与业务 polarity/status
+分离；零变化中性、无有效比较时趋势线保留 accent。省略字段保留旧行为。Waterfall 以
+显式 series 颜色遵守同一规则。先升级组件与宿主，再启用新 Skill。

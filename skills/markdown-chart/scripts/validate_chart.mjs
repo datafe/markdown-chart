@@ -469,6 +469,9 @@ function validateSpec(spec, dimensions, errors) {
     if (typeof series.type !== "string" || !series.type) {
       addError(errors, "MISSING_SERIES_TYPE", `${seriesPath}.type`, "each series must declare a type.");
     }
+    if (series.type === "waterfall") {
+      addError(errors, "UNSUPPORTED_WATERFALL_SERIES", `${seriesPath}.type`, "ECharts has no native waterfall series; use stacked bar series with a transparent base and stackStrategy: all. See references/waterfall.md.");
+    }
     if (!isPlainObject(series.encode) || Object.keys(series.encode).length === 0) {
       addError(errors, "MISSING_SERIES_ENCODE", `${seriesPath}.encode`, "each series must map the dataset with encode.");
     } else if (dimensions) {
@@ -1278,7 +1281,10 @@ function validateKpiEnvelope(envelope, errors) {
     addError(errors, "INVALID_KPI_SPEC", "$.spec", "kpi spec must be an object.");
     return;
   }
-  validateOwnKeys(envelope.spec, new Set(["timeField", "items"]), "$.spec", errors);
+  validateOwnKeys(envelope.spec, new Set(["timeField", "items", "colorConvention"]), "$.spec", errors);
+  if (envelope.spec.colorConvention !== undefined && !["red-up-green-down", "green-up-red-down"].includes(envelope.spec.colorConvention)) {
+    addError(errors, "INVALID_COLOR_CONVENTION", "$.spec.colorConvention", "colorConvention must be red-up-green-down or green-up-red-down.");
+  }
   const commonTimeField = envelope.spec.timeField === undefined
     ? null
     : validateKpiField(envelope.spec.timeField, "$.spec.timeField", null, errors);
