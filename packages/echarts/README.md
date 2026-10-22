@@ -172,3 +172,13 @@ The removal release will delete the `legacySandbox` renderer option, temporary
 type exports, and `src/legacy` implementation together while retaining canonical
 parsing and validation. See the ChatBI OpenAPI example for host-side List/Get
 proxy integration during the migration.
+
+### Standard waterfall
+
+Use the [canonical waterfall template](../../skills/markdown-chart/references/waterfall.md)
+with prepared balances and four native bar series. `stackStrategy: "all"` and
+zero placeholders preserve geometry through negative balances and zero crossings.
+Totals are snapshots from zero, not extra deltas. Bind signed labels/tooltips to
+semantic data columns; keep the helper invisible and legend selection disabled.
+Explicit red/green series colors follow the [output language convention](../../skills/markdown-chart/references/semantic-colors.md).
+The adapter rejects nonexistent `series.type: "waterfall"` with guidance to use native bars.

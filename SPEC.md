@@ -224,6 +224,7 @@ contains 1–12 entries:
     ]
   },
   "spec": {
+    "colorConvention": "green-up-red-down",
     "timeField": "day",
     "items": [{
       "id": "conversion_rate",
@@ -331,3 +332,21 @@ New incompatible canonical envelopes or data schemas require a new numeric
 canonical `version`; incompatible renderer schemas should use a new renderer
 identifier or shorthand version. New renderer implementations are published as
 independent packages and registered at runtime.
+
+### Standard waterfall and direction colors
+
+Waterfalls use canonical table data and four native stacked bars: transparent
+base, increase, decrease, total. Prepare balances in the analysis step; use
+`stackStrategy: "all"` with numeric zero placeholders for inactive series to
+support negative balances, zero crossings and subtotal snapshots. ECharts has
+no native `type: "waterfall"`. See the [complete template](skills/markdown-chart/references/waterfall.md).
+
+KPI `spec.colorConvention` optionally accepts only `red-up-green-down` or
+`green-up-red-down`. Use the first for Chinese output and the second for English.
+Comparison text and line/area sparklines follow the actual delta direction,
+independent of business polarity. Zero is neutral; unavailable comparisons keep
+the ordinary accent trend. Business `status.tone` is unchanged. Omitting the
+field preserves legacy polarity-based comparison colors and accent trends.
+Persist the convention in the envelope; do not infer it from browser language.
+Waterfall series explicitly use the same direction colors, with a separate
+total color. Upgrade renderers and hosts before enabling the new Skill field.

@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "renderer": "kpi",
+  "data": {
+    "kind": "inline",
+    "dimensions": [
+      "day",
+      "revenue",
+      "cost",
+      "flat"
+    ],
+    "source": [
+      [
+        "2026-10-21",
+        100,
+        80,
+        30
+      ],
+      [
+        "2026-10-22",
+        120,
+        60,
+        30
+      ]
+    ]
+  },
+  "spec": {
+    "colorConvention": "red-up-green-down",
+    "timeField": "day",
+    "items": [
+      {
+        "id": "revenue",
+        "title": "收入",
+        "value": {
+          "field": "revenue"
+        },
+        "trend": {
+          "type": "area",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "较上期",
+            "polarity": "higher-is-better"
+          }
+        },
+        "status": {
+          "text": {
+            "literal": "正常"
+          },
+          "tone": {
+            "literal": "positive"
+          }
+        }
+      },
+      {
+        "id": "cost",
+        "title": "成本",
+        "value": {
+          "field": "cost"
+        },
+        "trend": {
+          "type": "line",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "较上期",
+            "polarity": "lower-is-better"
+          }
+        }
+      },
+      {
+        "id": "flat",
+        "title": "持平",
+        "value": {
+          "field": "flat"
+        },
+        "trend": {
+          "type": "line",
+          "compare": {
+            "lag": 1,
+            "mode": "absolute",
+            "label": "较上期",
+            "polarity": "neutral"
+          }
+        }
+      }
+    ]
+  }
+}
