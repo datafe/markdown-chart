@@ -1,5 +1,15 @@
 # @datafe-open/markdown-chart-kpi
 
+## 0.4.0
+
+### Minor Changes
+
+- 6282fc0: Add optional KPI colorConvention for Chinese red-up/green-down and English green-up/red-down comparison text and sparklines, preserving legacy behavior when omitted. Document and verify native stacked-bar waterfalls with negative balances, subtotal snapshots and signed tooltips. Update Skill guidance and validators; upgrade renderers and hosts before enabling new Skill output.
+
+### Patch Changes
+
+- @datafe-open/markdown-chart@0.4.0
+
 ## 0.3.4
 
 ### Patch Changes

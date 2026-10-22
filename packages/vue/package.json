@@ -1,6 +1,6 @@
 {
   "name": "@datafe-open/markdown-chart-vue",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Vue 3 lifecycle adapter for Markdown Chart",
   "license": "MIT",
   "repository": {
