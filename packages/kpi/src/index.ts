@@ -20,6 +20,7 @@ export type KpiTone = 'neutral' | 'positive' | 'warning' | 'negative';
 export type KpiFormatStyle = 'text' | 'decimal' | 'percent' | 'currency' | 'unit';
 export type KpiTrendType = 'line' | 'area';
 export type KpiCompareMode = 'absolute' | 'relative';
+export type KpiColorConvention = 'red-up-green-down' | 'green-up-red-down';
 export type KpiPolarity = 'higher-is-better' | 'lower-is-better' | 'neutral';
 
 export interface KpiReference {
@@ -87,6 +88,7 @@ export interface KpiItem {
 }
 
 export interface KpiSpec {
+  readonly colorConvention?: KpiColorConvention;
   readonly timeField?: string;
   readonly items: readonly KpiItem[];
 }
@@ -120,7 +122,12 @@ interface MaterializedTrend {
   readonly type: KpiTrendType;
   readonly values: readonly (number | null)[];
   readonly includeZero: boolean;
-  readonly comparison?: { readonly text: string; readonly tone: KpiTone };
+  readonly colorConvention?: KpiColorConvention;
+  readonly comparison?: {
+    readonly text: string;
+    readonly tone: KpiTone;
+    readonly direction: 'up' | 'down' | 'flat';
+  };
 }
 
 interface MaterializedKpiItem {
@@ -435,9 +442,13 @@ function parseItem(value: JsonValue, path: string): KpiItem {
 
 export function parseKpiSpec(value: JsonValue): KpiSpec {
   if (!isJsonObject(value)) return schemaError('markdown-chart.spec for kpi must be an object');
-  assertOwnKeys(value, new Set(['timeField', 'items']), 'markdown-chart.spec');
+  assertOwnKeys(value, new Set(['timeField', 'items', 'colorConvention']), 'markdown-chart.spec');
   if (!Array.isArray(value.items) || value.items.length === 0 || value.items.length > MAX_ITEMS) {
     return schemaError(`markdown-chart.spec.items must contain 1-${MAX_ITEMS} KPI items`);
+  }
+  const colorConvention = value.colorConvention;
+  if (colorConvention !== undefined && colorConvention !== 'red-up-green-down' && colorConvention !== 'green-up-red-down') {
+    return schemaError('markdown-chart.spec.colorConvention must be red-up-green-down or green-up-red-down');
   }
   const items = value.items.map((item, index) => parseItem(item, `markdown-chart.spec.items[${index}]`));
   if (new Set(items.map((item) => item.id)).size !== items.length) {
@@ -449,7 +460,7 @@ export function parseKpiSpec(value: JsonValue): KpiSpec {
       schemaError(`markdown-chart.spec.items[${index}].trend requires timeField or spec.timeField`);
     }
   });
-  return { ...(timeField ? { timeField } : {}), items };
+  return { ...(timeField ? { timeField } : {}), ...(colorConvention ? { colorConvention } : {}), items };
 }
 
 function formatValue(value: JsonPrimitive | undefined, format: KpiValueFormat | undefined): string {
@@ -593,12 +604,14 @@ function materializeTrend(
         comparison = {
           text: `${trend.compare.label ?? `vs ${trend.compare.lag} row${trend.compare.lag === 1 ? '' : 's'}`} ${signed}`,
           tone: comparisonTone(displayDelta, trend.compare.polarity),
+          direction: absoluteDelta > 0 ? 'up' : absoluteDelta < 0 ? 'down' : 'flat',
         };
       }
     }
   }
   return {
     type: trend.type,
+    colorConvention: spec.colorConvention,
     values,
     includeZero: trend.yScale?.includeZero ?? false,
     ...(comparison ? { comparison } : {}),
@@ -801,7 +814,16 @@ function toneColor(tone: KpiTone, theme: unknown): string {
   return variable('--markdown-chart-kpi-muted', themeFallback(theme, '#687386', '#aeb5c2'));
 }
 
-function createSparkline(trend: MaterializedTrend): SVGSVGElement {
+function directionColor(trend: MaterializedTrend, theme: unknown): string | undefined {
+  if (!trend.colorConvention || !trend.comparison) return undefined;
+  if (trend.comparison.direction === 'flat') return toneColor('neutral', theme);
+  const red = (trend.comparison.direction === 'up') === (trend.colorConvention === 'red-up-green-down');
+  return red
+    ? variable('--markdown-chart-kpi-red', themeFallback(theme, '#d93025', '#ff8b82'))
+    : variable('--markdown-chart-kpi-green', themeFallback(theme, '#138a55', '#62c795'));
+}
+
+function createSparkline(trend: MaterializedTrend, color: string | undefined): SVGSVGElement {
   const namespace = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(namespace, 'svg');
   svg.classList.add('markdown-chart-kpi-sparkline');
@@ -840,14 +862,15 @@ function createSparkline(trend: MaterializedTrend): SVGSVGElement {
     if (trend.type === 'area' && points.length >= 2) {
       const area = document.createElementNS(namespace, 'path');
       area.setAttribute('d', `M ${points[0]?.x ?? 0} 42 L ${points.map((point) => `${point.x} ${point.y}`).join(' L ')} L ${points.at(-1)?.x ?? 0} 42 Z`);
-      area.setAttribute('fill', variable('--markdown-chart-kpi-accent-soft', 'rgba(74, 99, 241, 0.14)'));
+      area.setAttribute('fill', color ?? variable('--markdown-chart-kpi-accent-soft', 'rgba(74, 99, 241, 0.14)'));
+      if (color) area.setAttribute('fill-opacity', '0.14');
       svg.append(area);
     }
     if (points.length >= 2) {
       const line = document.createElementNS(namespace, 'polyline');
       line.setAttribute('points', points.map((point) => `${point.x},${point.y}`).join(' '));
       line.setAttribute('fill', 'none');
-      line.setAttribute('stroke', variable('--markdown-chart-kpi-accent', '#4a63f1'));
+      line.setAttribute('stroke', color ?? variable('--markdown-chart-kpi-accent', '#4a63f1'));
       line.setAttribute('stroke-width', '2.2');
       line.setAttribute('stroke-linecap', 'round');
       line.setAttribute('stroke-linejoin', 'round');
@@ -924,14 +947,16 @@ function createCard(
     const trend = document.createElement('div');
     trend.className = 'markdown-chart-kpi-trend';
     setStyles(trend, { display: 'grid', gap: '4px', marginTop: '12px' });
-    trend.append(createSparkline(item.trend));
+    const color = directionColor(item.trend, context.theme);
+    trend.append(createSparkline(item.trend, color));
     if (item.trend.comparison) {
       const comparison = document.createElement('div');
       comparison.className = 'markdown-chart-kpi-compare';
       comparison.dataset.markdownChartKpiTone = item.trend.comparison.tone;
+      comparison.dataset.markdownChartKpiDirection = item.trend.comparison.direction;
       comparison.textContent = item.trend.comparison.text;
       setStyles(comparison, {
-        color: toneColor(item.trend.comparison.tone, context.theme), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
+        color: color ?? toneColor(item.trend.comparison.tone, context.theme), fontSize: '11px', fontWeight: '550', lineHeight: '1.35',
       });
       trend.append(comparison);
     }

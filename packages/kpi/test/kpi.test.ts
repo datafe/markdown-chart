@@ -25,6 +25,7 @@ async function render(
   source: string,
   options: Parameters<typeof createKpiRenderer>[0] = {},
   referenceActions?: ChartReferenceActions,
+  theme?: 'light' | 'dark',
 ): Promise<{ container: HTMLDivElement; controller: ChartController }> {
   const registry = new ChartRendererRegistry().register(createKpiRenderer(options));
   const controller = new ChartController(registry);
@@ -32,6 +33,7 @@ async function render(
   await controller.render(container, {
     language: 'markdown-chart',
     source,
+    theme,
     ...(referenceActions ? { referenceActions } : {}),
   });
   return { container, controller };
@@ -391,6 +393,68 @@ describe('KPI data/config contract', () => {
       .toBe('positive');
     expect(container.querySelector('[data-markdown-chart-kpi-id="lower"] .markdown-chart-kpi-compare')?.getAttribute('data-markdown-chart-kpi-tone'))
       .toBe('negative');
+    expect(container.querySelector<HTMLElement>('[data-markdown-chart-kpi-id="higher"] .markdown-chart-kpi-compare')?.style.color).toContain('--markdown-chart-kpi-positive');
+    expect(container.querySelector('polyline')?.getAttribute('stroke')).toContain('--markdown-chart-kpi-accent');
+  });
+
+  it.each(['red-up-green-down', 'green-up-red-down'] as const)('colors signed comparisons and trends with %s', async (colorConvention) => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const type of ['line', 'area'] as const) {
+        for (const mode of ['absolute', 'relative'] as const) {
+          const { container } = await render(envelope(
+            { kind: 'inline', source: [{ t: 1, up: -10, down: 10, flat: 10 }, { t: 2, up: -8, down: 8, flat: 10 }] },
+            {
+              timeField: 't', colorConvention,
+              items: ['up', 'down', 'flat'].map((direction) => ({
+                id: direction, title: direction, value: { field: direction, format: { style: 'decimal' } },
+                status: { text: { literal: 'Business status' }, tone: { literal: 'positive' } },
+                trend: { type, compare: { lag: 1, mode, polarity: 'lower-is-better' } },
+              })),
+            },
+          ), {}, undefined, theme);
+          for (const direction of ['up', 'down', 'flat']) {
+            const card = container.querySelector(`[data-markdown-chart-kpi-id="${direction}"]`)!;
+            const compare = card.querySelector<HTMLElement>('.markdown-chart-kpi-compare')!;
+            const red = (direction === 'up') === (colorConvention === 'red-up-green-down');
+            const expected = direction === 'flat'
+              ? `var(--markdown-chart-kpi-muted, ${theme === 'dark' ? '#aeb5c2' : '#687386'})`
+              : red ? `var(--markdown-chart-kpi-red, ${theme === 'dark' ? '#ff8b82' : '#d93025'})`
+                : `var(--markdown-chart-kpi-green, ${theme === 'dark' ? '#62c795' : '#138a55'})`;
+            expect(compare.style.color).toBe(expected);
+            expect(compare.dataset.markdownChartKpiDirection).toBe(direction);
+            expect(compare.textContent).toContain(direction === 'flat' ? '0' : `${direction === 'up' ? '+' : '-'}${mode === 'relative' ? '20%' : '2'}`);
+            expect(card.querySelector('polyline')?.getAttribute('stroke')).toBe(expected);
+            if (type === 'area') {
+              expect(card.querySelector('path')?.getAttribute('fill')).toBe(expected);
+              expect(card.querySelector('path')?.getAttribute('fill-opacity')).toBe('0.14');
+            }
+            expect(card.querySelector<HTMLElement>('.markdown-chart-kpi-status')?.style.color).toContain('--markdown-chart-kpi-positive');
+          }
+        }
+      }
+    }
+  });
+
+  it.each([null, '', 'zh', 1, {}])('rejects invalid colorConvention %j', (colorConvention) => {
+    expect(() => parseKpiSpec({ colorConvention, items: [{ id: 'one', title: 'One', value: { field: 'v' } }] }))
+      .toThrow('colorConvention must be');
+  });
+
+  it.each([
+    { source: [[1, 0], [2, 5]], compare: { lag: 1, mode: 'relative' } },
+    { source: [[1, 1], [2, 5]], compare: { lag: 3, mode: 'absolute' } },
+    { source: [[0, 1], [1, 2], [2, null], [3, 5]], compare: { lag: 1, mode: 'absolute' } },
+    { source: [[1, 1], [2, 5]], compare: undefined },
+  ])('keeps accent when no valid comparison exists: %j', async ({ source, compare }) => {
+    const { container } = await render(envelope(
+      { kind: 'inline', dimensions: ['t', 'v'], source },
+      { colorConvention: 'red-up-green-down', timeField: 't', items: [{
+        id: 'one', title: 'One', value: { field: 'v' }, trend: { type: 'area', compare },
+      }] },
+    ));
+    expect(container.querySelector('.markdown-chart-kpi-compare')).toBeNull();
+    expect(container.querySelector('polyline')?.getAttribute('stroke')).toContain('--markdown-chart-kpi-accent');
+    expect(container.querySelector('.markdown-chart-kpi-sparkline path')?.getAttribute('fill')).toContain('--markdown-chart-kpi-accent-soft');
   });
 
   it('uses exact source-row lag and does not skip a null comparison row', async () => {

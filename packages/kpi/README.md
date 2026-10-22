@@ -31,6 +31,7 @@ renderer-owned field, format, trend, status, and reference configuration:
     ]
   },
   "spec": {
+    "colorConvention": "green-up-red-down",
     "timeField": "day",
     "items": [
       {
@@ -137,3 +138,17 @@ domain meaning to either icon.
 Hosts can align the renderer with their theme through the
 `--markdown-chart-kpi-*` CSS custom properties. Unset properties have light and
 dark fallbacks selected from the chart mount theme.
+
+### Direction colors
+
+Set `spec.colorConvention` to `red-up-green-down` for Chinese output or
+`green-up-red-down` for English output. Comparison text and its line/area
+sparkline use the actual delta direction, independent of `polarity`. Zero uses
+neutral gray; missing/undefined comparisons keep the ordinary accent sparkline.
+Status tones still describe business status. Without this optional field, old
+messages retain polarity-based comparison colors and accent sparklines.
+The stored convention controls replay; browser language does not change it.
+
+Direction colors support `--markdown-chart-kpi-red` and
+`--markdown-chart-kpi-green`, with light/dark defaults; status color variables
+are unchanged. Upgrade the renderer before enabling Skill output with this field.
