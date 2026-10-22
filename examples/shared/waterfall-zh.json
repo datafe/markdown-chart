@@ -1,0 +1,224 @@
+{
+  "version": 1,
+  "renderer": "echarts",
+  "data": {
+    "kind": "inline",
+    "dimensions": [
+      "step",
+      "kind",
+      "change",
+      "balance",
+      "base",
+      "increase",
+      "decrease",
+      "total",
+      "increase_label",
+      "decrease_label",
+      "total_label"
+    ],
+    "source": [
+      [
+        "期初",
+        "total",
+        null,
+        100,
+        0,
+        0,
+        0,
+        100,
+        null,
+        null,
+        "100"
+      ],
+      [
+        "收入",
+        "change",
+        40,
+        140,
+        100,
+        40,
+        0,
+        0,
+        "+40",
+        null,
+        null
+      ],
+      [
+        "成本",
+        "change",
+        -180,
+        -40,
+        -40,
+        0,
+        180,
+        0,
+        null,
+        "−180",
+        null
+      ],
+      [
+        "小计",
+        "total",
+        null,
+        -40,
+        0,
+        0,
+        0,
+        -40,
+        null,
+        null,
+        "−40"
+      ],
+      [
+        "回收",
+        "change",
+        70,
+        30,
+        -40,
+        70,
+        0,
+        0,
+        "+70",
+        null,
+        null
+      ],
+      [
+        "期末",
+        "total",
+        null,
+        30,
+        0,
+        0,
+        0,
+        30,
+        null,
+        null,
+        "30"
+      ]
+    ]
+  },
+  "spec": {
+    "title": {
+      "text": "标准瀑布：跨零与小计（示例数据）"
+    },
+    "legend": {
+      "data": [
+        "增加",
+        "减少",
+        "合计"
+      ],
+      "selectedMode": false
+    },
+    "tooltip": {
+      "trigger": "item"
+    },
+    "xAxis": {
+      "type": "category"
+    },
+    "yAxis": {
+      "type": "value"
+    },
+    "series": [
+      {
+        "name": "基座",
+        "type": "bar",
+        "stack": "waterfall",
+        "stackStrategy": "all",
+        "itemStyle": {
+          "color": "transparent",
+          "opacity": 0,
+          "borderWidth": 0,
+          "borderRadius": 0
+        },
+        "encode": {
+          "x": "step",
+          "y": "base"
+        },
+        "silent": true,
+        "tooltip": {
+          "show": false
+        },
+        "label": {
+          "show": false
+        },
+        "emphasis": {
+          "disabled": true
+        }
+      },
+      {
+        "name": "增加",
+        "type": "bar",
+        "stack": "waterfall",
+        "stackStrategy": "all",
+        "itemStyle": {
+          "color": "#d93025",
+          "borderRadius": 0
+        },
+        "encode": {
+          "x": "step",
+          "y": "increase",
+          "itemName": "step",
+          "tooltip": [
+            "change",
+            "balance"
+          ],
+          "label": "increase_label"
+        },
+        "label": {
+          "show": true,
+          "position": "top",
+          "color": "#687386"
+        }
+      },
+      {
+        "name": "减少",
+        "type": "bar",
+        "stack": "waterfall",
+        "stackStrategy": "all",
+        "itemStyle": {
+          "color": "#138a55",
+          "borderRadius": 0
+        },
+        "encode": {
+          "x": "step",
+          "y": "decrease",
+          "itemName": "step",
+          "tooltip": [
+            "change",
+            "balance"
+          ],
+          "label": "decrease_label"
+        },
+        "label": {
+          "show": true,
+          "position": "bottom",
+          "color": "#687386"
+        }
+      },
+      {
+        "name": "合计",
+        "type": "bar",
+        "stack": "waterfall",
+        "stackStrategy": "all",
+        "itemStyle": {
+          "color": "#2563eb",
+          "borderRadius": 0
+        },
+        "encode": {
+          "x": "step",
+          "y": "total",
+          "itemName": "step",
+          "tooltip": [
+            "balance"
+          ],
+          "label": "total_label"
+        },
+        "label": {
+          "show": true,
+          "position": "outside",
+          "color": "#687386"
+        }
+      }
+    ]
+  }
+}

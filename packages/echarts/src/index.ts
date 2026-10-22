@@ -453,6 +453,9 @@ function assertSafeOption(option: Record<string, JsonValue>, limits: EChartsLimi
       if (FORBIDDEN_OPTION_KEYS.has(normalizedKey) || URL_BEARING_OPTION_KEY.test(key)) {
         throw new MarkdownChartError('UNSAFE_SPEC', `${path}.${key} is not allowed`);
       }
+      if (key === 'type' && child === 'waterfall' && /^echarts\.option\.series(?:\[\d+\])?$/.test(path)) {
+        schemaError('ECharts has no native waterfall series; use stacked bar series with a transparent base and stackStrategy: all');
+      }
       if (key === 'type' && child === 'custom') {
         throw new MarkdownChartError('UNSAFE_SPEC', 'Custom ECharts series are not allowed');
       }
