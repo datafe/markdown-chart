@@ -147,6 +147,9 @@ export function MarkdownChartBlock(props: MarkdownChartBlockProps): ReactElement
       ...(referenceActions !== undefined
         ? { referenceActions }
         : {}),
+      ...(configuration.onError !== undefined
+        ? { onError: configuration.onError }
+        : {}),
     }).catch((error: unknown) => {
       if (disposed) {
         return;

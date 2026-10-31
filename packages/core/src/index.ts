@@ -1180,6 +1180,14 @@ export interface ChartRenderRequest {
   readonly loadingLabel?: string;
   readonly labels?: MarkdownChartLabelOverrides;
   readonly referenceActions?: ChartReferenceActions;
+  /**
+   * Called when chart rendering fails but the chart view can degrade to the
+   * data table instead of the placeholder "chart unavailable" state.
+   *
+   * When this callback is not provided, the controller still performs the
+   * degraded table fallback; the callback only affects error reporting.
+   */
+  readonly onError?: (error: unknown, context: { language: string; source: string }) => void;
 }
 
 export const DEFAULT_MARKDOWN_CHART_LOADING_LABEL = 'Rendering chart…';
@@ -1898,6 +1906,10 @@ function createDataView(
 
 interface ChartView {
   readonly chartContainer: HTMLElement;
+  /** Force the view into the data (table) mode. */
+  showData(): void;
+  /** Render a chart render error into the chart viewport area. */
+  showRenderError(error: MarkdownChartError): void;
   dispose(): void;
 }
 
@@ -2096,6 +2108,12 @@ function createChartView(
 
   return {
     chartContainer,
+    showData() {
+      showData();
+    },
+    showRenderError(error: MarkdownChartError) {
+      showMaterializedRenderError(chartContainer, error);
+    },
     dispose() {
       disposed = true;
       signal.removeEventListener('abort', abortDataView);
@@ -2235,6 +2253,33 @@ export class ChartController {
       container.removeAttribute('aria-busy');
     } catch (error) {
       if (generation !== this.#generation || abortController.signal.aborted) {
+        return;
+      }
+      const view: ChartView | undefined = this.#view;
+      if (view) {
+        // Degrade to the data table when inline data is available even though
+        // mounting/parsing the chart itself failed. Keep the Chart tab visible
+        // with the error details so users can still inspect what failed.
+        removeChartLoading(container);
+        container.removeAttribute('aria-busy');
+        this.#hasCompletedRender = true;
+        const normalized =
+          error instanceof MarkdownChartError
+            ? error
+            : new MarkdownChartError('RENDER_FAILED', String(error ?? 'Chart render failed'), { cause: error });
+        try {
+          view.showRenderError(normalized);
+          view.showData();
+        } catch {
+          // Host-supplied data view providers may throw while mounting the
+          // fallback table. Swallow so we still deliver the data view and
+          // the onError signal instead of breaking the whole render.
+        }
+        try {
+          request.onError?.(error, { language: request.language, source: request.source });
+        } catch {
+          // Host error handlers must not break the degraded rendering path.
+        }
         return;
       }
       this.#view?.dispose();

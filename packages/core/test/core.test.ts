@@ -706,6 +706,122 @@ describe('ChartController', () => {
     await vi.waitFor(() => expect(element.querySelector('tbody')?.textContent).toContain('Fallback7'));
   });
 
+  it('falls back to the data table view when chart mounting fails but inline data is present', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse: (spec) => spec,
+      materialize: (parsed) => ({
+        parsed,
+        data: {
+          kind: 'inline' as const,
+          dimensions: ['name', 'value'],
+          source: [['A', 10], ['B', 20]],
+        },
+      }),
+      mount() {
+        throw new Error('boom');
+      },
+    });
+    const element = document.createElement('div');
+    const onError = vi.fn();
+
+    await new ChartController(registry).render(element, {
+      language: 'test',
+      source: '{}',
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledOnce();
+    // Data view selected automatically.
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.textContent).toContain('A10');
+    expect(dataView?.textContent).toContain('B20');
+    // Chart viewport still exists and shows the error message rather than the placeholder.
+    const chartView = element.querySelector<HTMLElement>('[data-markdown-chart-chart-view]');
+    expect(chartView?.hidden).toBe(true);
+    expect(chartView?.querySelector('.markdown-chart-render-error')).not.toBeNull();
+  });
+
+  it('still completes the degraded data view when the host onError handler throws', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse: (spec) => spec,
+      materialize: (parsed) => ({
+        parsed,
+        data: {
+          kind: 'inline' as const,
+          dimensions: ['name', 'value'],
+          source: [['A', 10]],
+        },
+      }),
+      mount() { throw new Error('boom'); },
+    });
+    const element = document.createElement('div');
+    const onError = vi.fn(() => { throw new Error('host onError crashed'); });
+
+    await new ChartController(registry).render(element, {
+      language: 'test',
+      source: '{}',
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledOnce();
+    // Even though the host onError handler itself throws, the data view is
+    // still mounted and visible.
+    const dataView = element.querySelector<HTMLElement>('[data-markdown-chart-data-view]');
+    expect(dataView?.hidden).toBe(false);
+    expect(dataView?.querySelector('tbody')?.textContent).toContain('A10');
+  });
+
+  it('still throws when mounting fails and there is no inline data', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse: (spec) => spec,
+      materialize: (parsed) => ({ parsed, data: undefined }),
+      mount() {
+        throw new Error('boom');
+      },
+    });
+    const element = document.createElement('div');
+    const onError = vi.fn();
+
+    await expect(
+      new ChartController(registry).render(element, {
+        language: 'test',
+        source: '{}',
+        onError,
+      }),
+    ).rejects.toThrow('boom');
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('still throws when parse fails before any chart view exists', async () => {
+    const registry = new ChartRendererRegistry().register({
+      id: 'test',
+      aliases: ['test'],
+      parse() {
+        throw new Error('parse boom');
+      },
+      mount() {},
+    });
+    const element = document.createElement('div');
+    const onError = vi.fn();
+
+    await expect(
+      new ChartController(registry).render(element, {
+        language: 'test',
+        source: '{}',
+        onError,
+      }),
+    ).rejects.toThrow('parse boom');
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+
   it('disposes a Data view handle that resolves after the chart is disposed', async () => {
     let finishMount: ((handle: { dispose(): void }) => void) | undefined;
     const lateDispose = vi.fn();

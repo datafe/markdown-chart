@@ -184,6 +184,9 @@ class MarkdownChartMountManager {
         ...(options.referenceActions !== undefined
           ? { referenceActions: options.referenceActions }
           : {}),
+        ...(options.onError !== undefined
+          ? { onError: (error: unknown) => options.onError?.(error, block) }
+          : {}),
       }).catch((error: unknown) => {
         if (this.#entries.get(block.id) !== entry) {
           return;
