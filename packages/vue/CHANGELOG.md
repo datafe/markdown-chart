@@ -1,5 +1,23 @@
 # @datafe-open/markdown-chart-vue
 
+## 0.4.1
+
+### Patch Changes
+
+- 7134e88: Degrade to the data table when chart mounting fails but inline data is
+  already readable, instead of replacing the entire placeholder with "chart
+  unavailable". Hosts may now observe the failure through a new optional
+  `ChartRenderRequest.onError` callback while users keep access to the
+  data table. Failures that happen before any inline data exists (parse,
+  prepare, or renderer-reported data contract violations such as KPI's
+  schema/limit checks) keep the original placeholder behaviour.
+- Updated dependencies [7134e88]
+  - @datafe-open/markdown-chart@0.4.1
+  - @datafe-open/markdown-chart-echarts@0.4.1
+  - @datafe-open/markdown-chart-kpi@0.4.1
+  - @datafe-open/markdown-chart-markdown-it@0.4.1
+  - @datafe-open/markdown-chart-table@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes
